@@ -1,15 +1,21 @@
 import numpy
 from matplotlib import pyplot
 
-import profiles
 from cluster import ObservedCluster
-from generate_plots import plot_chandra_temperature
-from generate_plots import plot_chandra_parm
+import fit
+import plot
+
+from plotsettings import PlotSettings
+style = PlotSettings()
 
 
 if __name__ == "__main__":
     cygA = ObservedCluster("cygA")
     cygNW = ObservedCluster("cygNW")
 
-    plot_chandra_parm(cygA, "rho")
-    pyplot.show()
+    # plot.chandra_temperature(cygA)
+    # plot.chandra_parm(cygA, "n")
+    # plot.chandra_coolingtime(cygA)
+    plot.bestfit_betamodel(cygA)
+    plot.bestfit_betamodel(cygNW)
+    # pyplot.show()

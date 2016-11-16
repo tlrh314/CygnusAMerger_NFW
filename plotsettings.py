@@ -43,7 +43,7 @@ class PlotSettings(object):
                 # "legend.fontsize": 12,
                 # "xtick.labelsize": 10,
                 # "ytick.labelsize": 10,
-                # "text.usetex": True,
+                "text.usetex": True,
                 # "text.latex.preamble": r"\boldmath",
                 # "axes.unicode_minus": True,
             }
@@ -75,7 +75,7 @@ class PlotSettings(object):
                 # "legend.fontsize": 12,
                 # "xtick.labelsize": 10,
                 # "ytick.labelsize": 10,
-                # "text.usetex": True,
+                "text.usetex": True,
                 # "text.latex.preamble": r"\boldmath",
                 # "axes.unicode_minus": True,
             }

@@ -1,4 +1,6 @@
 import numpy
+import astropy.units as u
+
 from macro import *
 
 
@@ -28,7 +30,7 @@ def dm_density_nfw(r, rho0_dm, rs, rcut=1e10):
     return rho_nfw / (1 + pr(r/rcut))  # with cutoff
 
 
-def gas_density_betamodel(r, rho0, beta, rc, rcut, do_cut=False):
+def gas_density_betamodel(r, rho0, beta, rc, rcut=numpy.nan, do_cut=False):
     """ Cavaliere & Fusco-Femiano (1978) betamodel for baryonic mass density
         Also see Donnert (2014; eq. 6), Donnert (2017, in prep)
         @param r:     radius, int or array
@@ -42,3 +44,13 @@ def gas_density_betamodel(r, rho0, beta, rc, rcut, do_cut=False):
     if do_cut:
         rho_gas /= (1 + p3(r/rcut))
     return rho_gas
+
+
+def sarazin_coolingtime(n_p, T_g):
+    """ Sarazin (1988; eq. 5.23) cooling time w/e line cooling (T_g > 3e7 K)
+        @param n_p: proton (or electron) number density [cm^-3], float
+        @param T_g: gas temperature [K], float
+        @return:    cooling timescale in clusters of galaxies [yr]
+    """
+
+    return 8.5e10*u.yr * (1e-3/u.cm**3)/n_p * numpy.sqrt(T_g/(1e8*u.K))
