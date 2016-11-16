@@ -1,10 +1,14 @@
 import astropy
 from matplotlib import pyplot
 
+import ioparser
 import convert
 from cosmology import CosmologyCalculator
 
 
+# ----------------------------------------------------------------------------
+# Class to hold Chandra observation
+# ----------------------------------------------------------------------------
 class ObservedCluster(object):
     """ Parse and store Chandra XVP (PI Wise) observation """
     def __init__(self, name):
@@ -22,38 +26,26 @@ class ObservedCluster(object):
         # We adopt concordance cosmology with generic cosmological parameters
         self.cc = CosmologyCalculator(z=0.0562, H0=70, WM=0.3, WV=0.7)
 
-        self.parse_quiescent()
-        if self.name == "cygA":
-            # no have sectoranalysis for CygNW
-            self.parse_sectors()
+        self.avg = ioparser.parse_chandra_quiescent(self.name)
+        self.set_radius(self.avg)
+        self.set_massdensity(self.avg)
+        self.avg = self.mask_bins(self.avg, first=5, last=3)  # or 2 2
+        if self.name == "cygA":  # no have sectoranalysis for CygNW
+            self.merger, self.hot, self.cold = ioparser.parse_chandra_sectors()
+            self.set_radius(self.merger)
+            self.set_radius(self.hot)
+            self.set_radius(self.cold)
+            self.set_massdensity(self.merger)
+            self.set_massdensity(self.hot)
+            self.set_massdensity(self.cold)
+            # sector analysis fit broke for last two bins
+            self.merger = self.mask_bins(self.merger, first=2, last=2)
+            self.hot = self.mask_bins(self.hot, first=6, last=2)
+            self.cold = self.mask_bins(self.cold, first=2, last=2)
+
 
     def __str__(self):
         return str(self.avg)
-
-    def parse_quiescent(self):
-        """ `quiescent', or average profile (data copied at 20161108) """
-        datadir = "/usr/local/mscproj/CygnusAMerger_NFW/data/20161108/"
-
-        # /scratch/martyndv/cygnus/combined/spectral/maps/radial/sn100/cygA_plots
-        # Last edit: Oct 18 09:27 (CygA), and Oct 18 11:37 (CygNW).
-        # Edit by TLRH after copy:
-            # header of datafile: i) removed spaces, ii) renamed Error to avoid double
-        # 252 bins (CygA). Radius1, Radius2, SB, SBError, BGRD, BGRDError, AREA
-        # 36 bins (CygNW)
-        sb_file = datadir+"{0}_sb_sn100.dat".format(self.name)
-        sbresults = astropy.io.ascii.read(sb_file)
-
-        # /scratch/martyndv/cygnus/combined/spectral/maps/radial/pressure_sn100
-        # Last edit: Nov  2 14:16 (CygA), and Nov  2 14:21 (CygNW).
-        # 252 bins (CygA). Volume, Temperature, number density, Pressure, Compton-Y
-        # Edit by TLRH after copy: removed '|' at beginning and end of each line
-        # Override because datafile has a messy header
-        ne_file = datadir+"{0}_sn100_therm_profile.dat".format(self.name)
-        header = ["Bin", "V", "kT", "fkT", "n", "fn", "P", "fP", "Yparm"]
-        neresults = astropy.io.ascii.read(ne_file, names=header, data_start=1)
-
-        self.avg = astropy.table.hstack([sbresults, neresults])
-        self.set_radius(self.avg)
 
     def set_radius(self, t):
         # An adaptive binning routine is used for data extraction to ensure
@@ -62,34 +54,21 @@ class ObservedCluster(object):
         t["radius"] = (t["Radius1"] + t["Radius2"])/2 * arcsec2kpc
         t["binsize"] = (t["Radius2"] - t["Radius1"]) * arcsec2kpc
 
-    def parse_sectors(self):
-        """ hot/cold/merger profiles (data copied at 20161108) """
-        datadir = "/usr/local/mscproj/CygnusAMerger_NFW/data/20161108/"
+    def set_massdensity(self, t):
+        # Set mass density from number density
+        t["rho"] = convert.ne_to_rho(t["n"])
+        t["frho"] = convert.ne_to_rho(t["fn"])
 
-        # /scratch/martyndv/cygnus/combined/spectral/maps/sector/plots
-        # Last edit: Oct 18 12:33
-        # fitresults = datadir+"cygnus_sector_fitresults.dat"
+    def mask_bins(self, t, first=0, last=1):
+        """ Mask first n bins, default 0 (mask nothing)
+            Mask last (n-1) bins, default 1 (mask nothing) """
+        t = astropy.table.Table(t, masked=True)
+        # discard first six bins: CygA dominated
+        t[0:first].mask = [True for i in range(len(t.columns))]
+        # discard last two bins: too low SNR
+        t[-last:].mask = [True for i in range(len(t.columns))]
+        return t
 
-        # /scratch/martyndv/cygnus/combined/spectral/maps/sector/pressure/
-        # Last edit: Oct 18 12:26
-        # Edit by TLRH after copy: removed '|' at beginning and end of each line
-            # Also cleaned up the header
-        sb_file = datadir+"cygnus_sector_sn100_sbprofile.dat"
-        sbresults = astropy.io.ascii.read(sb_file)
-
-        # /scratch/martyndv/cygnus/combined/spectral/maps/sector/pressure
-        # Last edit:  Nov  2 14:35
-        # Edit by TLRH after copy: removed '|' at beginning and end of each line
-        # Override because datafile has a messy header
-        ne_file = datadir+"cygnus_sector_therm_profile.dat"
-        header = ["Bin", "V", "kT", "fkT", "n", "fn", "P", "fP", "Yparm"]
-        neresults = astropy.io.ascii.read(ne_file, names=header, data_start=1)
-
-        sector = astropy.table.hstack([sbresults, neresults])
-        self.set_radius(sector)
-        self.merger = sector[0:166]
-        self.hot = sector[166:366]
-        self.cold = sector[366:439]
 
     def plot_chandra_average(self, parm="kT", alpha=0.2):
         """ plot of observed average profile of parm """
@@ -118,17 +97,4 @@ class ObservedCluster(object):
                             yerr=[self.cold["f"+parm], self.cold["f"+parm]],
                             marker="o", ls="", c="purple", ms=6, alpha=alpha,
                             elinewidth=2, label="Cold "+parm)
-
-if __name__ == "__main__":
-    cygA = ObservedCluster("cygA")
-    pyplot.figure(figsize=(12, 9))
-    cygA.plot_chandra_average(alpha=1)
-    cygA.plot_chandra_sector(alpha=1)
-    pyplot.xlabel("Radius [kpc]")
-    pyplot.xscale("log")
-    pyplot.xlim(1, 1000)
-    pyplot.ylabel("kT [keV]")
-    pyplot.ylim(2, 11)
-    pyplot.legend(loc="upper left")
-    pyplot.show()
-    cygNW = ObservedCluster("cygNW")
+# ----------------------------------------------------------------------------
