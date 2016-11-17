@@ -45,6 +45,16 @@ def dm_density_nfw(r, rho0_dm, rs, rcut=1e10, do_cut=False):
         rho_nfw /= (1 + p2(r/rcut))  # with cutoff
     return rho_nfw
 
+def dm_mass_nfw(r, rho0_dm, rs):
+    """ Navarro, Frenk, White (1996) profile for dark matter halo density
+        @param r:        radius, int or array
+        @param rho0_dm:  dark matter central denisty, float
+        @param rs:       NFW scale radius, float
+        @return:         NFW DM mass profile M(<r), int or array """
+
+    return 4*numpy.pi*rho0_dm*p3(rs) * (numpy.log((rs+r)/rs) - r/(rs+r))
+
+
 def cNFW(M200):
     """ Duffy+ (2008) concentration parameter for the dark matter halo
     NB we assume H0 = 70 km/s/Mpc.
@@ -57,16 +67,6 @@ def cNFW(M200):
     C = -0.47
     Mpivot = 2e12 / 0.7
     return A * numpy.power( M200/Mpivot, B)  # * numpy.power( 1+z, C)
-
-
-def dm_mass_nfw(r, rho0_dm, rs):
-    """ Navarro, Frenk, White (1996) profile for dark matter halo density
-        @param r:        radius, int or array
-        @param rho0_dm:  dark matter central denisty, float
-        @param rs:       NFW scale radius, float
-        @return:         NFW DM mass profile M(<r), int or array """
-
-    return 4*numpy.pi*rho0_dm*p3(rs) * (numpy.log((rs+r)/rs) - r/(rs+r))
 
 
 def gas_density_betamodel(r, rho0, beta, rc, rcut=None, do_cut=False):

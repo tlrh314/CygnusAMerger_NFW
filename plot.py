@@ -103,6 +103,7 @@ def bestfit_betamodel(c):
     avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
             "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+    fit = { "c": "k", "lw": 4, "ls": "solid" }
 
     fig, (ax, ax_r) = pyplot.subplots(2, 2, sharex=True, figsize=(16, 12))
     gs1 = matplotlib.gridspec.GridSpec(3, 3)
@@ -113,12 +114,12 @@ def bestfit_betamodel(c):
     # Plot Chandra observation and betamodel with mles
     pyplot.sca(ax)
 
-    c.plot_chandra_average(parm="n", style=avg)
-    c.plot_bestfit_betamodel()
+    c.plot_chandra_average(parm="rho", style=avg)
+    c.plot_bestfit_betamodel(style=fit)
     pyplot.ylabel("Density [1/cm$^3$]")
     pyplot.xscale("log")
     pyplot.yscale("log")
-    pyplot.ylim(numpy.min(c.avg["n"])/1.5, numpy.max(c.avg["n"])*1.3)
+    pyplot.ylim(numpy.min(c.avg["rho"])/1.5, numpy.max(c.avg["rho"])*1.3)
     pyplot.legend(loc="lower left", fontsize=22)
 
     # Plot residuals
@@ -142,4 +143,36 @@ def bestfit_betamodel(c):
     ax_r.get_yaxis().set_label_coords(-0.07, 0.5)
     pyplot.tight_layout()
     pyplot.savefig("out/bestfit_betamodel_{0}.pdf".format(c.name), dpi=150)
+    pyplot.sca(ax)
+
+
+def inferred_nfw_profile(c):
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+    fit = { "color": "k", "lw": 1, "linestyle": "dashed" }
+    dm = { "color": "k", "lw": 1, "linestyle": "solid" }
+
+    pyplot.figure(figsize=(12,9))
+    c.plot_chandra_average(parm="rho", style=avg)
+    c.plot_bestfit_betamodel(style=fit, do_cut=True)
+    c.plot_inferred_nfw_profile(style=dm)
+
+    #gas_density_betamodel(r, rho0, beta, rc)
+
+    pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
+        facecolor="grey", edgecolor="grey", alpha=0.2)
+    pyplot.axvline(x=c.halo["r200"], c="k", lw=1)
+    pyplot.text(c.halo["r200"]+100, 4e-24, r"$r_{200}$", ha="left", fontsize=22)
+
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel("Mass Density [g/cm$^3$]")
+    pyplot.xscale("log")
+    pyplot.yscale("log")
+    pyplot.xlim(xmin=1, xmax=1e4)
+    pyplot.ylim(ymin=1e-32, ymax=9e-24)
+    pyplot.legend(loc="lower left", fontsize=22)
+    pyplot.tight_layout()
+    pyplot.savefig("out/inferred_nfw_{0}.pdf".format(c.name), dpi=150)
 # ----------------------------------------------------------------------------

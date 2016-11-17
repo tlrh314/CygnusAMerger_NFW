@@ -76,7 +76,15 @@ class ObservedCluster(object):
         return t
 
     def set_bestfit_betamodel(self, verbose=False):
-        self.mles, self.fmles = fit.betamodel_to_chandra(self, verbose=verbose)
+        mles, fmles = fit.betamodel_to_chandra(self, verbose=verbose)
+        self.ne0 = mles[0]
+        self.rho0 = convert.ne_to_rho(self.ne0)
+        self.beta = mles[1]
+        self.rc = mles[2]
+        self.fne0 = fmles[0]
+        self.frho0 = convert.ne_to_rho(self.fne0)
+        self.fbeta = fmles[1]
+        self.frc = fmles[2]
 
     def set_total_gravitating_mass(self, verbose=False):
         self.halo = fit.total_gravitating_mass(self, verbose=verbose)
@@ -107,23 +115,32 @@ class ObservedCluster(object):
                             yerr=[self.cold["f"+parm], self.cold["f"+parm]],
                             **style)
 
-    def plot_bestfit_betamodel(self):
-        radii = numpy.arange(0, 1.1e3, 0.1)  # kpc
-        fit = profiles.gas_density_betamodel(radii, self.mles[0],
-                self.mles[1], self.mles[2], None, do_cut=False)
+    def plot_bestfit_betamodel(self, style=dict(), rho=True, do_cut=False):
+        radii = numpy.arange(0.1, 1.1e4, 0.1)  # kpc
+        fit = profiles.gas_density_betamodel(radii, self.rho0 if rho else self.ne0,
+                self.beta, self.rc, None if not do_cut else self.halo["r200"],
+                do_cut=do_cut)
 
-        label = r"\begin{tabular}{lll}"
-        label += " model & = & free beta \\\\"
-        label += r" rho0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.mles[0])
-        label += " beta & = & {0:.3f} kpc \\\\".format(self.mles[1])
-        label += " rc & = & {0:.2f} kpc \\\\".format(self.mles[2])
-        label += (" \end{tabular}")
-        pyplot.plot(radii, fit, c="k", lw=4, label=label)
-        pyplot.axvline(x=self.mles[2], lw=3, ls="dashed", c="k")
+        label = r"\begin{tabular}{p{2.5cm}ll}"
+        # label += " model & = & free beta \\\\"
+        if rho:
+            label += r" rho0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.rho0)
+        else:
+            label += r" ne0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.ne0)
+        label += " beta & = & {0:.3f} \\\\".format(self.beta)
+        label += " rc & = & {0:.2f} kpc \\\\".format(self.rc)
+        label += (" \hline \end{tabular}")
+        pyplot.plot(radii, fit, label=label, **style)
 
-    def plot_bestfit_residuals(self):
-        fit = profiles.gas_density_betamodel(self.avg["r"], self.mles[0],
-                self.mles[1], self.mles[2], None, do_cut=False)
+        ymin = profiles.gas_density_betamodel(
+            self.rc, self.rho0 if rho else self.ne0, self.beta, self.rc)
+        pyplot.vlines(x=self.rc, ymin=ymin, ymax=9e-24 if rho else 9.15, **style)
+        pyplot.text(self.rc+25 if self.name == "cygNW" else self.rc+1,
+            4e-24 if rho else 4.06, r"$r_c$", ha="left", fontsize=22)
+
+    def plot_bestfit_residuals(self, rho=True):
+        fit = profiles.gas_density_betamodel(self.avg["r"],
+            self.rho0 if rho else self.ne0, self.beta, self.rc)
 
         residuals = (self.avg["n"] - fit)/self.avg["n"]
 
@@ -132,5 +149,22 @@ class ObservedCluster(object):
                         ls="", c="k", lw=3, elinewidth=1)
         pyplot.errorbar(self.avg["r"]-self.avg["fr"]/2, 100*residuals, c="k",
                         lw=3, elinewidth=1, drawstyle="steps-post")
-        pyplot.axvline(x=self.mles[2], lw=3, ls="dashed", c="k")
+        pyplot.axvline(x=self.rc, lw=3, ls="dashed", c="k")
+
+    def plot_inferred_nfw_profile(self, style=dict(), rho=True):
+        rs = self.halo["rs"]
+        radii = numpy.arange(0.1, 1.1e4, 0.1)  # kpc
+        density = self.halo["rho0_dm"] if rho else self.halo["ne0_dm"]
+        M_dm = profiles.dm_density_nfw(radii, density, rs)
+
+        label = r"\begin{tabular}{p{2.5cm}ll}"
+        # label += " model & = & NFW \\\\"
+        label += r" rho0dm & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.halo["rho0_dm"])
+        label += " rs & = & {0:.2f} kpc \\\\".format(rs)
+        label += (" \hline \end{tabular}")
+        pyplot.plot(radii, M_dm, label=label, **style)
+
+        ymin = profiles.dm_density_nfw(rs, density, rs)
+        pyplot.vlines(x=rs, ymin=ymin, ymax=9e-24 if rho else 9.15, **style)
+        pyplot.text(rs-25, 4e-24 if rho else 4.06, r"$r_s$", ha="right", fontsize=22)
 # ----------------------------------------------------------------------------

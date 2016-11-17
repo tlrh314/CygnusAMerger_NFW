@@ -92,7 +92,7 @@ def betamodel_to_chandra(c, verbose=False):
         print "  Using scipy.optimize.curve_fit to obtain confidence intervals yields:"
         print "    n_e,0       = {0:.5f} +/- {1:.5f}".format(ml_vals[0], err[0])
         print "    beta        = {0:.5f} +/- {1:.5f}".format(ml_vals[1], err[1])
-        print "    r_c         = {0:.5f} +/- {1:.5f}".format(ml_vals[2], err[2])
+        print "    r_c         = {0:.4f} +/- {1:.4f}".format(ml_vals[2], err[2])
         print
 
     return ml_vals, err
@@ -106,8 +106,7 @@ def total_gravitating_mass(c, verbose=False, debug=False):
         @return:   TODO """
 
     # Set bestfit betamodel parameters
-    ne0, beta, rc = c.mles
-    rho0 = convert.ne_to_rho(ne0)
+    ne0, rho0, beta, rc = c.ne0, c.rho0, c.beta, c.rc
     rc *= convert.kpc2cm
 
     # Find r200 such that rho200 / rho_crit == 200 (True by definition)
@@ -115,7 +114,7 @@ def total_gravitating_mass(c, verbose=False, debug=False):
     upper = 2000 * convert.kpc2cm
 
     # bisection method
-    epsilon = 0.1
+    epsilon = 0.001
     while upper/lower > 1+epsilon:
         # bisection
         r200 = (lower+upper)/2.
@@ -163,6 +162,7 @@ def total_gravitating_mass(c, verbose=False, debug=False):
     halo["cNFW"] = cNFW
     halo["rs"] = rs * convert.cm2kpc
     halo["rho0_dm"] = rho0_dm
+    halo["ne0_dm"] = convert.rho_to_ne(rho0_dm)
 
     if verbose:
         print "  Assuming fixed baryon fraction constrains DM properties:"
@@ -179,6 +179,7 @@ def total_gravitating_mass(c, verbose=False, debug=False):
         print "    cNFW                   = {0:1.4f}".format(halo["cNFW"])
         print "    rs                     = {0:3.1f}".format(halo["rs"])
         print "    rho0_dm                = {0:1.4e}".format(halo["rho0_dm"])
+        print "    ne0_dm                 = {0:1.4e}".format(halo["ne0_dm"])
         print
 
     return halo
