@@ -19,7 +19,7 @@ def gas_density_betamodel_wrapper(parms, x):
         @param x:     independent variable, here the radius r [kpc]
         @return:      NFW DM density profile rho(r), int or array """
 
-    return profiles.gas_density_betamodel(x, parms[0], parms[1], parms[2], numpy.nan, do_cut=False)
+    return profiles.gas_density_betamodel(x, parms[0], parms[1], parms[2], None, do_cut=False)
 
 
 # Define the statistical model, in this case we shall use a chi-squared distribution, assuming normality in the errors
@@ -30,11 +30,10 @@ def stat(parms, x, y, dy):
         @param x:     independent variable, here the radius r [kpc]
         @param y:     dependent variable, here the gas density
         @param dy:    uncertainty in the dependent variable (here gas density)
-        @return:      chi^2 given the model parameters
-    """
+        @return:      chi^2 given the model parameters """
 
     # ymodel = gas_density_betamodel_wrapper(parms, x)
-    ymodel = profiles.gas_density_betamodel(x, parms[0], parms[1], parms[2], numpy.nan, do_cut=False)
+    ymodel = profiles.gas_density_betamodel(x, parms[0], parms[1], parms[2], None, do_cut=False)
     chisq = numpy.sum(p2(y - ymodel) / p2(dy))
     return chisq
 
@@ -43,7 +42,7 @@ def betamodel_to_chandra(c, verbose=False):
     """ Fit betamodel to Chandra observation. Beta is a free parameter.
         NB rcut is not a free parameter as it is induced for numerical reasons!
         @param c:  ObservedCluster
-        @return:   """
+        @return:   (MLE, one sigma confidence interval), tuple """
 
     # Set initial guess and bounds for both CygA and for CygNW
     if c.name == "cygA":
@@ -84,16 +83,102 @@ def betamodel_to_chandra(c, verbose=False):
         print "Results for the 'free beta-model' model:"
         print "  Using scipy.optimize.minimize to minimize chi^2 yields:"
         print "    n_e,0       = {0:.5f}".format(ml_vals[0])
-        print "    r_c         = {0:.5f}".format(ml_vals[1])
-        print "    beta        = {0:.5f}".format(ml_vals[2])
+        print "    beta        = {0:.5f}".format(ml_vals[1])
+        print "    r_c         = {0:.5f}".format(ml_vals[2])
         print "    chisq       = {0:.5f}".format(ml_func)
         print "    dof         = {0:.5f}".format(dof)
         print "    chisq/dof   = {0:.5f}".format(ml_func/dof)
         print "    p-value     = {0:.5f}".format(pval)
         print "  Using scipy.optimize.curve_fit to obtain confidence intervals yields:"
         print "    n_e,0       = {0:.5f} +/- {1:.5f}".format(ml_vals[0], err[0])
-        print "    r_c         = {0:.5f} +/- {1:.5f}".format(ml_vals[1], err[1])
-        print "    beta        = {0:.5f} +/- {1:.5f}".format(ml_vals[2], err[2])
+        print "    beta        = {0:.5f} +/- {1:.5f}".format(ml_vals[1], err[1])
+        print "    r_c         = {0:.5f} +/- {1:.5f}".format(ml_vals[2], err[2])
         print
 
     return ml_vals, err
+
+
+def total_gravitating_mass(c, verbose=False, debug=False):
+    """ Find total gravitating mass under assumption of fixed baryon fraction
+        at the virial radius (seventeen percent) r200.
+        The problem is implicit and solved by root-finding (bisection).
+        @param c:  ObservedCluster
+        @return:   TODO """
+
+    # Set bestfit betamodel parameters
+    ne0, beta, rc = c.mles
+    rho0 = convert.ne_to_rho(ne0)
+    rc *= convert.kpc2cm
+
+    # Find r200 such that rho200 / rho_crit == 200 (True by definition)
+    lower = 10 * convert.kpc2cm
+    upper = 2000 * convert.kpc2cm
+
+    # bisection method
+    epsilon = 0.1
+    while upper/lower > 1+epsilon:
+        # bisection
+        r200 = (lower+upper)/2.
+
+        bf = 0.17  # Critical assumption: bf == 0.17 at r200 (Planelles+ 2013)
+
+        Mgas200 = profiles.gas_mass_betamodel(r200, rho0, beta, rc)
+        Mdm200 = Mgas200 * (1/bf - 1)
+
+        M200 = Mgas200 + Mdm200
+
+        cNFW = profiles.cNFW(M200)
+        rs = r200 / cNFW
+
+        rho0_dm = Mdm200 / profiles.dm_mass_nfw(r200, 1, rs)
+
+        """ Now rho_average(r200)/rhocrit should equal 200.
+                If not? Try different r200"""
+        rho200_over_rhocrit = ( M200 / (4./3 * numpy.pi * p3(r200))) / c.cc.rho_crit()
+        if debug:
+            print "Lower                  = {0:3.1f}".format(lower * convert.cm2kpc)
+            print "r200                   = {0:3.1f}".format(r200 * convert.cm2kpc)
+            print "Upper                  = {0:3.1f}".format(upper * convert.cm2kpc)
+            print "Ratio                  = {0:.1f}".format(rho200_over_rhocrit/200)
+            print
+
+        # bisection
+        if rho200_over_rhocrit < 200:
+            upper = r200
+        if rho200_over_rhocrit > 200:
+            lower = r200
+
+    # r200, thus M200 found
+    halo = dict()
+    halo["r200"] = r200 * convert.cm2kpc
+    halo["rho200_over_rhocrit"] = rho200_over_rhocrit
+    halo["bf200"] = Mgas200/(Mdm200+Mgas200)
+    halo["rho0"] = rho0
+    halo["ne0"] = convert.rho_to_ne(rho0)
+    halo["rc"] = rc * convert.cm2kpc
+    halo["beta"] = beta
+    halo["Mgas200"] = Mgas200 * convert.g2msun
+    halo["Mdm200"] = Mdm200 * convert.g2msun
+    halo["M200"] = M200 * convert.g2msun
+    halo["cNFW"] = cNFW
+    halo["rs"] = rs * convert.cm2kpc
+    halo["rho0_dm"] = rho0_dm
+
+    if verbose:
+        print "  Assuming fixed baryon fraction constrains DM properties:"
+        print "    r200                   = {0:3.1f}".format(halo["r200"])
+        print "    rho_avg(r200)/rho_crit = {0:.1f}". format(halo["rho200_over_rhocrit"])
+        print "    bf200                  = {0:1.4f}".format(halo["bf200"])
+        print "    rho0                   = {0:1.4e}".format(halo["rho0"])
+        print "    ne0                    = {0:1.4e}".format(halo["ne0"])
+        print "    rc                     = {0:.3f}". format(halo["rc"])
+        print "    beta                   = {0:.3f}". format(halo["beta"])
+        print "    Mgas200                = {0:1.4e}".format(halo["Mgas200"])
+        print "    Mdm200                 = {0:1.4e}".format(halo["Mdm200"])
+        print "    M200                   = {0:1.4e}".format(halo["M200"])
+        print "    cNFW                   = {0:1.4f}".format(halo["cNFW"])
+        print "    rs                     = {0:3.1f}".format(halo["rs"])
+        print "    rho0_dm                = {0:1.4e}".format(halo["rho0_dm"])
+        print
+
+    return halo

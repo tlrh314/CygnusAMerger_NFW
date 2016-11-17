@@ -11,37 +11,78 @@ import convert
 # ----------------------------------------------------------------------------
 # Plots for Chandra observations
 # ----------------------------------------------------------------------------
-def chandra_temperature(c):
+def quiescent_parm(c, parm="rho"):
     """ @param c:  ObservedCluster """
-    pyplot.figure(figsize=(12, 9))
-    c.plot_chandra_average(alpha=1)
-    c.plot_chandra_sector(alpha=1)
-    pyplot.xlabel("Radius [kpc]")
-    pyplot.ylabel("kT [keV]")
-    pyplot.xscale("log")  # Linear better shows merger-affected radii
-    pyplot.xlim(3, 2000)
-    pyplot.ylim(2, 12)
-    pyplot.legend(loc="upper left")
 
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
 
-def chandra_parm(c, parm="rho"):
-    """ @param c:  ObservedCluster """
+    parmnames = { "kT": "kT [keV]",
+                  "n": "Density [1/cm$^3$]",
+                  "rho": "Mass Density [g/cm$^3$]",
+                  "P": "Pressure [erg/cm$^3$]" }
+    if not parmnames.get(parm, None):
+        print "ERRROR: parm '{0}' is not available".format(parm)
+        return
+
     pyplot.figure(figsize=(12, 9))
-    c.plot_chandra_average(alpha=1, parm=parm)
-    # cygA.plot_chandra_sector(alpha=1, parm=parm)
-    r = numpy.arange(0, 2e3, 1)
+    c.plot_chandra_average(parm=parm, style=avg)
     pyplot.xlabel("Radius [kpc]")
-    pyplot.ylabel("Mass Density [g/cm$^3$]")
+    pyplot.ylabel(parmnames[parm])
     pyplot.xscale("log")
     pyplot.yscale("log")
     pyplot.xlim(1, 2000)
     # pyplot.ylim(-0.02, 0.2)
-    pyplot.legend(loc="upper left")
+    pyplot.legend(loc="best")
+    pyplot.tight_layout()
+    pyplot.savefig("out/quiescent_{0}_{1}.pdf".format(parm, c.name), dpi=150)
+
+
+def sector_parm(c, parm="kT"):
+    """ @param c:  ObservedCluster """
+
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
+            "elinewidth": 2, "label": "Average "+parm }
+    merger = { "marker": "o", "ls": "", "c": "g", "ms": 4, "alpha": 1,
+               "elinewidth": 2, "label": "Merger "+parm }
+    hot = { "marker": "o", "ls": "", "c": "r", "ms": 4, "alpha": 0.5,
+            "elinewidth": 2, "label": "Hot "+parm }
+    cold =  { "marker": "o", "ls": "", "c": "purple", "ms": 4, "alpha": 0.5,
+              "elinewidth": 2, "label": "Cold "+parm }
+
+    parmnames = { "kT": "kT [keV]",
+                  "n": "Density [1/cm$^3$]",
+                  "rho": "Mass Density [g/cm$^3$]",
+                  "P": "Pressure [erg/cm$^3$]" }
+    if not parmnames.get(parm, None):
+        print "ERRROR: parm '{0}' is not available".format(parm)
+        return
+
+    pyplot.figure(figsize=(12, 9))
+    c.plot_chandra_average(parm=parm, style=avg)
+    c.plot_chandra_sector(parm=parm, merger=True, style=merger)
+    c.plot_chandra_sector(parm=parm, hot=True, style=hot)
+    c.plot_chandra_sector(parm=parm, cold=True, style=cold)
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel(parmnames[parm])
+    pyplot.xscale("log")  # Linear better shows merger-affected radii
+    pyplot.xlim(3, 2000)
+    if parm == "kT":
+        pyplot.ylim(2, 12)
+    else:
+        pyplot.yscale("log")
+    pyplot.legend(loc="best", fontsize=22)
+    pyplot.tight_layout()
+    pyplot.savefig("out/sector_{0}_{1}.pdf".format(parm, c.name), dpi=150)
 
 
 def chandra_coolingtime(c):
     """ @param c:  ObservedCluster """
-    Tcool = profiles.sarazin_coolingtime(c.avg["n"]/u.cm**3, c.avg["kT"]*u.keV/const.k_B.to(u.keV/u.K))
+    Tcool = profiles.sarazin_coolingtime(c.avg["n"]/u.cm**3,
+            c.avg["kT"]*u.keV/const.k_B.to(u.keV/u.K))
 
     pyplot.figure(figsize=(12, 9))
     pyplot.plot(c.avg["r"], Tcool.value)
@@ -57,6 +98,12 @@ def chandra_coolingtime(c):
 # ----------------------------------------------------------------------------
 def bestfit_betamodel(c):
     """ Plot best-fit betamodel with residuals """
+
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+
     fig, (ax, ax_r) = pyplot.subplots(2, 2, sharex=True, figsize=(16, 12))
     gs1 = matplotlib.gridspec.GridSpec(3, 3)
     gs1.update(hspace=0)
@@ -65,13 +112,14 @@ def bestfit_betamodel(c):
 
     # Plot Chandra observation and betamodel with mles
     pyplot.sca(ax)
-    c.plot_chandra_average(alpha=1, parm="n")
+
+    c.plot_chandra_average(parm="n", style=avg)
     c.plot_bestfit_betamodel()
     pyplot.ylabel("Density [1/cm$^3$]")
     pyplot.xscale("log")
     pyplot.yscale("log")
     pyplot.ylim(numpy.min(c.avg["n"])/1.5, numpy.max(c.avg["n"])*1.3)
-    pyplot.legend(loc="lower left", prop={"size": 30})
+    pyplot.legend(loc="lower left", fontsize=22)
 
     # Plot residuals
     pyplot.sca(ax_r)
