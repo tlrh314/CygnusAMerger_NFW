@@ -176,3 +176,5 @@ data
 out
 run.sh.[eo]*
 .DS_Store
+*.par
+Makefile*

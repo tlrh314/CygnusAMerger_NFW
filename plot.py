@@ -176,3 +176,76 @@ def inferred_nfw_profile(c):
     pyplot.tight_layout()
     pyplot.savefig("out/inferred_nfw_{0}.pdf".format(c.name), dpi=150)
 # ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Plots numerical haloes sampled with Toycluster
+# ----------------------------------------------------------------------------
+def toycluster_profiles(obs, ics):
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "k",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+    gas = { "marker": "o", "ls": "", "c": "g",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+    dm = { "marker": "o", "ls": "", "c": "k",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+    gas_a = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "" }
+    dm_a = { "color": "k", "lw": 1, "linestyle": "solid", "label": "" }
+
+    pyplot.figure(figsize=(12,9))
+
+    obs.plot_chandra_average(parm="rho", style=avg)
+    rho_gas = convert.toycluster_units_to_cgs(ics.profiles["rho_gas"])
+    rho_dm = convert.toycluster_units_to_cgs(ics.profiles["rho_dm"])
+    pyplot.plot(ics.profiles["r"], rho_gas, **fit_a)
+    pyplot.plot(ics.profiles["r"], rho_dm, **dm_a)
+    # obs.plot_bestfit_betamodel(style=fit, do_cut=True)
+    # obs.plot_inferred_nfw_profile(style=dm)
+
+    pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
+        facecolor="grey", edgecolor="grey", alpha=0.2)
+    pyplot.axvline(x=obs.halo["r200"], c="k", lw=1)
+    pyplot.text(obs.halo["r200"]+100, 4e-24, r"$r_{200}$", ha="left", fontsize=22)
+
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel("Mass Density [g/cm$^3$]")
+    pyplot.xscale("log")
+    pyplot.yscale("log")
+    pyplot.xlim(xmin=1, xmax=1e4)
+    pyplot.ylim(ymin=1e-32, ymax=9e-24)
+    pyplot.legend(loc="lower left", fontsize=22)
+    pyplot.tight_layout()
+
+def toyclustercheck(obs, ics):
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "k",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+    gas = { "marker": "o", "ls": "", "c": "g", "ms": 4, "alpha": 1 }
+    dm = { "marker": "o", "ls": "", "c": "k", "ms": 4, "alpha": 1 }
+    gas_a = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "" }
+    dm_a = { "color": "k", "lw": 1, "linestyle": "solid", "label": "" }
+
+    pyplot.figure(figsize=(12,9))
+
+    obs.plot_chandra_average(parm="rho", style=avg)
+    pyplot.plot(ics.gas["r"], ics.gas["rho"], **gas)
+    # pyplot.plot(ics.dm["r"], ics.dm["rho"], **dm)
+    # obs.plot_bestfit_betamodel(style=fit, do_cut=True)
+    # obs.plot_inferred_nfw_profile(style=dm)
+
+    pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
+        facecolor="grey", edgecolor="grey", alpha=0.2)
+    pyplot.axvline(x=obs.halo["r200"], c="k", lw=1)
+    pyplot.text(obs.halo["r200"]+100, 4e-24, r"$r_{200}$", ha="left", fontsize=22)
+
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel("Mass Density [g/cm$^3$]")
+    pyplot.xscale("log")
+    pyplot.yscale("log")
+    pyplot.xlim(xmin=1, xmax=1e4)
+    pyplot.ylim(ymin=1e-32, ymax=9e-24)
+    pyplot.legend(loc="lower left", fontsize=22)
+    pyplot.tight_layout()

@@ -30,6 +30,10 @@ def gadget_units_to_cgs(rho):
     """ convert mass density in gadget units to cgs units """
     return uMass/uLength**3 * rho * h**2
 
+def toycluster_units_to_cgs(rho):
+    """ convert mass density in toycluster units to cgs units """
+    return uMass/uLength**3 * rho
+
 def cgs_to_gadget_units(rho):
     """ convert mass density in cgs units to gadget units """
     return 1./(uMass/uLength**3) * rho / h**2

@@ -3,7 +3,7 @@ import astropy
 from matplotlib import pyplot
 
 from cosmology import CosmologyCalculator
-import ioparser
+import parse
 import convert
 import profiles
 import fit
@@ -28,12 +28,12 @@ class ObservedCluster(object):
         # We adopt concordance cosmology with generic cosmological parameters
         self.cc = CosmologyCalculator(z=0.0562, H0=70, WM=0.3, WV=0.7)
 
-        self.avg = ioparser.parse_chandra_quiescent(self.name)
+        self.avg = parse.chandra_quiescent(self.name)
         self.set_radius(self.avg)
         self.set_massdensity(self.avg)
         if self.name == "cygA":  # no have sectoranalysis for CygNW
             self.avg = self.mask_bins(self.avg, first=5, last=3)  # or 2 2
-            self.merger, self.hot, self.cold = ioparser.parse_chandra_sectors()
+            self.merger, self.hot, self.cold = parse.chandra_sectors()
             self.set_radius(self.merger)
             self.set_radius(self.hot)
             self.set_radius(self.cold)
@@ -138,7 +138,7 @@ class ObservedCluster(object):
         pyplot.text(self.rc+25 if self.name == "cygNW" else self.rc+1,
             4e-24 if rho else 4.06, r"$r_c$", ha="left", fontsize=22)
 
-    def plot_bestfit_residuals(self, rho=True):
+    def plot_bestfit_residuals(self, rho=False):
         fit = profiles.gas_density_betamodel(self.avg["r"],
             self.rho0 if rho else self.ne0, self.beta, self.rc)
 
@@ -168,3 +168,19 @@ class ObservedCluster(object):
         pyplot.vlines(x=rs, ymin=ymin, ymax=9e-24 if rho else 9.15, **style)
         pyplot.text(rs-25, 4e-24 if rho else 4.06, r"$r_s$", ha="right", fontsize=22)
 # ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Class to hold Toycluster sampled clusters
+# ----------------------------------------------------------------------------
+class ToyCluster(object):
+    """ Parse and store Toycluster sampled cluster """
+    def __init__(self, name, verbose=True):
+        """ TODO """
+
+        self.name = name
+
+        self.profiles = parse.toycluster_profiles("data/profiles_000.txt")
+        self.header, self.gas, self.dm = parse.toycluster_icfile("IC_single_0")
+
+        self.gas["rho"] = convert.toycluster_units_to_cgs(self.gas["rho"])
+        self.gas["rhom"] = convert.toycluster_units_to_cgs(self.gas["rhom"])
