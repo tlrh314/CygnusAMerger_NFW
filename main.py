@@ -12,7 +12,7 @@ style = PlotSettings()
 
 
 if __name__ == "__main__":
-    cygA = ObservedCluster("cygA", verbose=False)
+    cygA = ObservedCluster("cygA", verbose=True)
     # cygNW = ObservedCluster("cygNW", verbose=False)
 
     generate_toycluster_parameterfiles = False
@@ -41,6 +41,7 @@ if __name__ == "__main__":
 
     toyA = ToyCluster("cygA")
     plot.toyclustercheck(cygA, toyA)
+    plot.toyclustercheck_T(cygA, toyA)
     # for k,v in toyA.header.iteritems(): print "{0:<17}: {1}".format(k, v)
     # toyA.gas, toyA.dm
     # plot.toycluster_profiles(cygA, toyA)

@@ -7,6 +7,7 @@ import parse
 import convert
 import profiles
 import fit
+from macro import *
 
 
 # ----------------------------------------------------------------------------
@@ -130,7 +131,7 @@ class ObservedCluster(object):
         label += " beta & = & {0:.3f} \\\\".format(self.beta)
         label += " rc & = & {0:.2f} kpc \\\\".format(self.rc)
         label += (" \hline \end{tabular}")
-        pyplot.plot(radii, fit, label=label, **style)
+        pyplot.plot(radii, fit, label=label if do_cut else "", **style)
 
         ymin = profiles.gas_density_betamodel(
             self.rc, self.rho0 if rho else self.ne0, self.beta, self.rc)
@@ -182,5 +183,53 @@ class ToyCluster(object):
         self.profiles = parse.toycluster_profiles("data/profiles_000.txt")
         self.header, self.gas, self.dm = parse.toycluster_icfile("IC_single_0")
 
+        self.r_sample = self.header["boxSize"]/2
+
         self.gas["rho"] = convert.toycluster_units_to_cgs(self.gas["rho"])
         self.gas["rhom"] = convert.toycluster_units_to_cgs(self.gas["rhom"])
+        self.gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(self.gas["u"]))
+        self.set_gas_mass()
+        self.M_dm = self.header["ndm"] * self.header["massarr"][1] * 1e10
+        self.set_dm_mass()
+        self.set_dm_density()
+
+
+    def set_gas_mass(self, NGB=50):
+        """ Set the gas mass from the SPH density, see Price (2012, eq. 11)
+            Mtot = 4/3 pi R_kern^3 rho, where R_kern^3 = hsml^3/NGB.
+            Toycluster: Wendland C6, NGB=295; Gadget-2: M4, NGB=50.
+
+            @param DESNNGB: 50 for Gadget-2 B-spline, 295 for toycluster WC6"""
+
+        self.gas.sort("r")
+        rho = convert.cgs_density_to_msunkpc(self.gas["rho"])
+        self.gas["mass"] = (4./3*numpy.pi*(p3(self.gas["hsml"])/NGB)*rho).cumsum()
+
+    def set_dm_mass(self, verbose=True):
+        """ Count particles <r (= number density). Obtain DM mass from it """
+
+        if verbose: print "Counting nr. of particles with radius < r to obtain M(<r)"
+
+        radii = numpy.power(10, numpy.linspace(numpy.log(1), numpy.log(1e5), 1001))
+        dr = radii[1:] - radii[:-1]
+        self.dm_radii = radii[:-1]
+        N = len(self.dm_radii)
+
+        particles = numpy.zeros(N)
+        for i, r in enumerate(self.dm_radii):
+            particles[i] = ((numpy.where(self.dm["r"] < r)[0]).size)
+            if verbose and (i==(N-1) or i%100 == 0):
+                print_progressbar(i, N)
+
+        particles_in_shell = numpy.zeros(len(particles))
+        for i in range(1, len(particles)):
+            particles_in_shell[i-1] = particles[i] - particles[i-1]
+
+        self.dm_volume = 4 * numpy.pi * self.dm_radii**2 * dr
+        self.n_dm_in_shell = particles_in_shell
+        self.M_dm_below_r = particles * self.M_dm/self.header["ndm"]
+
+    def set_dm_density(self):
+        self.rho_dm_below_r = (self.M_dm*convert.msun2g
+                * (self.n_dm_in_shell/self.header["ndm"])
+                / (self.dm_volume * p3(convert.kpc2cm)))

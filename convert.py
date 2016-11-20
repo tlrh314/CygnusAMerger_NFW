@@ -8,6 +8,8 @@ import numpy
 import astropy.units as u
 import astropy.constants as const
 
+from macro import p2, p3
+
 # Set up units
 g2msun = u.g.to(u.Msun)
 msun2g = 1/g2msun
@@ -28,21 +30,47 @@ h = 0.7   # Assuming Lambda CDM, concordance, H0(z=0) = 70 km/s/Mpc
 
 def gadget_units_to_cgs(rho):
     """ convert mass density in gadget units to cgs units """
-    return uMass/uLength**3 * rho * h**2
+    return uMass/p3(uLength) * rho * p2(h)
 
 def toycluster_units_to_cgs(rho):
     """ convert mass density in toycluster units to cgs units """
-    return uMass/uLength**3 * rho
+    return uMass/p3(uLength) * rho
 
 def cgs_to_gadget_units(rho):
     """ convert mass density in cgs units to gadget units """
-    return 1./(uMass/uLength**3) * rho / h**2
+    return 1./(uMass/p3(uLength)) * rho / p2(h)
+
+def keV_to_K(kT):
+    return kT*u.keV/const.k_B.to(u.keV/u.K)
+
+def K_to_keV(T):
+    return T*const.k_B.to(u.keV/u.K)/u.keV
+
+def gadget_u_to_t(uint):
+    """  convert gadget internal energy to temperature in Kelvin
+
+        Thermodynamics in Gadget-2:
+            -  Ideal gas, close to pure hydrogen.
+            -  SPH is energy conserving, expansion is always adiabatic
+            -  Eint = (gamma-1)^-1 N kB T; where gamma = 5/3
+            -  PV = N kB T ==> P = rho kB/(mu m_p) T
+            -  U = (gamma-1)^-1 kB/(mu m_p) T [erg/g]
+
+            -> T = (gamma-1)*(mu*m_p)/kB U
+
+        @param u: internal energy [internal code units], float or array
+        @return:  temperature [Kelvin], float or array"""
+    gamma = 5.0/3
+    kB = const.k_B.to(u.erg/u.K).value
+    m_p = const.m_p.to(u.g).value
+    factor = (gamma-1)*umu*m_p/kB
+    return uint * factor * 1e10  # 1e10 because internal energy is per unit mass
 
 def rho_to_ne(rho, z=None):
     """ convert mass density to electron number density """
 
     # TODO: if z: comoving?
-    # Julius uses (+z)**3*h**2 too, but this is for comoving density?
+    # Julius uses p3(+z)*p2(h) too, but this is for comoving density?
 
     ne = rho/(umu*const.m_p.to(u.g).value)
     return ne
@@ -55,6 +83,9 @@ def ne_to_rho(ne, z=None):
     rho = umu*const.m_p.to(u.g).value*ne
     return rho
 
+def cgs_density_to_msunkpc(rho):
+    """ convert mass density from cgs units to MSun/kpc^3 """
+    return g2msun/p3(cm2kpc) * rho
 
 # --------------------------------------------------------------------------- #
 # Stolen from https://github.com/aplpy/aplpy/blob/master/aplpy/wcs_util.py

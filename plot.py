@@ -82,7 +82,7 @@ def sector_parm(c, parm="kT"):
 def chandra_coolingtime(c):
     """ @param c:  ObservedCluster """
     Tcool = profiles.sarazin_coolingtime(c.avg["n"]/u.cm**3,
-            c.avg["kT"]*u.keV/const.k_B.to(u.keV/u.K))
+            convert.keV_to_K(c.avg["kT"]))
 
     pyplot.figure(figsize=(12, 9))
     pyplot.plot(c.avg["r"], Tcool.value)
@@ -223,18 +223,26 @@ def toyclustercheck(obs, ics):
     avg = { "marker": "o", "ls": "", "c": "k",
             "ms": 4, "alpha": 1, "elinewidth": 2,
             "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
-    gas = { "marker": "o", "ls": "", "c": "g", "ms": 4, "alpha": 1 }
-    dm = { "marker": "o", "ls": "", "c": "k", "ms": 4, "alpha": 1 }
-    gas_a = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "" }
-    dm_a = { "color": "k", "lw": 1, "linestyle": "solid", "label": "" }
+    gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
+            "markeredgecolor": "none",  "label": ""}
+    dm = { "marker": "o", "ls": "", "c": "b", "ms": 2, "alpha": 1,
+            "markeredgecolor": "none", "label": ""}
+    dashed = { "color": "k", "lw": 1, "linestyle": "dashed" }
+    dotted = { "color": "k", "lw": 1, "linestyle": "dotted" }
+    solid = { "color": "k", "lw": 1, "linestyle": "solid" }
+
+    radii = numpy.arange(1, 1e4, 1)
 
     pyplot.figure(figsize=(12,9))
-
-    obs.plot_chandra_average(parm="rho", style=avg)
     pyplot.plot(ics.gas["r"], ics.gas["rho"], **gas)
-    # pyplot.plot(ics.dm["r"], ics.dm["rho"], **dm)
-    # obs.plot_bestfit_betamodel(style=fit, do_cut=True)
-    # obs.plot_inferred_nfw_profile(style=dm)
+    pyplot.plot(ics.dm_radii, ics.rho_dm_below_r, **dm)
+    obs.plot_chandra_average(parm="rho", style=avg)
+    obs.plot_bestfit_betamodel(style=dashed, do_cut=True)
+    obs.plot_bestfit_betamodel(style=dotted, do_cut=False)
+    obs.plot_inferred_nfw_profile(style=dotted)
+    rho_dm_cut = profiles.dm_density_nfw(radii, obs.halo["rho0_dm"],
+        obs.halo["rs"], ics.r_sample, do_cut=True)
+    pyplot.plot(radii, rho_dm_cut, **solid)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
         facecolor="grey", edgecolor="grey", alpha=0.2)
@@ -249,3 +257,74 @@ def toyclustercheck(obs, ics):
     pyplot.ylim(ymin=1e-32, ymax=9e-24)
     pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
+    pyplot.savefig("out/sampled_rho_{0}.png".format(obs.name), dpi=150)
+
+
+    pyplot.figure(figsize=(12,9))
+    pyplot.plot(ics.gas["r"], ics.gas["mass"], **gas)
+    pyplot.plot(ics.dm_radii, ics.M_dm_below_r, **dm)
+    mdm = profiles.dm_mass_nfw(radii,
+        convert.cgs_density_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"])
+    mdm_cut = [profiles.dm_mass_nfw_cut(r,
+        convert.cgs_density_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"], ics.r_sample)
+        for r in radii]
+    mgas = profiles.gas_mass_betamodel(radii,
+        convert.cgs_density_to_msunkpc(obs.rho0), obs.beta, obs.rc)
+    mgas_cut = [profiles.gas_mass_betamodel_cut(r,
+        convert.cgs_density_to_msunkpc(obs.rho0), obs.beta, obs.rc, obs.halo["r200"])
+        for r in radii]
+
+    pyplot.plot(radii, mdm, **dotted)
+    pyplot.plot(radii, mdm_cut, **solid)
+    pyplot.plot(radii, mgas, **dotted)
+    pyplot.plot(radii, mgas_cut, **dashed)
+
+    pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e7, 1e15,
+       facecolor="grey", edgecolor="grey", alpha=0.2)
+    pyplot.axvline(x=obs.halo["r200"], c="k", lw=1)
+    pyplot.text(obs.halo["r200"]+100, 3e14, r"$r_{200}$", ha="left", fontsize=22)
+
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel("Mass ($<$r) [MSun]")
+    pyplot.xscale("log")
+    pyplot.yscale("log")
+    pyplot.xlim(xmin=1, xmax=1e4)
+    pyplot.ylim(ymin=1e7, ymax=1e15)
+    # pyplot.legend(loc="lower left", fontsize=22)
+    pyplot.tight_layout()
+    pyplot.savefig("out/sampled_mass_{0}.png".format(obs.name), dpi=150)
+
+
+def toyclustercheck_T(obs, ics):
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "k",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+    gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
+            "markeredgecolor": "none",  "label": "sampled kT"}
+
+    pyplot.figure(figsize=(12,9))
+    pyplot.errorbar(obs.avg["r"], obs.avg["kT"], xerr=obs.avg["fr"]/2,
+                    yerr=[obs.avg["fkT"], obs.avg["fkT"]], **avg)
+    pyplot.plot(ics.gas["r"], ics.gas["kT"], **gas)
+    pyplot.plot(ics.profiles["r"],
+        convert.K_to_keV(convert.gadget_u_to_t(ics.profiles["u_gas"])),
+        label="u\_gas")
+    pyplot.plot(ics.profiles["r"],
+        convert.K_to_keV(convert.gadget_u_to_t(ics.profiles["u_ana"])),
+        label="u\_ana")
+
+    # pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e7, 1e15,
+    #   facecolor="grey", edgecolor="grey", alpha=0.2)
+    pyplot.axvline(x=obs.halo["r200"], c="k", lw=1)
+    # pyplot.text(obs.halo["r200"]+100, 3e14, r"$r_{200}$", ha="left", fontsize=22)
+
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel("Temperature [keV]")
+    pyplot.yscale("log")
+    pyplot.xscale("log")
+    pyplot.xlim(xmin=1, xmax=1e4)
+    pyplot.ylim(ymin=1e-1, ymax=1e2)
+    pyplot.legend(loc="upper left", fontsize=22)
+    pyplot.tight_layout()
+    pyplot.savefig("out/sampled_temperature_{0}.png".format(obs.name), dpi=150)
