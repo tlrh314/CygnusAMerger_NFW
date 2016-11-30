@@ -1,3 +1,4 @@
+import os
 import argparse
 import numpy
 from matplotlib import pyplot
@@ -17,6 +18,10 @@ def new_argument_parser():
         description="Simulation Pipeline")
     parser.add_argument("-t", "--timestamp", dest="timestamp",
             help="string of the Simulation ID", default="20161124T0148")
+    parser.add_argument("-b", "--basedir", dest="basedir",
+            help="path to the base directory", default="/usr/local/mscproj")
+    parser.add_argument("-c", "--clustername", dest="clustername",
+            help="name of the subcluster", default=None, choices=["cygA", "cygNW"])
     # group = parser.add_mutually_exclusive_group(required=True)
     # group.add_argument("-t", "--timestamp", dest="timestamp", nargs=1,
     #    help="string of the Simulation ID")
@@ -29,6 +34,13 @@ if __name__ == "__main__":
 
     # cygA = ObservedCluster("cygA", verbose=True)
     # cygNW = ObservedCluster("cygNW", verbose=False)
+    # plot.quiescent_parm(cygA, "n")  # n, rho, kT, P; also for cygNW
+    # plot.sector_parm(cygA, parm="kT")  # n, rho, kT, P; only for cygA
+    # plot.chandra_coolingtime(cygA)
+    # plot.bestfit_betamodel(cygA)
+    # plot.bestfit_betamodel(cygNW)
+    # plot.inferred_nfw_profile(cygA)
+    # plot.inferred_nfw_profile(cygNW)
 
     generate_toycluster_parameterfiles = False
     if generate_toycluster_parameterfiles:
@@ -54,7 +66,13 @@ if __name__ == "__main__":
         write_toycluster_parameterfile(ic_cygNW)
         write_toycluster_parameterfile(ic_both)
 
-    sim = Simulation("/usr/local/mscproj", arguments.timestamp, "cygA")
+    sim = Simulation(arguments.basedir, arguments.timestamp, arguments.clustername)
+    for i in range(sim.nsnaps):
+        sim.find_cluster_centroids_psmac_dmrho(i)
+    os.chdir(sim.outdir)
+    os.system('ffmpeg -y -r 8 -i "xray_peakfind_%3d.png" -profile:v high444 -level 4.1 -c:v libx264 -preset slow -crf 25 -s "2000:2000" -an "xray-dmdensity.mp4"')
+
+
     # plot.toyclustercheck(cygA, toyA)
     # plot.toyclustercheck_T(cygA, toyA)
     # for k,v in toyA.header.iteritems(): print "{0:<17}: {1}".format(k, v)
@@ -62,11 +80,4 @@ if __name__ == "__main__":
     # plot.toycluster_profiles(cygA, toyA)
     # toyNW = Toycluster("cygNW")
 
-    # plot.quiescent_parm(cygA, "n")  # n, rho, kT, P; also for cygNW
-    # plot.sector_parm(cygA, parm="kT")  # n, rho, kT, P; only for cygA
-    # plot.chandra_coolingtime(cygA)
-    # plot.bestfit_betamodel(cygA)
-    # plot.bestfit_betamodel(cygNW)
-    # plot.inferred_nfw_profile(cygA)
-    # plot.inferred_nfw_profile(cygNW)
     pyplot.show()

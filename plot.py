@@ -3,6 +3,7 @@ import astropy.units as u
 import astropy.constants as const
 import matplotlib
 from matplotlib import pyplot
+from matplotlib import gridspec
 
 import profiles
 import convert
@@ -328,3 +329,55 @@ def toyclustercheck_T(obs, ics):
     pyplot.legend(loc="upper left", fontsize=22)
     pyplot.tight_layout()
     pyplot.savefig("out/sampled_temperature_{0}.png".format(obs.name), dpi=150)
+
+
+def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, distance):
+    """ We find the peaks of the haloes by summing the dark matter density
+        in the line-of-sight integrated P-Smac2 output. """
+
+    fig = pyplot.figure(figsize=(12, 12))
+    gs = gridspec.GridSpec(3, 3)
+    axx = fig.add_subplot(gs.new_subplotspec((0, 0), colspan=2))
+    axy = fig.add_subplot(gs.new_subplotspec((1, 2), rowspan=2))
+    axd = fig.add_subplot(gs.new_subplotspec((1, 0), colspan=2, rowspan=2),
+                          sharex=axx, sharey=axy)
+    axt = fig.add_subplot(gs.new_subplotspec((0, 2)))
+    axt.axis("off")
+    gs.update(wspace=0, hspace=0, top=0.94, left=0.15)
+    axx.text(0.5, 1.01, "Summed (smoothed) Dark Matter Density X", ha="center", va="bottom",
+             transform=axx.transAxes, fontsize=16)
+    axx.plot(range(sim.xlen), xsum)
+    axx.plot(xpeaks, xsum[(xpeaks+0.5).astype(int)], "ro", markersize=10)
+    axx.set_ylim(0, 1.3)
+
+    axy.text(1.01, 0.5, "Summed (smoothed) Dark Matter Density Y", ha="left", va="center",
+             transform=axy.transAxes, fontsize=16, rotation=-90)
+    axy.plot(ysum, range(sim.ylen))
+    axy.plot(ysum[(ypeaks+0.5).astype(int)], ypeaks, "ro", markersize=10)
+    axy.set_xlim(0, 1.3)
+
+    axx.set_xlim(800, 1400)
+    axy.set_ylim(sim.xlen/2-300,sim.xlen/2+300)
+    axd.set_axis_bgcolor("k")
+    axd.set_xlabel("x [pixel]")
+    axd.set_ylabel("y [pixel]")
+    for ax in [axx, axy, axt]:
+        for tl in ax.get_xticklabels() + ax.get_yticklabels()\
+                + ax.get_xticklines()  + ax.get_yticklines():
+            tl.set_visible(False)
+    pyplot.sca(axd)
+    axt.text(0.02, 1, "T = {0:2.2f} [Gyr]".format(snapnr*sim.dt),
+             ha="left", va="top")
+    axt.text(0.02, 0.8, "R = {0:5.2f} [kpc]".format(distance),
+             ha="left", va="top")
+
+    if not numpy.isnan(distance):
+        axd.plot(xpeaks[0], ypeaks[0], "ro", markersize=10)
+        axd.plot(xpeaks[1], ypeaks[0], "ro", markersize=10)
+    axd.imshow(numpy.log10(sim.psmac.xray[snapnr].clip(min=2e-8, max=0.02)),
+               origin="lower", cmap="spectral")
+    axd.text(0.5, 0.95, "X-ray Surface Brightness", ha="center", va="top",
+            color="white", transform=axd.transAxes)
+    pyplot.savefig(sim.outdir+"xray_peakfind_{0:03d}.png".format(snapnr))
+    # pyplot.show()
+    pyplot.close()

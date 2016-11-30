@@ -1,3 +1,4 @@
+import re
 import glob
 import numpy
 import astropy
@@ -181,8 +182,12 @@ class Toycluster(object):
         @param icdir: path to the directory with Toycluster output, string
         @return     : instance of Toycluster class"""
 
-        self.profiles = parse.toycluster_profiles(icdir+"profiles_000.txt")
+        self.profiles = dict()
+        for filename in glob.glob(icdir+"profiles_*.txt"):
+            halonumber = re.search("(?!(.+)(profiles_))(\d{3})", filename).group()
+            self.profiles[halonumber] = parse.toycluster_profiles(filename)
         self.header, self.gas, self.dm = parse.toycluster_icfile(icdir+"IC_single_0")
+        self.parms = parse.read_toycluster_parameterfile(glob.glob(icdir+"*.par")[0])
 
         self.r_sample = self.header["boxSize"]/2
 
@@ -295,7 +300,7 @@ class PSmac2Output(object):
                 if cubename in path:
                     break
             else:
-                print "ERROR: unknown fits filename"
+                print "ERROR: unknown fits filename '{0}'".format(path)
                 continue
             header, data = parse.psmac2_fitsfile(path)
             setattr(self, attr+"_header", header)

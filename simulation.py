@@ -1,6 +1,12 @@
 import os
-import parse
+import numpy
+import scipy
+from scipy import signal
+import peakutils
 
+import parse
+import plot
+from macro import p2, p3
 from cluster import Toycluster
 from cluster import Gadget2Output
 from cluster import PSmac2Output
@@ -74,6 +80,78 @@ class Simulation(object):
         self.psmac = PSmac2Output(self, verbose=verbose)
         if verbose: print "  Succesfully loaded P-Smac2 fitsfiles"
         if verbose: print "  {0}".format(self.psmac)
-    #if "pixelscale" not in dir(self):
-    #    self.nsnaps, self.xlen, self.ylen = getattr(self, attr+"data").shape
-    #    self.pixelscale = float(self.scale)/int(self.xlen)
+        # assumes xray cube is loaded
+        self.nsnaps, self.xlen, self.ylen = self.psmac.xray.shape
+        self.pixelscale = float(self.psmac.xray_header["XYSize"])/int(self.xlen)
+
+    def find_cluster_centroids_psmac_dmrho(self, snapnr=0):
+        print "Checking snapshot {0}".format(snapnr)
+
+        if self.name:  # Only one cluster in simulation box
+            expected_xpeaks = 1
+            expected_ypeaks = 1
+            thres, min_dist = 0.9, 20
+        elif self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
+            expected_xpeaks = 2
+            expected_ypeaks = 1
+            thres, min_dist = 0.15, 10
+        else:  # two clusters, yes impact parameter
+            expected_xpeaks = 2
+            expected_ypeaks = 2
+            # thres, min_dist = 0.4, 20  # TODO: check. Want error for now
+
+        """ Peakutils sometimes finds noise (i.e. 1 pixel with a slightly higher
+        density, where slightly is no more than 0.1%). To kill of these tiny noise
+        fluctuations the summed dark matter density is squared, then normalised
+        to the maximum, and finally smoothed with a Savitzky-Golay filter. """
+        xsum = p2(numpy.sum(self.psmac.rhodm[snapnr], axis=0))
+        xsum /= numpy.max(xsum)
+        xsum = scipy.signal.savgol_filter(xsum, 15, 3)
+        ysum = p2(numpy.sum(self.psmac.rhodm[snapnr], axis=1))
+        ysum /= numpy.max(ysum)
+        ysum = scipy.signal.savgol_filter(ysum, 15, 3)
+        xpeaks = peakutils.indexes(xsum, thres=thres, min_dist=min_dist)
+        ypeaks = peakutils.indexes(ysum, thres=thres, min_dist=min_dist)
+
+        if len(xpeaks) == expected_xpeaks and len(ypeaks) == expected_ypeaks:
+            try:  # Further optimize peakfinding by interpolating
+                xpeaks = peakutils.interpolate(range(0, self.xlen), xsum, ind=xpeaks)
+                ypeaks = peakutils.interpolate(range(0, self.ylen), ysum, ind=ypeaks)
+            except RuntimeError as err:
+                if "Optimal parameters not found: Number of calls to function has reached" in str(err):
+                    print "WARNING: peakutils.interpolate broke, using integer values"
+                else:
+                    raise
+
+            if self.name:  # Only one cluster in simulation box
+                center = xpeaks[0], ypeaks[0]
+                print "Success: found 1 xpeak, and 1 ypeak!"
+                print "  {0}:  (x, y) = {1}".format(self.name, center)
+                plot.psmac_xrays_with_dmrho_peakfind(
+                    self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
+                return center
+            else:
+                if self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
+                    cygA = xpeaks[0], ypeaks[0]
+                    cygNW = xpeaks[1], ypeaks[0]
+                else:  # two clusters, yes impact parameter.
+                    #TODO: check which ypeak belongs to which cluster
+                    cygA = xpeaks[0], ypeaks[0]
+                    cygNW = xpeaks[1], ypeaks[1]
+
+                distance = numpy.sqrt(p2(cygA[0]-cygNW[0])+p2(cygA[1]-cygNW[1]))
+                distance *= self.pixelscale
+                print "Success: found {0} xpeaks, and {1} ypeak!"\
+                    .format(expected_xpeaks, expected_ypeaks)
+                print "  cygA:  (x, y) = {0}".format(cygA)
+                print "  cygNW: (x, y) = {0}".format(cygNW)
+                print "  distance      = {0:.2f}\n".format(distance)
+                plot.psmac_xrays_with_dmrho_peakfind(
+                    self, snapnr, xsum, ysum, xpeaks, ypeaks, distance)
+                return cygA, cygNW, distance
+        else:
+            print "ERROR: found incorrect number of peaks in dmrho"
+            print "xpeaks = {0}\nypeaks = {1}".format(xpeaks, ypeaks)
+            print "Snapshot number = {0}\n".format(snapnr)
+            plot.psmac_xrays_with_dmrho_peakfind(
+                self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
