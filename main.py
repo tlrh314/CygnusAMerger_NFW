@@ -1,18 +1,33 @@
+import argparse
 import numpy
 from matplotlib import pyplot
 
 from cluster import ObservedCluster
-from cluster import ToyCluster
 import fit
 import plot
 from parse import write_toycluster_parameterfile
+from simulation import Simulation
 
 from plotsettings import PlotSettings
 style = PlotSettings()
 
 
+def new_argument_parser():
+    parser = argparse.ArgumentParser(
+        description="Simulation Pipeline")
+    parser.add_argument("-t", "--timestamp", dest="timestamp",
+            help="string of the Simulation ID", default="20161124T0148")
+    # group = parser.add_mutually_exclusive_group(required=True)
+    # group.add_argument("-t", "--timestamp", dest="timestamp", nargs=1,
+    #    help="string of the Simulation ID")
+
+    return parser
+
+
 if __name__ == "__main__":
-    cygA = ObservedCluster("cygA", verbose=True)
+    arguments = new_argument_parser().parse_args()
+
+    # cygA = ObservedCluster("cygA", verbose=True)
     # cygNW = ObservedCluster("cygNW", verbose=False)
 
     generate_toycluster_parameterfiles = False
@@ -39,13 +54,13 @@ if __name__ == "__main__":
         write_toycluster_parameterfile(ic_cygNW)
         write_toycluster_parameterfile(ic_both)
 
-    toyA = ToyCluster("cygA")
-    plot.toyclustercheck(cygA, toyA)
-    plot.toyclustercheck_T(cygA, toyA)
+    sim = Simulation("/usr/local/mscproj", arguments.timestamp, "cygA")
+    # plot.toyclustercheck(cygA, toyA)
+    # plot.toyclustercheck_T(cygA, toyA)
     # for k,v in toyA.header.iteritems(): print "{0:<17}: {1}".format(k, v)
     # toyA.gas, toyA.dm
     # plot.toycluster_profiles(cygA, toyA)
-    # toyNW = ToyCluster("cygNW")
+    # toyNW = Toycluster("cygNW")
 
     # plot.quiescent_parm(cygA, "n")  # n, rho, kT, P; also for cygNW
     # plot.sector_parm(cygA, parm="kT")  # n, rho, kT, P; only for cygA

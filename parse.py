@@ -1,6 +1,8 @@
+from collections import OrderedDict
 import numpy
 import astropy
 from astropy.io import ascii
+from astropy.io import fits
 
 from macro import p2
 
@@ -144,6 +146,24 @@ def write_toycluster_parameterfile(icparms):
         ics = toycluster_parameterfile(icparms)
         f.write(ics)
         print "... and done!"
+
+
+def read_toycluster_parameterfile(filename):
+    """ Eat toycluster parameter file, return ordered dictionary """
+    parameters = OrderedDict()
+
+    with open(filename, "r") as f:
+        for line in f:
+            # Ignore commented lines
+            if len(line) > 1 and not line.strip().startswith("%"):
+                line = line.strip().split("%")[0]  # Ignore comments in lines
+                keyvaluepair = line.split()
+                if keyvaluepair[0] != "Output_file":
+                    parameters[keyvaluepair[0]] = float(keyvaluepair[1])
+                else:
+                    parameters[keyvaluepair[0]] = keyvaluepair[1]
+
+    return parameters
 
 
 def toycluster_profiles(filename):
@@ -294,3 +314,44 @@ def toycluster_icfile(filename, verbose=False):
 
     return header, gas, dm
 # ----------------------------------------------------------------------------
+
+
+# ----------------------------------------------------------------------------
+# Eat Gadget-2 output
+# ----------------------------------------------------------------------------
+def read_gadget_parms(filename):
+    parameters = OrderedDict()
+    string_parms = ["InitCondFile", "OutputDir", "EnergyFile", "InfoFile",
+                    "TimingsFile", "CpuFile", "RestartFile", "SnapshotFileBase",
+                    "OutputListFilename", "ResubmitCommand"]
+
+    with open(filename, "r") as f:
+        for line in f:
+            # Ignore commented lines
+            if len(line) > 1 and not line.strip().startswith("%"):
+                line = line.strip().split("%")[0]  # Ignore comments in lines
+                keyvaluepair = line.split()
+                if keyvaluepair[0] not in string_parms:
+                    parameters[keyvaluepair[0]] = float(keyvaluepair[1])
+                else:
+                    parameters[keyvaluepair[0]] = keyvaluepair[1]
+
+    return parameters
+
+
+# ----------------------------------------------------------------------------
+# Eat P-Smac2 output
+# ----------------------------------------------------------------------------
+def psmac2_fitsfile(filename):
+    """ Read fits data cube. """
+    with fits.open(filename) as f:
+        header = f[0].header
+        data = f[0].data
+
+    cleaned_header = OrderedDict()
+    for line in repr(header).split("\n"):
+        if " = " in line and " / " in line and "SUM" not in line:
+            value, key = line.strip().split(" = ")[-1].strip().split(" / ")
+            cleaned_header[key] = value
+
+    return cleaned_header, data

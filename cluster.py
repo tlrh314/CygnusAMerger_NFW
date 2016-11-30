@@ -1,3 +1,4 @@
+import glob
 import numpy
 import astropy
 from matplotlib import pyplot
@@ -173,15 +174,15 @@ class ObservedCluster(object):
 # ----------------------------------------------------------------------------
 # Class to hold Toycluster sampled clusters
 # ----------------------------------------------------------------------------
-class ToyCluster(object):
+class Toycluster(object):
     """ Parse and store Toycluster sampled cluster """
-    def __init__(self, name, verbose=True):
-        """ TODO """
+    def __init__(self, icdir, verbose=True):
+        """ Class to hold Toycluster simulation output
+        @param icdir: path to the directory with Toycluster output, string
+        @return     : instance of Toycluster class"""
 
-        self.name = name
-
-        self.profiles = parse.toycluster_profiles("data/profiles_000.txt")
-        self.header, self.gas, self.dm = parse.toycluster_icfile("IC_single_0")
+        self.profiles = parse.toycluster_profiles(icdir+"profiles_000.txt")
+        self.header, self.gas, self.dm = parse.toycluster_icfile(icdir+"IC_single_0")
 
         self.r_sample = self.header["boxSize"]/2
 
@@ -193,6 +194,10 @@ class ToyCluster(object):
         self.set_dm_mass()
         self.set_dm_density()
 
+    def __str__(self):
+        tmp = "Toycluster ICfile header:\n"
+        for k, v in self.header.iteritems(): tmp += "    {0:<25}: {1}\n".format(k, v)
+        return tmp
 
     def set_gas_mass(self, NGB=50):
         """ Set the gas mass from the SPH density, see Price (2012, eq. 11)
@@ -208,7 +213,7 @@ class ToyCluster(object):
     def set_dm_mass(self, verbose=True):
         """ Count particles <r (= number density). Obtain DM mass from it """
 
-        if verbose: print "Counting nr. of particles with radius < r to obtain M(<r)"
+        if verbose: print "    Counting nr. of particles with radius < r to obtain M(<r)"
 
         radii = numpy.power(10, numpy.linspace(numpy.log(1), numpy.log(1e5), 1001))
         dr = radii[1:] - radii[:-1]
@@ -233,3 +238,68 @@ class ToyCluster(object):
         self.rho_dm_below_r = (self.M_dm*convert.msun2g
                 * (self.n_dm_in_shell/self.header["ndm"])
                 / (self.dm_volume * p3(convert.kpc2cm)))
+
+
+# ----------------------------------------------------------------------------
+# Class to hold Gadget-2 simulation snaphots
+# ----------------------------------------------------------------------------
+class Gadget2Output(object):  # TODO parse individual snapshots, split box in half, etc
+    """ Parse and store Gadget-2 simulation snapshots"""
+    def __init__(self, simdir, verbose=True):
+        """ Class to hold Gadgget-2 simulation output
+        @param simdir: path to the directory with Gadget-2 output, string
+        @return      : instance of Gadget2Output class"""
+        self.parms = parse.read_gadget_parms(simdir+"gadget2.par")
+
+    def __str__(self):
+        tmp = "Gadget-2 parameters:\n"
+        for k, v in self.parms.iteritems(): tmp += "    {0:<25}: {1}\n".format(k, v)
+        return tmp
+
+
+# ----------------------------------------------------------------------------
+# Class to hold P-Smac2 simulation snaphots
+# ----------------------------------------------------------------------------
+class PSmac2Output(object):
+    """ Parse and store Gadget-2 simulation snapshots"""
+    def __init__(self, sim, verbose=True):
+        """ Class to hold Gadgget-2 simulation output
+        @param analysisdir: path to the directory with P-Smac2 output, string
+        @return           : instance of PSmac2Output class"""
+
+        self.eat_all_fitsfiles(sim)
+
+    def __str__(self):
+        available = self.available_smac_cubes()
+        tmp = "P-Smac2 fits cubes available:\n"
+        tmp += "    {0}\n".format(available)
+        for avail in available:
+            tmp += "\n    Header of attribute: '{0}'\n".format(avail)
+            for k, v in getattr(self, avail+"_header").iteritems():
+                tmp += "    {0:<25}: {1}\n".format(k, v)
+        return tmp
+
+    def eat_all_fitsfiles(self, sim):
+        # Set attribute depending on the name of the fitsfile
+        attributes = {
+            "physical-density": "rhogas", "dm-density": "rhodm",
+            "temperature-spectroscopic": "tspec",
+            "temperature-emission-weighted": "tem",
+            "xray-surface-brightness": "xray",
+            "velocity": "vel"
+        }
+
+        smaccubes = glob.glob(sim.analysisdir+"*.fits.fz")
+        for path in smaccubes:
+            for cubename, attr in attributes.iteritems():
+                if cubename in path:
+                    break
+            else:
+                print "ERROR: unknown fits filename"
+                continue
+            header, data = parse.psmac2_fitsfile(path)
+            setattr(self, attr+"_header", header)
+            setattr(self, attr, data)
+
+    def available_smac_cubes(self):
+        return [i for i in self.__dict__.keys() if i[:1] != "_" and "_header" not in i]
