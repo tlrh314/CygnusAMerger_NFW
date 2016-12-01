@@ -25,6 +25,8 @@ class ObservedCluster(object):
             Available profiles: density, metallicity, pressure, temperature, Y
             Both average sector, and hot/cold/merger sectors available """
 
+        if name != "cygA" and name != "cygNW":
+            print "ERROR: incorrect ObservedCluster name specified: '{0}'".format(name)
         self.name = name
 
         # Redshift of Cygnus cluster Owen+ 1997. CygNW might have different z.
@@ -229,7 +231,7 @@ class Toycluster(object):
         for i, r in enumerate(self.dm_radii):
             particles[i] = ((numpy.where(self.dm["r"] < r)[0]).size)
             if verbose and (i==(N-1) or i%100 == 0):
-                print_progressbar(i, N)
+                print_progressbar(i, N, whitespace="    ")
 
         particles_in_shell = numpy.zeros(len(particles))
         for i in range(1, len(particles)):

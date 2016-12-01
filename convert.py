@@ -41,10 +41,10 @@ def cgs_to_gadget_units(rho):
     return 1./(uMass/p3(uLength)) * rho / p2(h)
 
 def keV_to_K(kT):
-    return kT*u.keV/const.k_B.to(u.keV/u.K)
+    return kT*(u.keV/const.k_B.to(u.keV/u.K)).value
 
 def K_to_keV(T):
-    return T*const.k_B.to(u.keV/u.K)/u.keV
+    return T*(const.k_B.to(u.keV/u.K)/u.keV).value
 
 def gadget_u_to_t(uint):
     """  convert gadget internal energy to temperature in Kelvin

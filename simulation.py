@@ -6,10 +6,12 @@ import peakutils
 
 import parse
 import plot
-from macro import p2, p3
+import convert
+from macro import p2, p3, print_progressbar
 from cluster import Toycluster
 from cluster import Gadget2Output
 from cluster import PSmac2Output
+from panda import create_panda
 
 # ----------------------------------------------------------------------------
 # Class to set simulation paths and the like
@@ -84,7 +86,7 @@ class Simulation(object):
         self.nsnaps, self.xlen, self.ylen = self.psmac.xray.shape
         self.pixelscale = float(self.psmac.xray_header["XYSize"])/int(self.xlen)
 
-    def find_cluster_centroids_psmac_dmrho(self, snapnr=0):
+    def find_cluster_centroids_psmac_dmrho(self, snapnr=0, plot=False):
         print "Checking snapshot {0}".format(snapnr)
 
         if self.name:  # Only one cluster in simulation box
@@ -113,45 +115,90 @@ class Simulation(object):
         xpeaks = peakutils.indexes(xsum, thres=thres, min_dist=min_dist)
         ypeaks = peakutils.indexes(ysum, thres=thres, min_dist=min_dist)
 
-        if len(xpeaks) == expected_xpeaks and len(ypeaks) == expected_ypeaks:
-            try:  # Further optimize peakfinding by interpolating
-                xpeaks = peakutils.interpolate(range(0, self.xlen), xsum, ind=xpeaks)
-                ypeaks = peakutils.interpolate(range(0, self.ylen), ysum, ind=ypeaks)
-            except RuntimeError as err:
-                if "Optimal parameters not found: Number of calls to function has reached" in str(err):
-                    print "WARNING: peakutils.interpolate broke, using integer values"
-                else:
-                    raise
-
-            if self.name:  # Only one cluster in simulation box
-                center = xpeaks[0], ypeaks[0]
-                print "Success: found 1 xpeak, and 1 ypeak!"
-                print "  {0}:  (x, y) = {1}".format(self.name, center)
-                plot.psmac_xrays_with_dmrho_peakfind(
-                    self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
-                return center
-            else:
-                if self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
-                    cygA = xpeaks[0], ypeaks[0]
-                    cygNW = xpeaks[1], ypeaks[0]
-                else:  # two clusters, yes impact parameter.
-                    #TODO: check which ypeak belongs to which cluster
-                    cygA = xpeaks[0], ypeaks[0]
-                    cygNW = xpeaks[1], ypeaks[1]
-
-                distance = numpy.sqrt(p2(cygA[0]-cygNW[0])+p2(cygA[1]-cygNW[1]))
-                distance *= self.pixelscale
-                print "Success: found {0} xpeaks, and {1} ypeak!"\
-                    .format(expected_xpeaks, expected_ypeaks)
-                print "  cygA:  (x, y) = {0}".format(cygA)
-                print "  cygNW: (x, y) = {0}".format(cygNW)
-                print "  distance      = {0:.2f}\n".format(distance)
-                plot.psmac_xrays_with_dmrho_peakfind(
-                    self, snapnr, xsum, ysum, xpeaks, ypeaks, distance)
-                return cygA, cygNW, distance
-        else:
+        if not (len(xpeaks) == expected_xpeaks and len(ypeaks) == expected_ypeaks):
             print "ERROR: found incorrect number of peaks in dmrho"
             print "xpeaks = {0}\nypeaks = {1}".format(xpeaks, ypeaks)
             print "Snapshot number = {0}\n".format(snapnr)
-            plot.psmac_xrays_with_dmrho_peakfind(
+            if plot: plot.psmac_xrays_with_dmrho_peakfind(
                 self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
+            return
+
+        try:  # Further optimize peakfinding by interpolating
+            xpeaks = peakutils.interpolate(range(0, self.xlen), xsum, ind=xpeaks)
+            ypeaks = peakutils.interpolate(range(0, self.ylen), ysum, ind=ypeaks)
+        except RuntimeError as err:
+            if "Optimal parameters not found: Number of calls to function has reached" in str(err):
+                print "WARNING: peakutils.interpolate broke, using integer values"
+            else:
+                raise
+
+        if self.name:  # Only one cluster in simulation box
+            center = xpeaks[0], ypeaks[0]
+            print "Success: found 1 xpeak, and 1 ypeak!"
+            print "  {0}:  (x, y) = {1}".format(self.name, center)
+            if plot: plot.psmac_xrays_with_dmrho_peakfind(
+                self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
+            return center
+        else:
+            if self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
+                cygA = xpeaks[0], ypeaks[0]
+                cygNW = xpeaks[1], ypeaks[0]
+            else:  # two clusters, yes impact parameter.
+                #TODO: check which ypeak belongs to which cluster
+                cygA = xpeaks[0], ypeaks[0]
+                cygNW = xpeaks[1], ypeaks[1]
+
+            distance = numpy.sqrt(p2(cygA[0]-cygNW[0])+p2(cygA[1]-cygNW[1]))
+            distance *= self.pixelscale
+            print "Success: found {0} xpeaks, and {1} ypeak!"\
+                .format(expected_xpeaks, expected_ypeaks)
+            print "  cygA:  (x, y) = {0}".format(cygA)
+            print "  cygNW: (x, y) = {0}".format(cygNW)
+            print "  distance      = {0:.2f}\n".format(distance)
+            if plot: plot.psmac_xrays_with_dmrho_peakfind(
+                self, snapnr, xsum, ysum, xpeaks, ypeaks, distance)
+            return cygA, cygNW, distance
+
+    def create_quiescent_profile(self, snapnr, parm="tspec", plot=True):
+        parmdata = getattr(self.psmac, parm, None)[snapnr]
+        if not numpy.all(parmdata):
+            print "ERROR: sim.psmac does not have attribute '{0}'".format(parm)
+            print "       available:", self.psmac.available_smac_cubes()
+            return
+
+        unitfix = { "tspec": convert.K_to_keV }
+        unitfix = unitfix.get(parm, None)
+        if not unitfix: print "ERROR: unitfix not given for '{0}'".format(parm)
+
+        rmax = 900/self.pixelscale
+        radii = numpy.power(10, numpy.linspace(numpy.log(1), numpy.log(rmax), 42))
+        dr = radii[1:] - radii[:-1]
+        radii = radii[:-1]
+        N = len(radii)
+        quiescent_temperature = numpy.zeros(N)
+        quiescent_temperature_std = numpy.zeros(N)
+        if plot:
+            from matplotlib import pyplot
+            fig = pyplot.figure(figsize=(12, 12))
+        if self.name:  # Only one cluster in simulation box
+            xc, yc = self.find_cluster_centroids_psmac_dmrho(snapnr=snapnr)
+            for i, r in enumerate(radii):
+                print_progressbar(i, N)
+                quiescent_mask = create_panda(self.xlen, self.ylen, xc, yc, r, 45, -45)
+                quiescent_temperature[i] = numpy.median(parmdata[quiescent_mask])
+                quiescent_temperature_std[i] = numpy.std(parmdata[quiescent_mask])
+                y, x = numpy.where(quiescent_mask)
+                if plot: pyplot.scatter(x, y, s=1, c="r", edgecolor="face", alpha=1)
+            if plot:
+                pyplot.imshow(parmdata, origin="lower", cmap="afmhot")
+                pyplot.xlabel("x [pixel]")
+                pyplot.ylabel("y [pixel]")
+                pyplot.gca().set_aspect("equal")
+                pyplot.xlim(800, 1400)
+                pyplot.ylim(self.xlen/2-300, self.xlen/2+300)
+                pyplot.savefig(self.outdir+"{0}_{1:03d}.png".format(parm, snapnr))
+                pyplot.close()
+            return radii*self.pixelscale, unitfix(quiescent_temperature),\
+                unitfix(quiescent_temperature_std)
+        else:
+            cygA, cygNW, distance = self.find_cluster_centroids_psmac_dmrho(snapnr=snapnr)

@@ -83,7 +83,7 @@ def sector_parm(c, parm="kT"):
 def chandra_coolingtime(c):
     """ @param c:  ObservedCluster """
     Tcool = profiles.sarazin_coolingtime(c.avg["n"]/u.cm**3,
-            convert.keV_to_K(c.avg["kT"]))
+            convert.keV_to_K(c.avg["kT"].value))
 
     pyplot.figure(figsize=(12, 9))
     pyplot.plot(c.avg["r"], Tcool.value)
@@ -309,10 +309,10 @@ def toyclustercheck_T(obs, ics):
                     yerr=[obs.avg["fkT"], obs.avg["fkT"]], **avg)
     pyplot.plot(ics.gas["r"], ics.gas["kT"], **gas)
     pyplot.plot(ics.profiles["r"],
-        convert.K_to_keV(convert.gadget_u_to_t(ics.profiles["u_gas"])),
+        convert.K_to_keV(convert.gadget_u_to_t(ics.profiles["u_gas"]).value),
         label="u\_gas")
     pyplot.plot(ics.profiles["r"],
-        convert.K_to_keV(convert.gadget_u_to_t(ics.profiles["u_ana"])),
+        convert.K_to_keV(convert.gadget_u_to_t(ics.profiles["u_ana"]).value),
         label="u\_ana")
 
     # pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e7, 1e15,
@@ -379,5 +379,47 @@ def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, dis
     axd.text(0.5, 0.95, "X-ray Surface Brightness", ha="center", va="top",
             color="white", transform=axd.transAxes)
     pyplot.savefig(sim.outdir+"xray_peakfind_{0:03d}.png".format(snapnr))
-    # pyplot.show()
+    pyplot.close()
+
+
+def simulated_quiescent_parm(c, sim, snapnr, parm="kT"):
+    """ @param c     :  ObservedCluster instance
+        @param sim   :  Simulation instance
+        @param snapnr:  Number of snapshot to plot
+        @param parm  :  Parameter to plot: ['kT', 'n', 'rho', 'P'] """
+
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+
+    parmnames = { "kT": "kT [keV]",
+                  "n": "Density [1/cm$^3$]",
+                  "rho": "Mass Density [g/cm$^3$]",
+                  "P": "Pressure [erg/cm$^3$]" }
+    parmmapping = { "kT": "tspec", }
+                   #"n": "N/A",
+                   # "rho": "rhogas"}
+                   #"P": "N/A" }
+    if not parmnames.get(parm, None):
+        print "ERRROR: parm '{0}' is not available in observation".format(parm)
+        return
+    if not parmmapping.get(parm, None):
+        print "ERRROR: parm '{0}' is not available in simulation".format(parm)
+        return
+
+    r, val, fval = sim.create_quiescent_profile(snapnr, parm=parmmapping[parm])
+
+    pyplot.figure(figsize=(12, 9))
+    c.plot_chandra_average(parm=parm, style=avg)
+    pyplot.errorbar(r, val, yerr=[fval, fval])
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel(parmnames[parm])
+    pyplot.xscale("log")
+    pyplot.yscale("log")
+    pyplot.xlim(1, 2000)
+    # pyplot.ylim(-0.02, 0.2)
+    pyplot.legend(loc="best")
+    pyplot.tight_layout()
+    pyplot.savefig(sim.outdir+"{0}_{1}_{2:03d}.png".format(parm, c.name, snapnr))
     pyplot.close()

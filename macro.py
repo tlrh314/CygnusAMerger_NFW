@@ -6,13 +6,14 @@ def p2(a):
 def p3(a):
     return ((a)*(a)*(a))
 
-def print_progressbar(i, N):
+def print_progressbar(i, N, whitespace=""):
     # progressbar
     pbwidth = 42
 
-    progress = float(i)/N
+    progress = float(i)/(N-1)
     block = int(round(pbwidth*progress))
-    text = "\rProgress: [{0}] {1:.1f}%".format( "#"*block + "-"*(pbwidth-block), progress*100)
+    text = "\r{0}Progress: [{1}] {2:.1f}%".format(whitespace,
+        "#"*block + "-"*(pbwidth-block), progress*100)
     sys.stdout.write(text)
     sys.stdout.flush()
 

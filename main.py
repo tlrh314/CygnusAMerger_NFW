@@ -66,11 +66,15 @@ if __name__ == "__main__":
         write_toycluster_parameterfile(ic_cygNW)
         write_toycluster_parameterfile(ic_both)
 
+    obs = ObservedCluster(arguments.clustername, verbose=True)
     sim = Simulation(arguments.basedir, arguments.timestamp, arguments.clustername)
     for i in range(sim.nsnaps):
-        sim.find_cluster_centroids_psmac_dmrho(i)
+        # sim.find_cluster_centroids_psmac_dmrho(i)
+        plot.simulated_quiescent_parm(obs, sim, i, parm="kT")
     os.chdir(sim.outdir)
-    os.system('ffmpeg -y -r 8 -i "xray_peakfind_%3d.png" -profile:v high444 -level 4.1 -c:v libx264 -preset slow -crf 25 -s "2000:2000" -an "xray-dmdensity.mp4"')
+    # os.system('ffmpeg -y -r 8 -i "xray_peakfind_%3d.png" -profile:v high444 -level 4.1 -c:v libx264 -preset slow -crf 25 -s "2000:2000" -an "xray-dmdensity.mp4"')
+    os.system('ffmpeg -y -r 8 -i "kT_cygA_%3d.png" -profile:v high444 -level 4.1 -c:v libx264 -preset slow -crf 25 -s "2000:2000" -an "kT_cygA.mp4"')
+    os.system('ffmpeg -y -r 8 -i "tspec_%3d.png" -profile:v high444 -level 4.1 -c:v libx264 -preset slow -crf 25 -s "2000:2000" -an "tspec.mp4"')
 
 
     # plot.toyclustercheck(cygA, toyA)
