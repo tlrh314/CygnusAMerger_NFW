@@ -171,7 +171,7 @@ class Simulation(object):
         if not unitfix: print "ERROR: unitfix not given for '{0}'".format(parm)
 
         rmax = 900/self.pixelscale
-        radii = numpy.power(10, numpy.linspace(numpy.log(1), numpy.log(rmax), 42))
+        radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(rmax), 42))
         dr = radii[1:] - radii[:-1]
         radii = radii[:-1]
         N = len(radii)

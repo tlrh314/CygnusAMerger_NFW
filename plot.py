@@ -38,7 +38,7 @@ def quiescent_parm(c, parm="rho"):
     # pyplot.ylim(-0.02, 0.2)
     pyplot.legend(loc="best")
     pyplot.tight_layout()
-    pyplot.savefig("out/quiescent_{0}_{1}.pdf".format(parm, c.name), dpi=150)
+    pyplot.savefig("out/{0}_quiescent_{1}.pdf".format(c.name, parm), dpi=150)
 
 
 def sector_parm(c, parm="kT"):
@@ -77,20 +77,21 @@ def sector_parm(c, parm="kT"):
         pyplot.yscale("log")
     pyplot.legend(loc="best", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/sector_{0}_{1}.pdf".format(parm, c.name), dpi=150)
+    pyplot.savefig("out/{0}_sector_{1}.pdf".format(c.name, parm), dpi=150)
 
 
 def chandra_coolingtime(c):
     """ @param c:  ObservedCluster """
     Tcool = profiles.sarazin_coolingtime(c.avg["n"]/u.cm**3,
-            convert.keV_to_K(c.avg["kT"].value))
+            convert.keV_to_K(c.avg["kT"]))
 
     pyplot.figure(figsize=(12, 9))
-    pyplot.plot(c.avg["r"], Tcool.value)
+    pyplot.plot(c.avg["r"], Tcool)
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Cooling Time [yr]")
     pyplot.xscale("log")
     pyplot.yscale("log")
+    pyplot.savefig("out/{0}_cooling_time.pdf".format(c.name), dpi=150)
     pyplot.tight_layout()
 # ----------------------------------------------------------------------------
 
@@ -104,7 +105,7 @@ def bestfit_betamodel(c):
     avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
             "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
-    fit = { "c": "k", "lw": 4, "ls": "solid" }
+    fit = { "color": "k", "lw": 4, "linestyle": "solid" }
 
     fig, (ax, ax_r) = pyplot.subplots(2, 2, sharex=True, figsize=(16, 12))
     gs1 = matplotlib.gridspec.GridSpec(3, 3)
@@ -143,11 +144,15 @@ def bestfit_betamodel(c):
     ax.get_yaxis().set_label_coords(-0.07, 0.5)
     ax_r.get_yaxis().set_label_coords(-0.07, 0.5)
     pyplot.tight_layout()
-    pyplot.savefig("out/bestfit_betamodel_{0}.pdf".format(c.name), dpi=150)
+    pyplot.savefig("out/{0}_bestfit_betamodel.pdf".format(c.name), dpi=150)
     pyplot.sca(ax)
 
 
 def inferred_nfw_profile(c):
+    """ Plot the observed gas density, best-fit betamodel and the inferred
+        best-fit NFW profile for the cluster
+        @param c   : ObservedCluster """
+
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
@@ -159,8 +164,6 @@ def inferred_nfw_profile(c):
     c.plot_chandra_average(parm="rho", style=avg)
     c.plot_bestfit_betamodel(style=fit, do_cut=True)
     c.plot_inferred_nfw_profile(style=dm)
-
-    #gas_density_betamodel(r, rho0, beta, rc)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
         facecolor="grey", edgecolor="grey", alpha=0.2)
@@ -175,8 +178,37 @@ def inferred_nfw_profile(c):
     pyplot.ylim(ymin=1e-32, ymax=9e-24)
     pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/inferred_nfw_{0}.pdf".format(c.name), dpi=150)
+    pyplot.savefig("out/{0}_inferred_nfw_cNFW={1:.3f}_bf={2:.4f}.png"
+        .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+    pyplot.close()
+
+
+def inferred_temperature(c):
+    """ Plot the observed temperature profile and the inferred hydrostatic
+        temperature for the best-fit betamodel and inferred total mass profile
+        M_tot (spherically symmetric volume-integrated NFW plus ~ betamodel)
+        @param c: ObservedCluster """
+
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
+            "elinewidth": 2, "label": "Average kT" }
+
+    pyplot.figure(figsize=(12, 9))
+    c.plot_chandra_average(parm="kT", style=avg)
+    c.plot_inferred_temperature()
+
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel("kT (keV)")
+    pyplot.xscale("log")
+    pyplot.xlim(3, 2000)
+    pyplot.ylim(0.1, 12)
+    pyplot.legend(loc="best", fontsize=22)
+    pyplot.tight_layout()
+    pyplot.savefig("out/{0}_hydrostatic-temperature_cNFW={1:.3f}_bf={2:.4f}.png"
+        .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+    pyplot.close()
 # ----------------------------------------------------------------------------
+
 
 # ----------------------------------------------------------------------------
 # Plots numerical haloes sampled with Toycluster
@@ -219,6 +251,7 @@ def toycluster_profiles(obs, ics):
     pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
 
+
 def toyclustercheck(obs, ics):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "k",
@@ -258,7 +291,7 @@ def toyclustercheck(obs, ics):
     pyplot.ylim(ymin=1e-32, ymax=9e-24)
     pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/sampled_rho_{0}.png".format(obs.name), dpi=150)
+    pyplot.savefig("out/{0}_sampled_rho.png".format(obs.name), dpi=150)
 
 
     pyplot.figure(figsize=(12,9))
@@ -293,7 +326,7 @@ def toyclustercheck(obs, ics):
     pyplot.ylim(ymin=1e7, ymax=1e15)
     # pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/sampled_mass_{0}.png".format(obs.name), dpi=150)
+    pyplot.savefig("out/{0}_sampled_mass.png".format(obs.name), dpi=150)
 
 
 def toyclustercheck_T(obs, ics):
@@ -328,7 +361,7 @@ def toyclustercheck_T(obs, ics):
     pyplot.ylim(ymin=1e-1, ymax=1e2)
     pyplot.legend(loc="upper left", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/sampled_temperature_{0}.png".format(obs.name), dpi=150)
+    pyplot.savefig("out/{0}_sampled_temperature.png".format(obs.name), dpi=150)
 
 
 def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, distance):

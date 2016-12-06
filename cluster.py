@@ -54,6 +54,7 @@ class ObservedCluster(object):
 
         self.set_bestfit_betamodel(verbose=verbose)
         self.set_total_gravitating_mass(verbose=verbose)
+        self.set_inferred_temperature(verbose=verbose)
 
     def __str__(self):
         return str(self.avg)
@@ -91,8 +92,40 @@ class ObservedCluster(object):
         self.fbeta = fmles[1]
         self.frc = fmles[2]
 
-    def set_total_gravitating_mass(self, verbose=False):
-        self.halo = fit.total_gravitating_mass(self, verbose=verbose)
+    def set_total_gravitating_mass(self, cNFW=None, bf=0.17, verbose=False):
+        self.halo = fit.total_gravitating_mass(self,
+            cNFW=cNFW, bf=bf, verbose=verbose)
+
+    def set_inferred_temperature(self, verbose=False):
+        # radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e3), 50))
+        # dr = radii[1:] - radii[:-1]
+        # radii = radii[:-1] * convert.kpc2cm
+        radii = self.avg["r"] * convert.kpc2cm
+        N = len(radii)
+        hydrostatic = numpy.zeros(N)
+
+        # We need callable gas profile
+        rho_gas = lambda r: profiles.gas_density_betamodel(
+            r, self.rho0, self.beta, self.rc*convert.kpc2cm)
+
+        # We need callable total mass profile
+        rs = self.halo["rs"]*convert.kpc2cm
+        rho0_dm = self.halo["rho0_dm"]
+        r200 = self.halo["r200"]*convert.kpc2cm
+        M_tot = lambda r: ( profiles.dm_mass_nfw(r, rho0_dm, rs) +
+            profiles.gas_mass_betamodel_cut(r, self.rho0, self.beta, self.rc, r200))
+
+        R_sample = numpy.sqrt(3)/2*numpy.floor(2*self.halo["r200"])*convert.kpc2cm
+        print "Setting hydrostatic temperature"
+        for i, r in enumerate(radii):
+            if not r: continue  # to skip masked values
+            hydrostatic[i] = profiles.hydrostatic_temperature(
+                r, R_sample, rho_gas, M_tot)
+            if verbose and (i%10 == 0 or i==(N-1)):
+                print_progressbar(i, N)
+        print "\n"
+        self.gas_radii = convert.cm2kpc*radii
+        self.hydrostatic = convert.K_to_keV(hydrostatic)
 
     def plot_chandra_average(self, parm="kT", style=dict()):
         """ plot of observed average profile of parm """
@@ -160,18 +193,23 @@ class ObservedCluster(object):
         rs = self.halo["rs"]
         radii = numpy.arange(0.1, 1.1e4, 0.1)  # kpc
         density = self.halo["rho0_dm"] if rho else self.halo["ne0_dm"]
-        M_dm = profiles.dm_density_nfw(radii, density, rs)
+        rho_dm = profiles.dm_density_nfw(radii, density, rs)
 
         label = r"\begin{tabular}{p{2.5cm}ll}"
         # label += " model & = & NFW \\\\"
         label += r" rho0dm & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.halo["rho0_dm"])
         label += " rs & = & {0:.2f} kpc \\\\".format(rs)
         label += (" \hline \end{tabular}")
-        pyplot.plot(radii, M_dm, label=label, **style)
+        pyplot.plot(radii, rho_dm, label=label, **style)
 
         ymin = profiles.dm_density_nfw(rs, density, rs)
         pyplot.vlines(x=rs, ymin=ymin, ymax=9e-24 if rho else 9.15, **style)
         pyplot.text(rs-25, 4e-24 if rho else 4.06, r"$r_s$", ha="right", fontsize=22)
+
+    def plot_inferred_temperature(self, style=dict()):
+        pyplot.plot(self.gas_radii, self.hydrostatic,
+            label="cNFW={0:.3f}, bf={1:.4f}".format(
+            self.halo["cNFW"], self.halo["bf200"]))
 # ----------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------
@@ -222,7 +260,7 @@ class Toycluster(object):
 
         if verbose: print "    Counting nr. of particles with radius < r to obtain M(<r)"
 
-        radii = numpy.power(10, numpy.linspace(numpy.log(1), numpy.log(1e5), 1001))
+        radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e5), 1001))
         dr = radii[1:] - radii[:-1]
         self.dm_radii = radii[:-1]
         N = len(self.dm_radii)
@@ -276,10 +314,11 @@ class PSmac2Output(object):
 
         self.eat_all_fitsfiles(sim)
 
-    def __str__(self):
+    def __str__(self, debug=False):
         available = self.available_smac_cubes()
         tmp = "P-Smac2 fits cubes available:\n"
         tmp += "    {0}\n".format(available)
+        if not debug: return tmp
         for avail in available:
             tmp += "\n    Header of attribute: '{0}'\n".format(avail)
             for k, v in getattr(self, avail+"_header").iteritems():

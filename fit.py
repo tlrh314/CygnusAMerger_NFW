@@ -5,6 +5,7 @@ from matplotlib import pyplot
 
 import convert
 import profiles
+import plot
 from macro import *
 
 
@@ -98,12 +99,15 @@ def betamodel_to_chandra(c, verbose=False):
     return ml_vals, err
 
 
-def total_gravitating_mass(c, verbose=False, debug=False):
+def total_gravitating_mass(c, cNFW=None, bf=0.17, verbose=False, debug=False):
     """ Find total gravitating mass under assumption of fixed baryon fraction
         at the virial radius (seventeen percent) r200.
         The problem is implicit and solved by root-finding (bisection).
-        @param c:  ObservedCluster
-        @return:   TODO """
+        @param c   : ObservedCluster
+        @param cNFW: Concentration parameter. If given, cNFW is a free parameter
+                     instead of using the Duffy+ 2008 relation for c(M200, z)
+        @param bf  : Baryon fraction. Default 17% within R200.
+        @return    : Dictionary of best-fit halo properties. """
 
     # Set bestfit betamodel parameters
     ne0, rho0, beta, rc = c.ne0, c.rho0, c.beta, c.rc
@@ -119,14 +123,14 @@ def total_gravitating_mass(c, verbose=False, debug=False):
         # bisection
         r200 = (lower+upper)/2.
 
-        bf = 0.17  # Critical assumption: bf == 0.17 at r200 (Planelles+ 2013)
+        # bf = 0.17  # Critical assumption: bf == 0.17 at r200 (Planelles+ 2013)
 
         Mgas200 = profiles.gas_mass_betamodel(r200, rho0, beta, rc)
         Mdm200 = Mgas200 * (1/bf - 1)
 
         M200 = Mgas200 + Mdm200
 
-        cNFW = profiles.cNFW(M200)
+        if not cNFW: cNFW = profiles.cNFW(M200)
         rs = r200 / cNFW
 
         rho0_dm = Mdm200 / profiles.dm_mass_nfw(r200, 1, rs)
@@ -183,3 +187,27 @@ def total_gravitating_mass(c, verbose=False, debug=False):
         print
 
     return halo
+
+
+def temperature_wrapper(c, cNFW, bf, do_plot=True):
+    print "Trying cNFW = {0}, bf = {1}".format(cNFW, bf)
+    c.set_total_gravitating_mass(cNFW=cNFW, bf=bf)
+    c.set_inferred_temperature()
+    if plot: plot.inferred_temperature(c)
+    return c.hydrostatic
+
+
+def total_gravitating_mass_freecbf(c, verbose=False):
+    """ Fit 'total_gravitating_mass' to temperature /w cNFW and bf as free parameters.
+        @param c:  ObservedCluster
+        @return:   (MLE, one sigma confidence interval), tuple """
+
+    ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1:
+                temperature_wrapper(c, parm0, parm1, do_plot=True),
+                c.avg["r"], c.avg["kT"], p0=[5, 0.17],
+                sigma=c.avg["fkT"])
+
+    print ml_vals
+    print ml_covar
+
+    err = numpy.sqrt(numpy.diag(ml_covar))
