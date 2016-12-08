@@ -68,6 +68,10 @@ class Simulation(object):
         if verbose: print "  {0}".format(self.toy)
 
     def set_gadget(self, verbose=False):
+        if not (os.path.isdir(self.simdir) or os.path.exists(self.simdir)):
+            print "  Directory '{0}' does not exist.".format(self.simdir)
+            return
+
         if verbose: print "  Parsing Gadet-2 output"
         self.gadget = Gadget2Output(self.simdir, verbose=verbose)
         self.dt = self.gadget.parms['TimeBetSnapshot']
@@ -78,6 +82,10 @@ class Simulation(object):
         pass
 
     def read_smac(self, verbose=False):
+        if not (os.path.isdir(self.analysisdir) or os.path.exists(self.analysisdir)):
+            print "  Directory '{0}' does not exist.".format(self.analysisdir)
+            return
+
         if verbose: print "  Parsing P-Smac2 output"
         self.psmac = PSmac2Output(self, verbose=verbose)
         if verbose: print "  Succesfully loaded P-Smac2 fitsfiles"
@@ -160,11 +168,12 @@ class Simulation(object):
             return cygA, cygNW, distance
 
     def create_quiescent_profile(self, snapnr, parm="tspec", plot=True):
-        parmdata = getattr(self.psmac, parm, None)[snapnr]
-        if not numpy.all(parmdata):
+        cube = getattr(self.psmac, parm, None)
+        if cube is None:
             print "ERROR: sim.psmac does not have attribute '{0}'".format(parm)
             print "       available:", self.psmac.available_smac_cubes()
             return
+        parmdata = cube[snapnr]
 
         unitfix = { "tspec": convert.K_to_keV }
         unitfix = unitfix.get(parm, None)

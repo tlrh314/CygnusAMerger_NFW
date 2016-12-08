@@ -1,10 +1,13 @@
 import numpy
+import scipy
 import astropy.units as u
 import astropy.constants as const
 import matplotlib
 from matplotlib import pyplot
 from matplotlib import gridspec
+from matplotlib.ticker import MaxNLocator
 
+import fit
 import profiles
 import convert
 
@@ -82,8 +85,7 @@ def sector_parm(c, parm="kT"):
 
 def chandra_coolingtime(c):
     """ @param c:  ObservedCluster """
-    Tcool = profiles.sarazin_coolingtime(c.avg["n"]/u.cm**3,
-            convert.keV_to_K(c.avg["kT"]))
+    Tcool = profiles.sarazin_coolingtime(c.avg["n"]/u.cm**3, c.avg["T"])
 
     pyplot.figure(figsize=(12, 9))
     pyplot.plot(c.avg["r"], Tcool)
@@ -135,7 +137,6 @@ def bestfit_betamodel(c):
     pyplot.ylim(-35, 35)
 
     # Fix for overlapping y-axis markers
-    from matplotlib.ticker import MaxNLocator
     ax.tick_params(labelbottom="off")
     nbins = len(ax_r.get_yticklabels())
     ax_r.yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune="upper"))
@@ -178,9 +179,32 @@ def inferred_nfw_profile(c):
     pyplot.ylim(ymin=1e-32, ymax=9e-24)
     pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_inferred_nfw_cNFW={1:.3f}_bf={2:.4f}.png"
-        .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
-    pyplot.close()
+    # pyplot.savefig("out/{0}_inferred_nfw_cNFW={1:.3f}_bf={2:.4f}.png"
+    #    .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+    # pyplot.close()
+
+
+def inferred_mass(c):
+    """ Plot the inferred mass profiles, both gas and dark matter.
+        @param c: ObservedCluster """
+
+    # Define kwargs for pyplot to set up style of the plot
+    gas = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "gas" }
+    dm = { "color": "k", "lw": 1, "linestyle": "solid", "label": "DM" }
+
+    pyplot.figure(figsize=(12, 9))
+    c.plot_bestfit_betamodel_mass(style=gas)
+    c.plot_inferred_nfw_mass(style=dm)
+
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel("Mass [Msun]")
+    pyplot.xscale("log")
+    pyplot.yscale("log")
+    pyplot.legend(loc="best", fontsize=22)
+    pyplot.tight_layout()
+    # pyplot.savefig("out/{0}_hydrostatic-temperature_cNFW={1:.3f}_bf={2:.4f}.png"
+    #    .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+    # pyplot.close()
 
 
 def inferred_temperature(c):
@@ -198,22 +222,166 @@ def inferred_temperature(c):
     c.plot_inferred_temperature()
 
     pyplot.xlabel("Radius [kpc]")
-    pyplot.ylabel("kT (keV)")
+    pyplot.ylabel("kT [keV]")
     pyplot.xscale("log")
     pyplot.xlim(3, 2000)
     pyplot.ylim(0.1, 12)
     pyplot.legend(loc="best", fontsize=22)
     pyplot.tight_layout()
     pyplot.savefig("out/{0}_hydrostatic-temperature_cNFW={1:.3f}_bf={2:.4f}.png"
-        .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+       .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
     pyplot.close()
+
+def inferred_pressure(c):
+    """ Plot the observed pressure profile and the inferred hydrostatic
+        pressure for the best-fit betamodel and inferred total mass profile
+        M_tot (spherically symmetric volume-integrated NFW plus ~ betamodel)
+        @param c: ObservedCluster """
+
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
+            "elinewidth": 2, "label": "Average P" }
+
+    pyplot.figure(figsize=(12, 9))
+    c.plot_chandra_average(parm="P", style=avg)
+    c.plot_inferred_temperature()
+
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.ylabel("Pressure [erg/cm$^3$]")
+    pyplot.xscale("log")
+    pyplot.legend(loc="best", fontsize=22)
+    pyplot.tight_layout()
+    pyplot.savefig("out/{0}_hydrostatic-pressure={1:.3f}_bf={2:.4f}.png"
+       .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+    pyplot.close()
+
+
+
+def smith_hydrostatic_mass(c, debug=False):
+    """ Smith+ (2002; eq. 3-5) Hydrostatic Mass from T(r), n_e(r)
+        M(<r) = - k T(r) r^2/(mu m_p G) * (1/n_e * dn_e/dr + 1/T * dT/dr)
+
+        Smith assumes:
+            i) constant temperature, or
+            ii) centrally decreasing temperature T(keV) = a - b exp[ - r(kpc)/c ]
+                ==> 1/T dT/dr = 1/T b/c exp[-r/c]
+
+        Method here: use best-fit betamodel, and its analytical derivative,
+        for the temperature we fit a spline to the (smoothed) observed profile
+        to obtain the temperature derivative from the spline
+
+        @param c: ObservedCluster """
+
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "", "c": "gray", "ms": 4, "alpha": 0.5,
+            "elinewidth": 2 }
+    ana = { "color": "k", "lw": 2, "linestyle": "solid", }
+
+    smith = False
+    if smith:
+        mle, err = fit.smith_centrally_decreasing_temperature(c)
+        print "Smith (2002)", mle, err
+        pyplot.figure(figsize=(12, 9))
+        c.plot_chandra_average(parm="kT", style=avg)
+        kT = profiles.smith_centrally_decreasing_temperature(
+            c.avg["r"], mle[0], mle[1], mle[2])
+        pyplot.plot(c.avg["r"], kT, label="my fit")
+        mle = (7.81, 7.44, 76.4)
+        kT = profiles.smith_centrally_decreasing_temperature(
+            c.avg["r"], mle[0], mle[1], mle[2])
+        pyplot.plot(c.avg["r"], kT, label="Smith 2002")
+        pyplot.xlabel("Radius [kpc]")
+        pyplot.ylabel("Temperature [keV]")
+        # pyplot.xscale("log")
+        pyplot.legend(loc="best", fontsize=14)
+
+    # Hydrostatic mass equation eats cgs: feed the monster radii in cgs
+    mask = numpy.where(c.ana_radii < 1000)  # Take analytical radii up to 1 Mpc
+    radii = c.ana_radii[mask]*convert.kpc2cm
+
+    # Betamodel /w number density and its derivative
+    ne = profiles.gas_density_betamodel(
+        radii, c.ne0, c.beta, c.rc*convert.kpc2cm)
+    dne_dr = profiles.d_gas_density_betamodel_dr(
+        radii, c.ne0, c.beta, c.rc*convert.kpc2cm)
+
+    # Only use unmasked values b/c splrep/splev breaks for masked values
+    r = numpy.ma.compressed(c.avg["r"]*convert.kpc2cm)
+    T = numpy.ma.compressed(c.avg["T"])
+
+    # Fit a smoothed cubic spline to the data. Spline then gives dkT/dr
+    T = scipy.ndimage.filters.gaussian_filter1d(T, 10)  # sigma=10
+    spline = scipy.interpolate.splrep(r, T)  # built-in smoothing breaks
+
+    # Evaluate spline, der=0 for fit to the data and der=1 for first derivative.
+    T = scipy.interpolate.splev(radii, spline, der=0)
+    dT_dr = scipy.interpolate.splev(radii, spline, der=1)
+
+    Mhe_below_r = profiles.smith_hydrostatic_mass(radii, ne, dne_dr, T, dT_dr)
+
+    if debug:
+        matplotlib.rc("font", **{"size": 22})
+        fig, (ax0, ax1, ax2, ax3) = pyplot.subplots(4, 1, sharex=True, figsize=(12, 18))
+        gs1 = matplotlib.gridspec.GridSpec(4, 1)
+        gs1.update(hspace=0)
+        ax3 = pyplot.subplot(gs1[3])
+        ax2 = pyplot.subplot(gs1[2], sharex=ax3)
+        ax1 = pyplot.subplot(gs1[1], sharex=ax3)
+        ax0 = pyplot.subplot(gs1[0], sharex=ax3)
+
+        pyplot.sca(ax0); c.plot_chandra_average(parm="n", style=avg)
+        ax0.loglog(radii*convert.cm2kpc, ne, **ana)
+        ax0.set_ylabel("n$_e$(r) [1/cm$^3$]")
+        ax1.semilogx(radii*convert.cm2kpc, dne_dr, **ana)
+        ax1.set_ylabel("dn$_e$ / dr")
+        pyplot.sca(ax2); c.plot_chandra_average(parm="T", style=avg)
+        ax2.loglog(radii*convert.cm2kpc, T, **ana)
+        ax2.set_yticks([3e7, 5e7, 7e7, 9e7])
+        ax2.set_ylabel("T(r) [K]")
+        ax3.semilogx(radii*convert.cm2kpc, dT_dr, **ana)
+        ax3.set_ylabel("dT / dr")
+        ax3.set_xlabel("Radius [kpc]")
+
+        if c.name == "cygA":
+            ax0.set_ylim(1e-4, 2e-1)
+            ax1.set_ylim(-1e-24, 2e-26)
+            ax2.set_ylim(3e7, 1e8)
+            ax3.set_ylim(-0.8e-16, 3e-16)
+        if c.name == "cygNW":
+            ax0.set_ylim(5e-5, 4e-3)
+            ax1.set_ylim(-3e-27, 1e-27)
+            ax2.set_ylim(3e7, 1e8)
+            ax3.set_ylim(-2e-17, 8e-19)
+
+        for ax in [ax0, ax2]:  # show left
+            ax.tick_params(labelleft=True, labelright=False)
+        for ax in [ax1, ax3]:  # show right
+            ax.tick_params(labelleft=False, labelright=True)
+        for ax in [ax0, ax1, ax2]:  # only show xlabel on the lowest axis
+            ax.tick_params(labelbottom="off")
+        for ax in [ax0, ax1, ax2, ax3]:  # force ylabels to align
+            ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.0e"))
+            ax.get_yaxis().set_label_coords(-0.12, 0.5)
+
+        pyplot.xlim(-2, 1100)
+        pyplot.tight_layout()
+        pyplot.savefig("out/{0}_hydrostaticmass_debug.pdf".format(c.name), dpi=300)
+        pyplot.show()
+        matplotlib.rc("font", **{"size": 28})
+
+    pyplot.figure(figsize=(12, 9))
+    pyplot.loglog(radii*convert.cm2kpc, Mhe_below_r*convert.g2msun, **ana)
+    pyplot.ylabel("Hydrostatic Mass [MSun]")
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.tight_layout()
+    pyplot.savefig("out/{0}_hydrostaticmass.pdf".format(c.name), dpi=300)
 # ----------------------------------------------------------------------------
 
 
 # ----------------------------------------------------------------------------
 # Plots numerical haloes sampled with Toycluster
 # ----------------------------------------------------------------------------
-def toycluster_profiles(obs, ics):
+def toycluster_profiles(obs, sim, halo="000"):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "k",
             "ms": 4, "alpha": 1, "elinewidth": 2,
@@ -230,10 +398,10 @@ def toycluster_profiles(obs, ics):
     pyplot.figure(figsize=(12,9))
 
     obs.plot_chandra_average(parm="rho", style=avg)
-    rho_gas = convert.toycluster_units_to_cgs(ics.profiles["rho_gas"])
-    rho_dm = convert.toycluster_units_to_cgs(ics.profiles["rho_dm"])
-    pyplot.plot(ics.profiles["r"], rho_gas, **fit_a)
-    pyplot.plot(ics.profiles["r"], rho_dm, **dm_a)
+    rho_gas = convert.toycluster_units_to_cgs(sim.toy.profiles[halo]["rho_gas"])
+    rho_dm = convert.toycluster_units_to_cgs(sim.toy.profiles[halo]["rho_dm"])
+    pyplot.plot(sim.toy.profiles[halo]["r"], rho_gas, **gas_a)
+    pyplot.plot(sim.toy.profiles[halo]["r"], rho_dm, **dm_a)
     # obs.plot_bestfit_betamodel(style=fit, do_cut=True)
     # obs.plot_inferred_nfw_profile(style=dm)
 
@@ -250,9 +418,10 @@ def toycluster_profiles(obs, ics):
     pyplot.ylim(ymin=1e-32, ymax=9e-24)
     pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
+    pyplot.savefig(sim.outdir+"toycluster_density_{0}.png".format(obs.name))
 
 
-def toyclustercheck(obs, ics):
+def toyclustercheck(obs, sim, halo="000"):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "k",
             "ms": 4, "alpha": 1, "elinewidth": 2,
@@ -268,14 +437,14 @@ def toyclustercheck(obs, ics):
     radii = numpy.arange(1, 1e4, 1)
 
     pyplot.figure(figsize=(12,9))
-    pyplot.plot(ics.gas["r"], ics.gas["rho"], **gas)
-    pyplot.plot(ics.dm_radii, ics.rho_dm_below_r, **dm)
+    pyplot.plot(sim.toy.gas["r"], sim.toy.gas["rho"], **gas)
+    pyplot.plot(sim.toy.dm_radii, sim.toy.rho_dm_below_r, **dm)
     obs.plot_chandra_average(parm="rho", style=avg)
     obs.plot_bestfit_betamodel(style=dashed, do_cut=True)
     obs.plot_bestfit_betamodel(style=dotted, do_cut=False)
     obs.plot_inferred_nfw_profile(style=dotted)
     rho_dm_cut = profiles.dm_density_nfw(radii, obs.halo["rho0_dm"],
-        obs.halo["rs"], ics.r_sample, do_cut=True)
+        obs.halo["rs"], sim.toy.r_sample, do_cut=True)
     pyplot.plot(radii, rho_dm_cut, **solid)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
@@ -291,21 +460,21 @@ def toyclustercheck(obs, ics):
     pyplot.ylim(ymin=1e-32, ymax=9e-24)
     pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_sampled_rho.png".format(obs.name), dpi=150)
+    pyplot.savefig(sim.outdir+"{0}_sampled_rho.png".format(obs.name), dpi=150)
 
 
     pyplot.figure(figsize=(12,9))
-    pyplot.plot(ics.gas["r"], ics.gas["mass"], **gas)
-    pyplot.plot(ics.dm_radii, ics.M_dm_below_r, **dm)
+    pyplot.plot(sim.toy.gas["r"], sim.toy.gas["mass"], **gas)
+    pyplot.plot(sim.toy.dm_radii, sim.toy.M_dm_below_r, **dm)
     mdm = profiles.dm_mass_nfw(radii,
-        convert.cgs_density_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"])
+        convert.density_cgs_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"])
     mdm_cut = [profiles.dm_mass_nfw_cut(r,
-        convert.cgs_density_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"], ics.r_sample)
+        convert.density_cgs_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"], sim.toy.r_sample)
         for r in radii]
     mgas = profiles.gas_mass_betamodel(radii,
-        convert.cgs_density_to_msunkpc(obs.rho0), obs.beta, obs.rc)
+        convert.density_cgs_to_msunkpc(obs.rho0), obs.beta, obs.rc)
     mgas_cut = [profiles.gas_mass_betamodel_cut(r,
-        convert.cgs_density_to_msunkpc(obs.rho0), obs.beta, obs.rc, obs.halo["r200"])
+        convert.density_cgs_to_msunkpc(obs.rho0), obs.beta, obs.rc, obs.halo["r200"])
         for r in radii]
 
     pyplot.plot(radii, mdm, **dotted)
@@ -329,7 +498,7 @@ def toyclustercheck(obs, ics):
     pyplot.savefig("out/{0}_sampled_mass.png".format(obs.name), dpi=150)
 
 
-def toyclustercheck_T(obs, ics):
+def toyclustercheck_T(obs, sim, halo="000"):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "k",
             "ms": 4, "alpha": 1, "elinewidth": 2,
@@ -340,12 +509,12 @@ def toyclustercheck_T(obs, ics):
     pyplot.figure(figsize=(12,9))
     pyplot.errorbar(obs.avg["r"], obs.avg["kT"], xerr=obs.avg["fr"]/2,
                     yerr=[obs.avg["fkT"], obs.avg["fkT"]], **avg)
-    pyplot.plot(ics.gas["r"], ics.gas["kT"], **gas)
-    pyplot.plot(ics.profiles["r"],
-        convert.K_to_keV(convert.gadget_u_to_t(ics.profiles["u_gas"]).value),
+    pyplot.plot(sim.toy.gas["r"], sim.toy.gas["kT"], **gas)
+    pyplot.plot(sim.toy.profiles[halo]["r"],
+        convert.K_to_keV(convert.gadget_u_to_t(sim.toy.profiles[halo]["u_gas"])),
         label="u\_gas")
-    pyplot.plot(ics.profiles["r"],
-        convert.K_to_keV(convert.gadget_u_to_t(ics.profiles["u_ana"]).value),
+    pyplot.plot(sim.toy.profiles[halo]["r"],
+        convert.K_to_keV(convert.gadget_u_to_t(sim.toy.profiles[halo]["u_ana"])),
         label="u\_ana")
 
     # pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e7, 1e15,
@@ -361,7 +530,7 @@ def toyclustercheck_T(obs, ics):
     pyplot.ylim(ymin=1e-1, ymax=1e2)
     pyplot.legend(loc="upper left", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_sampled_temperature.png".format(obs.name), dpi=150)
+    pyplot.savefig(sim.outdir+"{0}_sampled_temperature.png".format(obs.name), dpi=150)
 
 
 def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, distance):

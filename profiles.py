@@ -44,7 +44,7 @@ def dm_density_nfw(r, rho0_dm, rs, rcut=1e10, do_cut=False):
 
     rho_nfw = rho0_dm / (ra * p2(1+ra))
     if do_cut:
-        rho_nfw /= (1 + p2(r/rcut))  # with cutoff
+        rho_nfw /= (1 + p3(r/rcut))  # with cutoff
     return rho_nfw
 
 
@@ -96,11 +96,24 @@ def gas_density_betamodel(r, rho0, beta, rc, rcut=None, do_cut=False):
         @param rc:     Core radius (profile is constant within rc), float
         @param rcut:   Numerical cutoff: keep local baryon fraction above unity, float
         @param do_cut: Flag to cut at rcut (when sampling), or not (in fit), bool
-        @return:       NFW DM density profile rho(r), float or array """
+        @return:       Gas DM density profile rho(r), float or array """
 
     rho_gas = rho0 * numpy.power(1 + p2(r/rc), -3.0/2.0*beta)
     if do_cut:
         rho_gas /= (1 + p3(r/rcut))
+    return rho_gas
+
+
+def d_gas_density_betamodel_dr(r, rho0, beta, rc):
+    """ Cavaliere & Fusco-Femiano (1978) betamodel for baryonic mass density
+        Also see Donnert (2014; eq. 6), Donnert (2017, in prep)
+        @param r:      Radius, float or array
+        @param rho0:   Baryonic matter central density, float
+        @param beta:   Ratio specific kinetic energy of galaxies to gas; slope, float
+        @param rc:     Core radius (profile is constant within rc), float
+        @return:       Gas DM density profile derivative drho/dr, float or array """
+
+    rho_gas = rho0*(-3*beta*r/p2(rc))*numpy.power(1 + p2(r/rc),-1.5*beta-1)
     return rho_gas
 
 
@@ -111,7 +124,7 @@ def gas_mass_betamodel(r, rho0, beta, rc):
         @param rho0:   Baryonic matter central density, float
         @param beta:   Ratio specific kinetic energy of galaxies to gas; slope, float
         @param rc:     Core radius (profile is constant within rc), float
-        @return:       NFW DM density profile rho(r), float or array """
+        @return:       Gas DM density profile rho(r), float or array """
 
     # beta = 2/3 (e.g. Mastropietro & Burkert 2008) has an analytic solution
     # if beta == 2./3:
@@ -133,12 +146,35 @@ def gas_mass_betamodel_cut(rmax, rho0, beta, rc, rcut):
         @param beta:   Ratio specific kinetic energy of galaxies to gas; slope, float
         @param rc:     Core radius (profile is constant within rc), float
         @param rcut:   Cut radius (cut is at r200), float
-        @return:       NFW DM density profile rho(r), float or array """
+        @return:       Gas DM density profile rho(r), float or array """
 
     M_gas = scipy.integrate.quad(lambda r:
         p2(r)*gas_density_betamodel(r, rho0, beta, rc, rcut=rcut, do_cut=True),
         0, rmax)
     return 4*numpy.pi*M_gas[0]
+
+
+def smith_centrally_decreasing_temperature(r, a, b, c):
+    """ Smith+ (2002; eq. 4) """
+    return a - b * numpy.exp(-1.0*r/c)
+
+
+def smith_hydrostatic_mass(r, n, dn_dr, T, dT_dr):
+    """ Smith+ (2002; eq. 3) Hydrostatic Mass from T(r), n_e(r)
+        M(<r) = - k T(r) r^2/(mu m_p G) * (1/n_e * dn_e/dr + 1/T * dT/dr)
+
+        @param r     : radius [cm], float/array
+        @param n     : Radial number density [1/cm^3], float/array
+        @param dn_dr : Derivative of number density /wr radius r, float/array
+        @param T     : Temperature [Kelvin], float/array
+        @param dT_dr : Derivative of temperature, float/array
+        @param return: Radial hydrostatic mass-estimate M_HE(r), array """
+
+    m_p = const.m_p.cgs.value
+    kB = const.k_B.cgs.value
+    fac = - kB / (convert.umu * m_p * const.G.cgs.value)
+
+    return fac * T*p2(r) * ( 1/n * dn_dr + 1/T * dT_dr )
 
 
 """ Standard analytical temperature profile from Donnert 2014.
@@ -172,13 +208,28 @@ def hydrostatic_temperature_TODO(r, rho0, rc, rho0_dm, rs, Rmax):
 
     m_p = const.m_p.to(u.g).value
     kB = const.k_B.to(u.erg/u.K).value
-    fac = const.G.value*convert.umu * m_p/kB
+    fac = const.G.cgs.value*convert.umu * m_p/kB
 
     Mdm = dm_mass_nfw(r, rho0_dm, rs)
     temperature = fac * (1 + p2(r/rc)) * (Mdm*F0(r) + 4*numpy.pi*p3(rc)*rho0*F1(r, rc) )
 
 
 def hydrostatic_temperature(r, Rmax, rho_gas, M_tot):
+    """ In a relaxed galaxy cluster, the ICM is in approximate hydrostatic
+        equilibrium in the gravitational potential of the cluster:
+            1/rho_gas dP_gas/dr = -G Mtot(<r) / r^2
+        so that with the ideal gas law: P = nkBT, the temperature of the ICM
+        in hydrostatic equilibrium is given by (e.g. Mastropietro 2005)
+            T(r) = mu m_p/kB G/rho_gas(r) int_r^Rmax rho_gas(t)/t^2 Mtot(<t) dt
+        See Donnert (2014; eq. 8-13)
+
+        CAUTION: constants used in this function are in cgs. Make sure that the
+        rho_gas, M_tot and r are all in cgs units!!
+
+        @param Rmax   : maximum value in integration
+        @param rho_gas: callable gas density profile
+        @param M_tot  : callable total mass profile
+        @return       : hydrostatic temperature in Kelvin"""
     m_p = const.m_p.to(u.g).value
     kB = const.k_B.to(u.erg/u.K).value
     fac = convert.umu * m_p/kB * const.G.cgs.value / rho_gas(r)
@@ -189,6 +240,19 @@ def hydrostatic_temperature(r, Rmax, rho_gas, M_tot):
 
     tmp = scipy.integrate.quad(lambda t: rho_gas(t)/p2(t)*M_tot(t), r, Rmax)
     return fac*tmp[0]
+
+
+def hydrostatic_gas_pressure(r, Rmax, rho_gas, M_tot):
+    """ Gas pressure from hydrostatic equation (Donnert 2014, eq. 8)
+        @param Rmax   : maximum value in integration
+        @param rho_gas: callable gas density profile
+        @param M_tot  : callable total mass profile
+        @return       : hydrostatic gas pressure erg/cm^3 """
+    fac = const.G.cgs.value
+
+    tmp = scipy.integrate.quad(lambda t: rho_gas(t)/p2(t)*M_tot(t), r, Rmax)
+    return fac*tmp[0]
+
 
 def sarazin_coolingtime(n_p, T_g):
     """ Sarazin (1988; eq. 5.23) cooling time w/e line cooling (T_g > 3e7 K)

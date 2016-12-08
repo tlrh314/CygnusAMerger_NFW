@@ -41,10 +41,10 @@ def cgs_to_gadget_units(rho):
     return 1./(uMass/p3(uLength)) * rho / p2(h)
 
 def keV_to_K(kT):
-    return kT*(u.keV/const.k_B.to(u.keV/u.K)).value
+    return kT*(1/const.k_B.to(u.keV/u.K)).value
 
 def K_to_keV(T):
-    return T*(const.k_B.to(u.keV/u.K)/u.keV).value
+    return T*(const.k_B.to(u.keV/u.K)).value
 
 def gadget_u_to_t(uint):
     """  convert gadget internal energy to temperature in Kelvin
@@ -83,9 +83,13 @@ def ne_to_rho(ne, z=None):
     rho = umu*const.m_p.to(u.g).value*ne
     return rho
 
-def cgs_density_to_msunkpc(rho):
+def density_cgs_to_msunkpc(rho):
     """ convert mass density from cgs units to MSun/kpc^3 """
     return g2msun/p3(cm2kpc) * rho
+
+def density_msunkpc_to_cgs(rho):
+    """ convert mass density from cgs units to MSun/kpc^3 """
+    return p3(cm2kpc)/g2msun * rho
 
 # --------------------------------------------------------------------------- #
 # Stolen from https://github.com/aplpy/aplpy/blob/master/aplpy/wcs_util.py

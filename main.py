@@ -39,6 +39,16 @@ def show_observations(arguments):
     plot.inferred_temperature(cygNW)
 
 
+def infer_hydrostatic_mass(arguments):
+    """ Smith+ (2002; eq. 3) Hydrostatic mass from observed temperature and
+        number density"""
+    cygA = ObservedCluster("cygA", verbose=arguments.verbose, debug=arguments.debug)
+    cygNW = ObservedCluster("cygNW", verbose=arguments.verbose, debug=arguments.debug)
+
+    plot.smith_hydrostatic_mass(cygA, debug=arguments.debug)
+    plot.smith_hydrostatic_mass(cygNW, debug=arguments.debug)
+
+
 def write_ics(arguments):
     cygA = ObservedCluster("cygA", verbose=arguments.verbose)
     cygNW = ObservedCluster("cygNW", verbose=arguments.verbose)
@@ -65,11 +75,34 @@ def write_ics(arguments):
     write_toycluster_parameterfile(ic_both)
 
 
+def check_toycluster_rho_and_temperature(arguments, bla=False):
+    if not arguments.clustername:
+        print "Please specify clustername. Returning."
+        return
+
+    if bla:  # TODO: proper name #NoInspiration
+        if arguments.clustername == "cygA" and bla:
+            cNFW = 12.181
+            bf = 0.0740
+        if arguments.clustername == "cygNW" and bla:
+            cNFW=5.13
+            bf=0.055
+    else:
+        cNFW = None  # will use Duffy+ 2008
+        bf = 0.17    # Planelles+ 2013
+
+    obs = ObservedCluster(arguments.clustername, cNFW=cNFW, bf=bf, verbose=arguments.verbose)
+    sim = Simulation(arguments.basedir, arguments.timestamp, arguments.clustername)
+    plot.toycluster_profiles(obs, sim)
+    plot.toyclustercheck(obs, sim)
+    plot.toyclustercheck_T(obs, sim)
+
+
 def plot_smac_snapshots(arguments):
     if not arguments.clustername:
         print "Please specify clustername. Returning."
         return
-    obs = OpbservedCluster(arguments.clustername, verbose=arguments.verbose)
+    obs = ObservedCluster(arguments.clustername, verbose=arguments.verbose)
     sim = Simulation(arguments.basedir, arguments.timestamp, arguments.clustername)
     for i in range(sim.nsnaps):
         # sim.find_cluster_centroids_psmac_dmrho(i)
@@ -96,8 +129,10 @@ def new_argument_parser():
         help="Path to the base directory", default="/usr/local/mscproj")
     args.add_argument("-c", "--clustername", dest="clustername",
         help="Name of the subcluster", default=None, choices=["cygA", "cygNW"])
-    args.add_argument("-v", "--verbose", dest="verbose",
-        help="Toggle verbosity. Verbose is True by default", default=True)
+    args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
+        help="Toggle verbose. Verbose is True by default", default=True)
+    args.add_argument("-d", "--debug", dest="debug", action="store_true",
+        help="Toggle debug. Debug is False by default", default=False)
     # group = args.add_mutually_exclusive_group(required=True)
     # group.add_argument("-t", "--timestamp", dest="timestamp", nargs=1,
     #    help="string of the Simulation ID")
@@ -108,8 +143,22 @@ def new_argument_parser():
 if __name__ == "__main__":
     arguments = new_argument_parser().parse_args()
     # show_observations(arguments)
+    infer_hydrostatic_mass(arguments)
     # write_ics(arguments)
     # plot_smac_snapshots(arguments)
 
     # For fun, fit the concentration parameter and baryon fraction
-    fit.total_gravitating_mass_freecbf(ObservedCluster("cygA"), verbose=True)
+    # fit.total_gravitating_mass_freecbf(ObservedCluster("cygNW"), verbose=True)
+    # cygA = ObservedCluster("cygA", cNFW=12.181, bf=0.0740, **arguments)
+    # cygNW = ObservedCluster("cygNW", cNFW=5.13, bf=0.055, **arguments)
+
+    # cygA = ObservedCluster("cygA", **arguments)
+    # cygNW = ObservedCluster("cygNW", **arguments
+    # plot.inferred_nfw_profile(cygA)
+    # plot.inferred_mass(cygA)
+    # plot.inferred_temperature(cygA)
+    # plot.inferred_pressure(cygA)
+
+    # check_toycluster_rho_and_temperature(arguments, bla=False)
+
+    # pyplot.show()

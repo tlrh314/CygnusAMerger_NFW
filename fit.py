@@ -189,25 +189,82 @@ def total_gravitating_mass(c, cNFW=None, bf=0.17, verbose=False, debug=False):
     return halo
 
 
+def find_r500(c, debug=False):
+    """ Find the radius r500, therefore M500 and T500
+        The problem is implicit and solved by root-finding (bisection).
+        @param c   : ObservedCluster
+        @return    : Tuple of parameters """
+
+    # Set bestfit betamodel parameters
+    ne0, rho0, beta, rc = c.ne0, c.rho0, c.beta, c.rc
+    rc *= convert.kpc2cm
+
+    # Set inferred NFW parameters
+    rho0_dm, rs = c.halo["rho0_dm"], c.halo["rs"]
+    rs *= convert.kpc2cm
+
+    # Find r500 such that rho500 / rho_crit == 500 (True by definition)
+    lower = 10 * convert.kpc2cm
+    upper = 2000 * convert.kpc2cm
+
+    # bisection method
+    epsilon = 0.001
+    while upper/lower > 1+epsilon:
+        # bisection
+        r500 = (lower+upper)/2.
+
+        M500 = profiles.dm_mass_nfw(r500, rho0_dm, rs) + \
+            profiles.gas_mass_betamodel(r500, rho0, beta, rc)
+
+        """ Now rho_average(r200)/rhocrit should equal 200.
+                If not? Try different r200"""
+        rho500_over_rhocrit = ( M500 / (4./3 * numpy.pi * p3(r500))) / c.cc.rho_crit()
+        if debug:
+            print "Lower                  = {0:3.1f}".format(lower * convert.cm2kpc)
+            print "r500                   = {0:3.1f}".format(r500 * convert.cm2kpc)
+            print "Upper                  = {0:3.1f}".format(upper * convert.cm2kpc)
+            print "Ratio                  = {0:.1f}".format(rho500_over_rhocrit/500)
+            print
+
+        # bisection
+        if rho500_over_rhocrit < 500:
+            upper = r500
+        if rho500_over_rhocrit > 500:
+            lower = r500
+
+    return r500 * convert.cm2kpc, M500 * convert.g2msun
+
+
+def smith_centrally_decreasing_temperature(c):
+    """ Smith+ (2002; 4) Centrally decreasing expression for T(r)
+
+        Bestfit Smith: a = 7.81 keV, b = 7.44 keV, and c = 76.4 kpc
+        @param c: ObservedCluster
+        @return : (MLE, one sigma confidence interval), tuple """
+
+    ml_vals, ml_covar = scipy.optimize.curve_fit(
+        profiles.smith_centrally_decreasing_temperature, c.avg["r"],
+        c.avg["kT"], sigma=c.avg["fkT"], p0=[7.81, 7.44, 76.4])
+
+    return ml_vals, numpy.sqrt(numpy.diag(ml_covar))
+
+
 def temperature_wrapper(c, cNFW, bf, do_plot=True):
     print "Trying cNFW = {0}, bf = {1}".format(cNFW, bf)
     c.set_total_gravitating_mass(cNFW=cNFW, bf=bf)
-    c.set_inferred_temperature()
-    if plot: plot.inferred_temperature(c)
+    c.set_inferred_temperature(fit=True, verbose=True, debug=False)
+    if do_plot: plot.inferred_temperature(c, fit=True)
     return c.hydrostatic
 
 
 def total_gravitating_mass_freecbf(c, verbose=False):
-    """ Fit 'total_gravitating_mass' to temperature /w cNFW and bf as free parameters.
+    """ Fit 'total_gravitating_mass' to temperature /w cNFW, bf free.
         @param c:  ObservedCluster
         @return:   (MLE, one sigma confidence interval), tuple """
 
     ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1:
-                temperature_wrapper(c, parm0, parm1, do_plot=True),
-                c.avg["r"], c.avg["kT"], p0=[5, 0.17],
-                sigma=c.avg["fkT"])
+        temperature_wrapper(c, parm0, parm1, do_plot=True),
+        c.avg["r"], c.avg["kT"], p0=[5, 0.17], sigma=c.avg["fkT"],
+        method="lbf", bounds=((0, 0),(20, 0.25)))
 
-    print ml_vals
-    print ml_covar
-
-    err = numpy.sqrt(numpy.diag(ml_covar))
+    return ml_vals, numpy.sqrt(numpy.diag(ml_covar))
