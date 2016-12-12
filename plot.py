@@ -10,6 +10,7 @@ from matplotlib.ticker import MaxNLocator
 import fit
 import profiles
 import convert
+from cluster import ObservedCluster
 
 
 # ----------------------------------------------------------------------------
@@ -231,6 +232,7 @@ def inferred_temperature(c):
     pyplot.savefig("out/{0}_hydrostatic-temperature_cNFW={1:.3f}_bf={2:.4f}.png"
        .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
     pyplot.close()
+
 
 def inferred_pressure(c):
     """ Plot the observed pressure profile and the inferred hydrostatic
@@ -546,19 +548,19 @@ def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, dis
     axt = fig.add_subplot(gs.new_subplotspec((0, 2)))
     axt.axis("off")
     gs.update(wspace=0, hspace=0, top=0.94, left=0.15)
-    axx.text(0.5, 1.01, "Summed (smoothed) Dark Matter Density X", ha="center", va="bottom",
-             transform=axx.transAxes, fontsize=16)
+    axx.text(0.5, 1.01, "Summed (smoothed) Dark Matter Density X", ha="center",
+             va="bottom", transform=axx.transAxes, fontsize=16)
     axx.plot(range(sim.xlen), xsum)
     axx.plot(xpeaks, xsum[(xpeaks+0.5).astype(int)], "ro", markersize=10)
     axx.set_ylim(0, 1.3)
 
-    axy.text(1.01, 0.5, "Summed (smoothed) Dark Matter Density Y", ha="left", va="center",
-             transform=axy.transAxes, fontsize=16, rotation=-90)
+    axy.text(1.01, 0.5, "Summed (smoothed) Dark Matter Density Y", ha="left",
+             va="center", transform=axy.transAxes, fontsize=16, rotation=-90)
     axy.plot(ysum, range(sim.ylen))
     axy.plot(ysum[(ypeaks+0.5).astype(int)], ypeaks, "ro", markersize=10)
     axy.set_xlim(0, 1.3)
 
-    axx.set_xlim(800, 1400)
+    axx.set_xlim(500, 1500)  # 800, 1400
     axy.set_ylim(sim.xlen/2-300,sim.xlen/2+300)
     axd.set_axis_bgcolor("k")
     axd.set_xlabel("x [pixel]")
@@ -568,7 +570,8 @@ def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, dis
                 + ax.get_xticklines()  + ax.get_yticklines():
             tl.set_visible(False)
     pyplot.sca(axd)
-    axt.text(0.02, 1, "T = {0:2.2f} [Gyr]".format(snapnr*sim.dt),
+    dt = getattr(sim, "dt", 0)  # assuming Toycluster/P-smac only, no Gadget-2
+    axt.text(0.02, 1, "T = {0:2.2f} [Gyr]".format(snapnr*dt),
              ha="left", va="top")
     axt.text(0.02, 0.8, "R = {0:5.2f} [kpc]".format(distance),
              ha="left", va="top")
@@ -625,3 +628,53 @@ def simulated_quiescent_parm(c, sim, snapnr, parm="kT"):
     pyplot.tight_layout()
     pyplot.savefig(sim.outdir+"{0}_{1}_{2:03d}.png".format(parm, c.name, snapnr))
     pyplot.close()
+
+
+def twocluster_quiescent_parm(sim, snapnr, parm="kT"):
+    """ @param sim   :  Simulation instance
+        @param snapnr:  Number of snapshot to plot
+        @param parm  :  Parameter to plot: ['kT', 'n', 'rho', 'P'] """
+
+    # Define kwargs for pyplot to set up style of the plot
+    avg = { "marker": "o", "ls": "",
+            "ms": 4, "alpha": 1, "elinewidth": 2,
+            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+
+    parmnames = { "kT": "kT [keV]",
+                  "n": "Density [1/cm$^3$]",
+                  "rho": "Mass Density [g/cm$^3$]",
+                  "P": "Pressure [erg/cm$^3$]" }
+    parmmapping = { "kT": "tspec", }
+                   #"n": "N/A",
+                   # "rho": "rhogas"}
+                   #"P": "N/A" }
+    if not parmnames.get(parm, None):
+        print "ERRROR: parm '{0}' is not available in observation".format(parm)
+        return
+    if not parmmapping.get(parm, None):
+        print "ERRROR: parm '{0}' is not available in simulation".format(parm)
+        return
+
+    r, results = sim.create_quiescent_profile(snapnr, parm=parmmapping[parm])
+    for name in ["cygA", "cygNW"]:
+        val, fval = results[name]
+        if name == "cygA":
+            c = ObservedCluster("cygA", cNFW=12.40, bf=0.07653)
+        if name == "cygNW":
+            c = ObservedCluster("cygNW", cNFW=5.17, bf=0.05498)
+        avg["c"] = "g" if name == "cygA" else "b"
+
+        pyplot.figure(figsize=(12, 9))
+        c.plot_chandra_average(parm=parm, style=avg)
+        pyplot.errorbar(r, val, yerr=[fval, fval])
+        pyplot.xlabel("Radius [kpc]")
+        pyplot.ylabel(parmnames[parm])
+        pyplot.xscale("log")
+        pyplot.yscale("log")
+        pyplot.xlim(1, 2000)
+        # pyplot.ylim(-0.02, 0.2)
+        pyplot.legend(loc="best")
+        pyplot.tight_layout()
+        pyplot.savefig(sim.outdir+"{0}_{1}_{2:03d}.png".format(parm, c.name, snapnr))
+        pyplot.close()
+

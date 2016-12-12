@@ -94,7 +94,7 @@ Bfld_Norm   0        % B(r) = B0 * normalised_density^eta
 Bfld_Eta    0        % like Bonafede 2010. B0 /=2 if Mtotal<5d4
 Bfld_Scale  0
 
-bf          0.17     % bf in r200, bf = 17% ~ 14% in r500
+%bf          0.17     % bf in r200, bf = 17% ~ 14% in r500
 h_100       0.7      % HubbleConstant/100
 
 %Units
@@ -109,11 +109,13 @@ UnitVelocity_in_cm_per_s     1e5                %  1 km/sec
 c_nfw_0     {c_nfw_0:.2f}
 v_com_0     0
 rc_0        {rc_0:.3f}
+bf_0        {bf_0:.5f}
 
 % cluster 1 {name_1:s}
 c_nfw_1     {c_nfw_1:.2f}
 v_com_1     0
 rc_1        {rc_1:.2f}
+bf_1        {bf_1:.5f}
 
 %% -DADD_THIRD_SUBHALO Options
 

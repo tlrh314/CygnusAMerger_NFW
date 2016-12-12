@@ -249,7 +249,7 @@ def smith_centrally_decreasing_temperature(c):
     return ml_vals, numpy.sqrt(numpy.diag(ml_covar))
 
 
-def temperature_wrapper(c, cNFW, bf, do_plot=True):
+def temperature_wrapper(c, cNFW, bf, do_plot=False):
     print "Trying cNFW = {0}, bf = {1}".format(cNFW, bf)
     c.set_total_gravitating_mass(cNFW=cNFW, bf=bf)
     c.set_inferred_temperature(fit=True, verbose=True, debug=False)
@@ -257,14 +257,19 @@ def temperature_wrapper(c, cNFW, bf, do_plot=True):
     return c.hydrostatic
 
 
-def total_gravitating_mass_freecbf(c, verbose=False):
+def total_gravitating_mass_freecbf(c, verbose=False, do_plot=False):
     """ Fit 'total_gravitating_mass' to temperature /w cNFW, bf free.
         @param c:  ObservedCluster
         @return:   (MLE, one sigma confidence interval), tuple """
 
+    if c.name == "cygA":
+        p0 = [12.18, 0.075]
+    if c.name == "cygNW":
+        p0 = [5.13, 0.055]
+
     ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1:
-        temperature_wrapper(c, parm0, parm1, do_plot=True),
-        c.avg["r"], c.avg["kT"], p0=[5, 0.17], sigma=c.avg["fkT"],
-        method="lbf", bounds=((0, 0),(20, 0.25)))
+        temperature_wrapper(c, parm0, parm1, do_plot=do_plot),
+        c.avg["r"], c.avg["kT"], p0=p0, sigma=c.avg["fkT"],
+        method="trf", bounds=((0, 0),(20, 0.25)))
 
     return ml_vals, numpy.sqrt(numpy.diag(ml_covar))

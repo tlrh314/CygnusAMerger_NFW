@@ -193,6 +193,7 @@ class ObservedCluster(object):
             ax2.semilogx(radii, hydrostatic_gas, **gas)
             ax2.semilogx(radii, hydrostatic_dm, **dm)
             ax2.semilogx(radii, self.hydrostatic, **tot)
+            ax2.set_ylim(-1, 10)
             pyplot.sca(ax3)
             self.plot_chandra_average(parm="P")
             ax3.loglog(radii, hydrostatic_pressure, **tot)
@@ -319,7 +320,7 @@ class ObservedCluster(object):
 # ----------------------------------------------------------------------------
 class Toycluster(object):
     """ Parse and store Toycluster sampled cluster """
-    def __init__(self, icdir, verbose=True):
+    def __init__(self, icdir, both=False, verbose=True):
         """ Class to hold Toycluster simulation output
         @param icdir: path to the directory with Toycluster output, string
         @return     : instance of Toycluster class"""
@@ -336,10 +337,13 @@ class Toycluster(object):
         self.gas["rho"] = convert.toycluster_units_to_cgs(self.gas["rho"])
         self.gas["rhom"] = convert.toycluster_units_to_cgs(self.gas["rhom"])
         self.gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(self.gas["u"]))
-        self.set_gas_mass()
-        self.M_dm = self.header["ndm"] * self.header["massarr"][1] * 1e10
-        self.set_dm_mass()
-        self.set_dm_density()
+        if not both:
+            self.set_gas_mass()
+            self.M_dm = self.header["ndm"] * self.header["massarr"][1] * 1e10
+            self.set_dm_mass()
+            self.set_dm_density()
+        else:
+            print "TODO: implement eating two clusters in box"
 
     def __str__(self):
         tmp = "Toycluster ICfile header:\n"

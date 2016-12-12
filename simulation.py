@@ -26,7 +26,7 @@ class Simulation(object):
                               of the subcluster, either "cygA" or "cygNW", string
             @return         : class instance holding correct paths and parsed data"""
 
-        if name and (name != "cygA" and name != "cygNW"):
+        if name and (name != "cygA" and name != "cygNW" and name != "both"):
             print "ERROR: incorrect usage of 'SimulationOutputParser'. Use",
             print "either 'cygA' or 'cygNW' as value of parameter 'name'"
             return
@@ -61,9 +61,10 @@ class Simulation(object):
         tmp += "  outdir     : {0}\n".format(self.outdir)
         return tmp
 
-    def read_ics(self, verbose=False):
+    def read_ics(self, both=False, verbose=False):
         if verbose: print "  Parsing Toycluster output"
-        self.toy = Toycluster(self.icsdir, verbose=verbose)
+        self.toy = Toycluster(self.icsdir, both=True if self.name=="both" else False,
+                              verbose=verbose)
         if verbose: print "  Succesfully loaded ICs"
         if verbose: print "  {0}".format(self.toy)
 
@@ -94,21 +95,21 @@ class Simulation(object):
         self.nsnaps, self.xlen, self.ylen = self.psmac.xray.shape
         self.pixelscale = float(self.psmac.xray_header["XYSize"])/int(self.xlen)
 
-    def find_cluster_centroids_psmac_dmrho(self, snapnr=0, plot=False):
+    def find_cluster_centroids_psmac_dmrho(self, snapnr=0, do_plot=False):
         print "Checking snapshot {0}".format(snapnr)
 
-        if self.name:  # Only one cluster in simulation box
+        if self.name and self.name != "both":  # Only one cluster in simulation box
             expected_xpeaks = 1
             expected_ypeaks = 1
             thres, min_dist = 0.9, 20
-        elif self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
-            expected_xpeaks = 2
-            expected_ypeaks = 1
-            thres, min_dist = 0.15, 10
+        # elif self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
+        #     expected_xpeaks = 2
+        #     expected_ypeaks = 1
+        #     thres, min_dist = 0.15, 10
         else:  # two clusters, yes impact parameter
             expected_xpeaks = 2
-            expected_ypeaks = 2
-            # thres, min_dist = 0.4, 20  # TODO: check. Want error for now
+            expected_ypeaks = 1  # TODO: implement for impactparam
+            thres, min_dist = 0.15, 10
 
         """ Peakutils sometimes finds noise (i.e. 1 pixel with a slightly higher
         density, where slightly is no more than 0.1%). To kill of these tiny noise
@@ -127,7 +128,7 @@ class Simulation(object):
             print "ERROR: found incorrect number of peaks in dmrho"
             print "xpeaks = {0}\nypeaks = {1}".format(xpeaks, ypeaks)
             print "Snapshot number = {0}\n".format(snapnr)
-            if plot: plot.psmac_xrays_with_dmrho_peakfind(
+            if do_plot: plot.psmac_xrays_with_dmrho_peakfind(
                 self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
             return
 
@@ -140,15 +141,15 @@ class Simulation(object):
             else:
                 raise
 
-        if self.name:  # Only one cluster in simulation box
+        if self.name and self.name != "both":  # Only one cluster in simulation box
             center = xpeaks[0], ypeaks[0]
             print "Success: found 1 xpeak, and 1 ypeak!"
             print "  {0}:  (x, y) = {1}".format(self.name, center)
-            if plot: plot.psmac_xrays_with_dmrho_peakfind(
+            if do_plot: plot.psmac_xrays_with_dmrho_peakfind(
                 self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
             return center
         else:
-            if self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
+            if True:  # self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
                 cygA = xpeaks[0], ypeaks[0]
                 cygNW = xpeaks[1], ypeaks[0]
             else:  # two clusters, yes impact parameter.
@@ -163,11 +164,11 @@ class Simulation(object):
             print "  cygA:  (x, y) = {0}".format(cygA)
             print "  cygNW: (x, y) = {0}".format(cygNW)
             print "  distance      = {0:.2f}\n".format(distance)
-            if plot: plot.psmac_xrays_with_dmrho_peakfind(
+            if do_plot: plot.psmac_xrays_with_dmrho_peakfind(
                 self, snapnr, xsum, ysum, xpeaks, ypeaks, distance)
             return cygA, cygNW, distance
 
-    def create_quiescent_profile(self, snapnr, parm="tspec", plot=True):
+    def create_quiescent_profile(self, snapnr, parm="tspec", do_plot=True):
         cube = getattr(self.psmac, parm, None)
         if cube is None:
             print "ERROR: sim.psmac does not have attribute '{0}'".format(parm)
@@ -186,10 +187,10 @@ class Simulation(object):
         N = len(radii)
         quiescent_temperature = numpy.zeros(N)
         quiescent_temperature_std = numpy.zeros(N)
-        if plot:
+        if do_plot:
             from matplotlib import pyplot
             fig = pyplot.figure(figsize=(12, 12))
-        if self.name:  # Only one cluster in simulation box
+        if self.name and self.name != "both":  # Only one cluster in simulation box
             xc, yc = self.find_cluster_centroids_psmac_dmrho(snapnr=snapnr)
             for i, r in enumerate(radii):
                 print_progressbar(i, N)
@@ -197,8 +198,8 @@ class Simulation(object):
                 quiescent_temperature[i] = numpy.median(parmdata[quiescent_mask])
                 quiescent_temperature_std[i] = numpy.std(parmdata[quiescent_mask])
                 y, x = numpy.where(quiescent_mask)
-                if plot: pyplot.scatter(x, y, s=1, c="r", edgecolor="face", alpha=1)
-            if plot:
+                if do_plot: pyplot.scatter(x, y, s=1, c="r", edgecolor="face", alpha=1)
+            if do_plot:
                 pyplot.imshow(parmdata, origin="lower", cmap="afmhot")
                 pyplot.xlabel("x [pixel]")
                 pyplot.ylabel("y [pixel]")
@@ -211,3 +212,25 @@ class Simulation(object):
                 unitfix(quiescent_temperature_std)
         else:
             cygA, cygNW, distance = self.find_cluster_centroids_psmac_dmrho(snapnr=snapnr)
+            results = dict()
+            for (xc, yc), name in zip([cygA, cygNW], ["cygA", "cygNW"]):
+                for i, r in enumerate(radii):
+                    print_progressbar(i, N)
+                    quiescent_mask = create_panda(self.xlen, self.ylen, xc, yc, r, 45, -45)
+                    quiescent_temperature[i] = numpy.median(parmdata[quiescent_mask])
+                    quiescent_temperature_std[i] = numpy.std(parmdata[quiescent_mask])
+                    y, x = numpy.where(quiescent_mask)
+                    if do_plot: pyplot.scatter(x, y, s=1, c="r", edgecolor="face", alpha=1)
+                if do_plot:
+                    pyplot.imshow(parmdata, origin="lower", cmap="afmhot")
+                    pyplot.xlabel("x [pixel]")
+                    pyplot.ylabel("y [pixel]")
+                    pyplot.gca().set_aspect("equal")
+                    pyplot.xlim(300, 1500)
+                    pyplot.ylim(self.xlen/2-300, self.xlen/2+300)
+                    pyplot.savefig(self.outdir+"{0}_{1}_{2:03d}.png"
+                                   .format(name, parm, snapnr))
+                    pyplot.close()
+                    results[name] = unitfix(quiescent_temperature),\
+                        unitfix(quiescent_temperature_std)
+            return radii*self.pixelscale, results
