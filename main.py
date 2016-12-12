@@ -51,11 +51,11 @@ def infer_hydrostatic_mass(a):
 
 def write_ics(a):
     mle, cis = fit.total_gravitating_mass_freecbf(
-        ObservedCluster("cygA"), verbose=False)
+        ObservedCluster("cygA"), verbose=False, do_plot=True)
     cygA = ObservedCluster("cygA", cNFW=mle[0], bf=mle[1], verbose=a.verbose)
 
     mle, cis = fit.total_gravitating_mass_freecbf(
-        ObservedCluster("cygNW"), verbose=False)
+        ObservedCluster("cygNW"), verbose=False, do_plot=True)
     cygNW = ObservedCluster("cygNW", cNFW=mle[0], bf=mle[1], verbose=a.verbose)
 
     ic_cygA= { "description": "(free) betamodel+NFW. Cygnus A single halo.",
@@ -83,7 +83,7 @@ def write_ics(a):
                "filename": "ic_both_free_hacked.par"}
     # write_toycluster_parameterfile(ic_cygA)
     # write_toycluster_parameterfile(ic_cygNW)
-    write_toycluster_parameterfile(ic_both)
+    # write_toycluster_parameterfile(ic_both)
 
 
 def check_toycluster_rho_and_temperature(a, match_Tobs=True):
@@ -110,8 +110,10 @@ def check_toycluster_rho_and_temperature(a, match_Tobs=True):
 
 
 def check_twocluster_ics(a):
+    cygA = ObservedCluster("cygA", cNFW=12.40, bf=0.07653)
+    cygNW = ObservedCluster("cygNW", cNFW=5.17, bf=0.05498)
     sim = Simulation(a.basedir, a.timestamp, name="both")
-    plot.twocluster_quiescent_parm(sim, 0, parm="kT")
+    plot.twocluster_quiescent_parm(cygA, cygNW, sim, 0, parm="kT")
 
 
 def plot_smac_snapshots(a):
@@ -180,6 +182,6 @@ if __name__ == "__main__":
     # plot.inferred_pressure(cygA)
 
     # check_toycluster_rho_and_temperature(a, match_Tobs=True)
-    sim = check_twocluster_ics(a)
+    # sim = check_twocluster_ics(a)
 
-    pyplot.show()
+    # pyplot.show()

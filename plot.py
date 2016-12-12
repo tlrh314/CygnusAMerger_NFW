@@ -10,8 +10,6 @@ from matplotlib.ticker import MaxNLocator
 import fit
 import profiles
 import convert
-from cluster import ObservedCluster
-
 
 # ----------------------------------------------------------------------------
 # Plots for Chandra observations
@@ -208,7 +206,7 @@ def inferred_mass(c):
     # pyplot.close()
 
 
-def inferred_temperature(c):
+def inferred_temperature(c, fit=False):
     """ Plot the observed temperature profile and the inferred hydrostatic
         temperature for the best-fit betamodel and inferred total mass profile
         M_tot (spherically symmetric volume-integrated NFW plus ~ betamodel)
@@ -220,7 +218,7 @@ def inferred_temperature(c):
 
     pyplot.figure(figsize=(12, 9))
     c.plot_chandra_average(parm="kT", style=avg)
-    c.plot_inferred_temperature()
+    c.plot_inferred_temperature(fit=fit)
 
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("kT [keV]")
@@ -630,10 +628,12 @@ def simulated_quiescent_parm(c, sim, snapnr, parm="kT"):
     pyplot.close()
 
 
-def twocluster_quiescent_parm(sim, snapnr, parm="kT"):
-    """ @param sim   :  Simulation instance
-        @param snapnr:  Number of snapshot to plot
-        @param parm  :  Parameter to plot: ['kT', 'n', 'rho', 'P'] """
+def twocluster_quiescent_parm(cygA, cygNW, sim, snapnr, parm="kT"):
+    """ @param cygA  : ObservedCluster
+        @param cygNW : ObservedCluster
+        @param sim   : Simulation instance
+        @param snapnr: Number of snapshot to plot
+        @param parm  : Parameter to plot: ['kT', 'n', 'rho', 'P'] """
 
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "",
@@ -658,12 +658,8 @@ def twocluster_quiescent_parm(sim, snapnr, parm="kT"):
     r, results = sim.create_quiescent_profile(snapnr, parm=parmmapping[parm])
     for name in ["cygA", "cygNW"]:
         val, fval = results[name]
-        if name == "cygA":
-            c = ObservedCluster("cygA", cNFW=12.40, bf=0.07653)
-        if name == "cygNW":
-            c = ObservedCluster("cygNW", cNFW=5.17, bf=0.05498)
-        avg["c"] = "g" if name == "cygA" else "b"
 
+        avg["c"] = "g" if c.name == "cygA" else "b"
         pyplot.figure(figsize=(12, 9))
         c.plot_chandra_average(parm=parm, style=avg)
         pyplot.errorbar(r, val, yerr=[fval, fval])

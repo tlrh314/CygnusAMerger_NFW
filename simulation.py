@@ -45,7 +45,7 @@ class Simulation(object):
         self.outdir = self.rundir+"out/"
         if not (os.path.isdir(self.outdir) or os.path.exists(self.outdir)):
             os.mkdir(self.outdir)
-            print "Created directory {0}!".format(self.outdir)
+            print "Created directory {0}".format(self.outdir)
 
         if verbose: print self
         self.read_ics(verbose)
@@ -216,7 +216,10 @@ class Simulation(object):
             for (xc, yc), name in zip([cygA, cygNW], ["cygA", "cygNW"]):
                 for i, r in enumerate(radii):
                     print_progressbar(i, N)
-                    quiescent_mask = create_panda(self.xlen, self.ylen, xc, yc, r, 45, -45)
+                    angle1 = 45 if name == "cygA" else 135
+                    angle2 = -45 if name == "cygA" else 225
+                    quiescent_mask = create_panda(self.xlen, self.ylen, xc, yc,
+                                                  r, angle1, angle2)
                     quiescent_temperature[i] = numpy.median(parmdata[quiescent_mask])
                     quiescent_temperature_std[i] = numpy.std(parmdata[quiescent_mask])
                     y, x = numpy.where(quiescent_mask)
