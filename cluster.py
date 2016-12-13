@@ -1,3 +1,4 @@
+import scipy
 import re
 import glob
 import numpy
@@ -18,7 +19,7 @@ from macro import *
 class ObservedCluster(object):
     """ Parse and store Chandra XVP (PI Wise) observation """
     def __init__(self, name, cNFW=None, bf=0.17, verbose=True, debug=False,
-                 cut=False):
+                 do_cut=False):
         """ Read in the quiescent radial profiles of CygA/CygNW afer 1.03 Msec
             Chandra XVP observations (PI Wise). Data courtesy of M.N. de Vries.
             Files are copied over from Struis account martyndv.
@@ -54,10 +55,17 @@ class ObservedCluster(object):
         if self.name == "cygNW":
             self.avg = self.mask_bins(self.avg, first=0, last=1)
 
-        self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e4), 200))
+        self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e5), 200))
+
         self.set_bestfit_betamodel(verbose=verbose)
-        self.set_total_gravitating_mass(verbose=verbose, cNFW=cNFW, bf=bf)  # TODO change back
-        self.set_inferred_temperature(verbose=verbose, debug=debug, cut=cut)
+
+        # M_HE(<r) from ne_obs and T_obs alone
+        self.infer_hydrostatic_mass()
+
+        # M(<r) under assumption DM follows NFW
+        self.infer_NFW_mass(verbose=verbose, cNFW=cNFW, bf=bf)
+        # T(r) from hydrostatic equilibrium by plugging in rho_gas, M(<r)
+        self.set_inferred_temperature(verbose=verbose, debug=debug, do_cut=do_cut)
 
     def __str__(self):
         return str(self.avg)
@@ -99,19 +107,97 @@ class ObservedCluster(object):
         self.fbeta = fmles[1]
         self.frc = fmles[2]
 
-    def set_total_gravitating_mass(self, cNFW=None, bf=0.17, verbose=False):
+    def infer_hydrostatic_mass(self):
+        """ From Chandra density and temperature we infer total gravitating mass
+            under the assumption that hydrostatic equilibrium holds.
+            This does not make assumptions about the shape of the dark matter
+            and this does not assume any temperature profile """
+        # Hydrostatic mass equation eats cgs: feed the monster radii in cgs
+        mask = numpy.where(self.ana_radii < 1000)  # Take analytical radii up to 1 Mpc
+        self.HE_radii = self.ana_radii[mask]*convert.kpc2cm
+
+        # Betamodel /w number density and its derivative
+        self.HE_ne = profiles.gas_density_betamodel(
+            self.HE_radii, self.ne0, self.beta, self.rc*convert.kpc2cm)
+        self.HE_dne_dr = profiles.d_gas_density_betamodel_dr(
+            self.HE_radii, self.ne0, self.beta, self.rc*convert.kpc2cm)
+
+        # Only use unmasked values b/c splrep/splev breaks for masked values
+        r = numpy.ma.compressed(self.avg["r"]*convert.kpc2cm)
+        T = numpy.ma.compressed(self.avg["T"])
+
+        # Fit a smoothed cubic spline to the data. Spline then gives dkT/dr
+        T = scipy.ndimage.filters.gaussian_filter1d(T, 10)  # sigma=10
+        self.T_spline = scipy.interpolate.splrep(r, T)  # built-in smoothing breaks
+
+        # Evaluate spline, der=0 for fit to the data and der=1 for first derivative.
+        self.HE_T = scipy.interpolate.splev(self.HE_radii, self.T_spline, der=0)
+        self.HE_dT_dr = scipy.interpolate.splev(self.HE_radii, self.T_spline, der=1)
+
+        self.HE_M_below_r = profiles.smith_hydrostatic_mass(
+            self.HE_radii, self.HE_ne, self.HE_dne_dr, self.HE_T, self.HE_dT_dr)
+
+    def infer_NFW_mass(self, cNFW=None, bf=0.17, verbose=False):
         self.halo = fit.total_gravitating_mass(self,
             cNFW=cNFW, bf=bf, verbose=verbose)
 
-    def set_inferred_temperature(self, fit=False, cut=False,
+    def set_inferred_temperature(self, fit=False, do_cut=False,
                                  verbose=False, debug=False):
-        if fit:
-            radii = self.avg["r"]
-        else:
-            radii = self.ana_radii
+        """ Assume NFW for DM. Get temperature from hydrostatic equation by
+            plugging in best-fit betamodel and the inferred best-fit total
+            gravitating mass that retrieves the observed temperature. """
+        print "Setting hydrostatic temperature"
+
+        radii = self.avg["r"] if fit else self.ana_radii
         N = len(radii)
         hydrostatic = numpy.zeros(N)
+        hydrostatic_pressure = numpy.zeros(N)  # ideal gas
+
+        # We need callable gas profile, and a callable total mass profile
+        rho0_gas = self.rho0
+        rho0_dm = self.halo["rho0_dm"]
+        if do_cut:
+            rho_gas = lambda r: profiles.gas_density_betamodel(r, rho0_gas,
+                self.beta, self.rc*convert.kpc2cm,
+                rcut=self.halo["r200"]*convert.kpc2cm, do_cut=True)
+            rho_dm = lambda r: profiles.dm_density_nfw(r, rho0_dm,
+                self.halo["rs"]*convert.kpc2cm, rcut=1e10*convert.kpc2cm, do_cut=True)
+            M_gas = lambda r: profiles.gas_mass_betamodel_cut(r, rho0_gas,
+                self.beta, self.rc*convert.kpc2cm, self.halo["r200"]*convert.kpc2cm)
+            M_dm = lambda r: profiles.dm_mass_nfw_cut(r, rho0_dm,
+                self.halo["rs"]*convert.kpc2cm, 1e10*convert.kpc2cm)
+        else:
+            rho_gas = lambda r: profiles.gas_density_betamodel(r, rho0_gas,
+                self.beta, self.rc*convert.kpc2cm)
+            rho_dm = lambda r: profiles.dm_density_nfw(r, rho0_dm,
+                self.halo["rs"]*convert.kpc2cm)
+            M_gas = lambda r: profiles.gas_mass_betamodel(r, rho0_gas,
+                self.beta, self.rc*convert.kpc2cm)
+            M_dm = lambda r: profiles.dm_mass_nfw(r, rho0_dm,
+                self.halo["rs"]*convert.kpc2cm)
+
+        M_tot = lambda r: (M_gas(r) + M_dm(r))
+
+        # R_sample = numpy.sqrt(3)/2*numpy.floor(2*self.halo["r200"])
+        Infinity = 1e25
+        for i, r in enumerate(radii * convert.kpc2cm):
+            if not r: continue  # to skip masked values
+
+            hydrostatic[i] = profiles.hydrostatic_temperature(
+                r, Infinity, rho_gas, M_tot)
+            hydrostatic_pressure[i] = profiles.hydrostatic_gas_pressure(
+                r, Infinity, rho_gas, M_tot)
+
+            if verbose and (i%10 == 0 or i==(N-1)):
+                print_progressbar(i, N)
+        print "\n"
+
+        self.hydrostatic = convert.K_to_keV(hydrostatic)
+        self.hydrostatic_pressure = hydrostatic_pressure
+
         if debug:
+            print "Showing all profiles plugged into hydrostatic equation"
+
             rhogas_check = numpy.zeros(N)
             rhodm_check = numpy.zeros(N)
             massgas_check = numpy.zeros(N)
@@ -120,48 +206,10 @@ class ObservedCluster(object):
             hydrostatic_gas = numpy.zeros(N)
             hydrostatic_dm = numpy.zeros(N)
             hydrostatic_pressure = numpy.zeros(N)
-            gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
-            dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
-            tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
 
-        # We need callable gas profile, and a callable total mass profile
-        rho0_gas = self.rho0
-        rho0_dm = self.halo["rho0_dm"]
-        if cut:
-            rho_gas = lambda r: profiles.gas_density_betamodel(r, rho0_gas,
-                self.beta, self.rc*convert.kpc2cm,
-                rcut=self.halo["r200"]*convert.kpc2cm, do_cut=True)
-            rho_dm = lambda r: profiles.dm_density_nfw(r, rho0_dm,
-                self.halo["rs"]*convert.kpc2cm, rcut=1e10*convert.kpc2cm, do_cut=True)
-        else:
-            rho_gas = lambda r: profiles.gas_density_betamodel(r, rho0_gas,
-                self.beta, self.rc*convert.kpc2cm)
-            rho_dm = lambda r: profiles.dm_density_nfw(r, rho0_dm,
-                self.halo["rs"]*convert.kpc2cm)
-        if cut:
-            M_gas = lambda r: profiles.gas_mass_betamodel_cut(r, rho0_gas,
-                self.beta, self.rc*convert.kpc2cm, self.halo["r200"]*convert.kpc2cm)
-            M_dm = lambda r: profiles.dm_mass_nfw_cut(r, rho0_dm,
-                self.halo["rs"]*convert.kpc2cm, 1e10*convert.kpc2cm)
-        else:
-            M_gas = lambda r: profiles.gas_mass_betamodel(r, rho0_gas,
-                self.beta, self.rc*convert.kpc2cm)
-            M_dm = lambda r: profiles.dm_mass_nfw(r, rho0_dm,
-                self.halo["rs"]*convert.kpc2cm)
-        M_tot = lambda r: (M_gas(r) + M_dm(r))
+            for i, r in enumerate(radii * convert.kpc2cm):
+                if not r: continue  # to skip masked values
 
-        # R_sample = numpy.sqrt(3)/2*numpy.floor(2*self.halo["r200"])
-        Infinity = 1e25
-        print "Setting hydrostatic temperature"
-        if debug:
-            print "Showing profiles plugged into hydrostatic equation"
-            fig, ((ax0, ax1), (ax2, ax3)) = pyplot.subplots(2, 2, sharex=True,
-                figsize=(18, 16))
-        for i, r in enumerate(radii * convert.kpc2cm):
-            if not r: continue  # to skip masked values
-            hydrostatic[i] = profiles.hydrostatic_temperature(
-                r, Infinity, rho_gas, M_tot)
-            if debug:
                 rhogas_check[i] = rho_gas(r)
                 rhodm_check[i] = rho_dm(r)
                 massgas_check[i] = M_gas(r)
@@ -173,12 +221,12 @@ class ObservedCluster(object):
                     r, Infinity, rho_gas, M_dm)
                 hydrostatic_pressure[i] = profiles.hydrostatic_gas_pressure(
                     r, Infinity, rho_gas, M_tot)
-            if verbose and (i%10 == 0 or i==(N-1)):
-                print_progressbar(i, N)
-        print "\n"
-        self.hydrostatic = convert.K_to_keV(hydrostatic)
 
-        if debug:
+            fig, ((ax0, ax1), (ax2, ax3)) = pyplot.subplots(2, 2, sharex=True,
+                figsize=(18, 16))
+            gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
+            dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
+            tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
             hydrostatic_gas = convert.K_to_keV(hydrostatic_gas)
             hydrostatic_dm = convert.K_to_keV(hydrostatic_dm)
             pyplot.sca(ax0)
@@ -208,8 +256,7 @@ class ObservedCluster(object):
             pyplot.savefig(
                 "out/{0}_donnert2014figure1_cNFW={1:.3f}_bf={2:.4f}{3}.pdf"
                     .format(self.name,  self.halo["cNFW"], self.halo["bf200"],
-                            "_cut" if cut else ""), dpi=300)
-            pyplot.close()
+                            "_cut" if do_cut else ""), dpi=300)
 
     def plot_chandra_average(self, parm="kT", style=dict()):
         """ plot of observed average profile of parm """
@@ -240,26 +287,29 @@ class ObservedCluster(object):
                             **style)
 
     def plot_bestfit_betamodel(self, style=dict(), rho=True, do_cut=False):
-        fit = profiles.gas_density_betamodel(self.ana_radii, self.rho0 if rho else self.ne0,
+        fit = profiles.gas_density_betamodel(self.ana_radii,
+                self.rho0 if rho else self.ne0,
                 self.beta, self.rc, None if not do_cut else self.halo["r200"],
                 do_cut=do_cut)
 
-        label = r"\begin{tabular}{p{2.5cm}ll}"
-        # label += " model & = & free beta \\\\"
-        if rho:
-            label += r" rho0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.rho0)
-        else:
-            label += r" ne0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.ne0)
-        label += " beta & = & {0:.3f} \\\\".format(self.beta)
-        label += " rc & = & {0:.2f} kpc \\\\".format(self.rc)
-        label += (" \hline \end{tabular}")
-        pyplot.plot(self.ana_radii, fit, label=label if do_cut else "", **style)
+        if "label" not in style:
+            label = r"\begin{tabular}{p{2.5cm}ll}"
+            # label += " model & = & free beta \\\\"
+            if rho:
+                label += r" rho0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.rho0)
+            else:
+                label += r" ne0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.ne0)
+            label += " beta & = & {0:.3f} \\\\".format(self.beta)
+            label += " rc & = & {0:.2f} kpc \\\\".format(self.rc)
+            label += (" \hline \end{tabular}")
+        pyplot.plot(self.ana_radii, fit, **style)
 
         ymin = profiles.gas_density_betamodel(
             self.rc, self.rho0 if rho else self.ne0, self.beta, self.rc)
-        pyplot.vlines(x=self.rc, ymin=ymin, ymax=9e-24 if rho else 9.15, **style)
-        pyplot.text(self.rc+25 if self.name == "cygNW" else self.rc+1,
-            4e-24 if rho else 4.06, r"$r_c$", ha="left", fontsize=22)
+        pyplot.vlines(x=self.rc, ymin=ymin, ymax=1e-10 if rho else 9.15,
+                      **{ k: style[k] for k in style.keys() if k != "label" })
+        pyplot.text(self.rc-25 if self.name == "cygNW" else self.rc-1,
+            3e-23 if rho else 4.06, r"$r_c$", ha="right", fontsize=22)
 
     def plot_bestfit_residuals(self, rho=False):
         fit = profiles.gas_density_betamodel(self.avg["r"],
@@ -274,36 +324,90 @@ class ObservedCluster(object):
                         lw=3, elinewidth=1, drawstyle="steps-post")
         pyplot.axvline(x=self.rc, lw=3, ls="dashed", c="k")
 
-    def plot_inferred_nfw_profile(self, style=dict(), rho=True):
+    def plot_inferred_nfw_profile(self, style=dict(), rho=True, do_cut=False):
         rs = self.halo["rs"]
         density = self.halo["rho0_dm"] if rho else self.halo["ne0_dm"]
-        rho_dm = profiles.dm_density_nfw(self.ana_radii, density, rs)
+        rho_dm = profiles.dm_density_nfw(self.ana_radii, density, rs,
+                rcut=1e10 if do_cut else None, do_cut=do_cut)
 
-        label = r"\begin{tabular}{p{2.5cm}ll}"
-        # label += " model & = & NFW \\\\"
-        label += r" rho0dm & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.halo["rho0_dm"])
-        label += " rs & = & {0:.2f} kpc \\\\".format(rs)
-        label += (" \hline \end{tabular}")
-        pyplot.plot(self.ana_radii, rho_dm, label=label, **style)
+        if "label" not in style:
+            label = r"\begin{tabular}{p{2.5cm}ll}"
+            # label += " model & = & NFW \\\\"
+            label += r" rho0dm & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.halo["rho0_dm"])
+            label += " rs & = & {0:.2f} kpc \\\\".format(rs)
+            label += (" \hline \end{tabular}")
+        pyplot.plot(self.ana_radii, rho_dm, **style)
 
         ymin = profiles.dm_density_nfw(rs, density, rs)
-        pyplot.vlines(x=rs, ymin=ymin, ymax=9e-24 if rho else 9.15, **style)
-        pyplot.text(rs-25, 4e-24 if rho else 4.06, r"$r_s$", ha="right", fontsize=22)
+        pyplot.vlines(x=rs, ymin=ymin, ymax=1e-10 if rho else 9.15,
+                      **{ k: style[k] for k in style.keys() if k != "label" })
+        pyplot.text(rs-25, 3e-23 if rho else 4.06, r"$r_s$", ha="right", fontsize=22)
 
-    def plot_bestfit_betamodel_mass(self, style=dict()):
-        mass = numpy.zeros(len(self.ana_radii))
-        for i, r in enumerate(self.ana_radii):
-            mass[i] = profiles.gas_mass_betamodel_cut(
-                r, convert.density_cgs_to_msunkpc(self.rho0), self.beta, self.rc, self.halo["r200"])
+    def plot_bestfit_betamodel_mass(self, style=dict(), do_cut=False):
+        if do_cut:
+            mass = numpy.zeros(len(self.ana_radii))
+            for i, r in enumerate(self.ana_radii):
+                mass[i] = profiles.gas_mass_betamodel_cut(
+                    r, convert.density_cgs_to_msunkpc(self.rho0),
+                    self.beta, self.rc, self.halo["r200"])
+        else:
+            mass = profiles.gas_mass_betamodel(self.ana_radii,
+                convert.density_cgs_to_msunkpc(self.rho0), self.beta, self.rc)
 
         pyplot.plot(self.ana_radii, mass, **style)
 
-    def plot_inferred_nfw_mass(self, style=dict()):
+    def plot_inferred_nfw_mass(self, style=dict(), do_cut=False):
         rs = self.halo["rs"]
         rho0_dm = convert.density_cgs_to_msunkpc(self.halo["rho0_dm"])
-        mass = profiles.dm_mass_nfw(self.ana_radii, rho0_dm, rs)
+
+        if do_cut:
+            mass = profiles.dm_mass_nfw_cut(r, rho0_dm, rs*convert.kpc2cm,
+                                            1e10*convert.kpc2cm)
+        else:
+            mass = profiles.dm_mass_nfw(self.ana_radii, rho0_dm, rs)
 
         pyplot.plot(self.ana_radii, mass, **style)
+
+    def plot_inferred_total_gravitating_mass(self, style=dict(), do_cut=False):
+        rs = self.halo["rs"]
+        rho0_dm = convert.density_cgs_to_msunkpc(self.halo["rho0_dm"])
+        rho0_gas = convert.density_cgs_to_msunkpc(self.rho0)
+        if do_cut:
+            dm = lambda r: profiles.dm_mass_nfw_cut(r, rho0_dm,
+                rs*convert.kpc2cm, 1e10*convert.kpc2cm)
+            gas = lambda r: profiles.gas_mass_betamodel_cut(r, rho0_gas,
+                self.beta, self.rc, self.halo["r200"])
+            total = lambda r: ( dm(r) + gas(r) )
+
+            mass = numpy.zeros(len(self.ana_radii))
+            for i, r in enumerate(self.ana_radii):
+                mass[i] = total(r)
+        else:
+            mass = profiles.dm_mass_nfw(self.ana_radii, rho0_dm, rs) +  \
+                profiles.gas_mass_betamodel(self.ana_radii, rho0_gas,
+                                            self.beta, self.rc)
+
+        pyplot.plot(self.ana_radii, mass, **style)
+
+    def plot_hydrostatic_mass(self, style=dict()):
+        style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
+        style["label"] = "HE"
+        style["color"] = "b"
+        pyplot.plot(self.HE_radii*convert.cm2kpc,
+            self.HE_M_below_r*convert.g2msun, **style)
+
+    def plot_verlinde_apparent_darkmatter_mass(self, style=dict()):
+        style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
+        style["label"] = "Verlinde"
+        style["color"] = "r"
+        verlinde = lambda r: profiles.verlinde_apparent_DM_mass(
+            r, self.rho0, self.beta, self.rc*convert.kpc2cm)
+
+        mass = numpy.zeros(len(self.ana_radii))
+        for i, r in enumerate(self.ana_radii*convert.kpc2cm):
+            mass[i] = verlinde(r)
+
+        pyplot.loglog(self.ana_radii, mass*convert.g2msun, **style)
 
     def plot_inferred_temperature(self, fit=False, style=dict()):
         if fit:
@@ -312,7 +416,11 @@ class ObservedCluster(object):
             radii = self.ana_radii
         pyplot.plot(radii, self.hydrostatic,
             label="cNFW={0:.3f}, bf={1:.4f}".format(
-            self.halo["cNFW"], self.halo["bf200"]))
+            self.halo["cNFW"], self.halo["bf200"]),
+            **{ k: style[k] for k in style.keys() if k != "label" })
+
+    def plot_inferred_pressure(self, style=dict(), do_cut=False):
+        pyplot.plot(self.ana_radii, self.hydrostatic_pressure, **style)
 # ----------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------

@@ -1,5 +1,4 @@
 import numpy
-import scipy
 import astropy.units as u
 import astropy.constants as const
 import matplotlib
@@ -244,7 +243,7 @@ def inferred_pressure(c):
 
     pyplot.figure(figsize=(12, 9))
     c.plot_chandra_average(parm="P", style=avg)
-    c.plot_inferred_temperature()
+    c.plot_inferred_temperature(style=tot)
 
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Pressure [erg/cm$^3$]")
@@ -254,7 +253,6 @@ def inferred_pressure(c):
     pyplot.savefig("out/{0}_hydrostatic-pressure={1:.3f}_bf={2:.4f}.png"
        .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
     pyplot.close()
-
 
 
 def smith_hydrostatic_mass(c, debug=False):
@@ -277,47 +275,13 @@ def smith_hydrostatic_mass(c, debug=False):
             "elinewidth": 2 }
     ana = { "color": "k", "lw": 2, "linestyle": "solid", }
 
-    smith = False
-    if smith:
-        mle, err = fit.smith_centrally_decreasing_temperature(c)
-        print "Smith (2002)", mle, err
-        pyplot.figure(figsize=(12, 9))
-        c.plot_chandra_average(parm="kT", style=avg)
-        kT = profiles.smith_centrally_decreasing_temperature(
-            c.avg["r"], mle[0], mle[1], mle[2])
-        pyplot.plot(c.avg["r"], kT, label="my fit")
-        mle = (7.81, 7.44, 76.4)
-        kT = profiles.smith_centrally_decreasing_temperature(
-            c.avg["r"], mle[0], mle[1], mle[2])
-        pyplot.plot(c.avg["r"], kT, label="Smith 2002")
-        pyplot.xlabel("Radius [kpc]")
-        pyplot.ylabel("Temperature [keV]")
-        # pyplot.xscale("log")
-        pyplot.legend(loc="best", fontsize=14)
-
-    # Hydrostatic mass equation eats cgs: feed the monster radii in cgs
-    mask = numpy.where(c.ana_radii < 1000)  # Take analytical radii up to 1 Mpc
-    radii = c.ana_radii[mask]*convert.kpc2cm
-
-    # Betamodel /w number density and its derivative
-    ne = profiles.gas_density_betamodel(
-        radii, c.ne0, c.beta, c.rc*convert.kpc2cm)
-    dne_dr = profiles.d_gas_density_betamodel_dr(
-        radii, c.ne0, c.beta, c.rc*convert.kpc2cm)
-
-    # Only use unmasked values b/c splrep/splev breaks for masked values
-    r = numpy.ma.compressed(c.avg["r"]*convert.kpc2cm)
-    T = numpy.ma.compressed(c.avg["T"])
-
-    # Fit a smoothed cubic spline to the data. Spline then gives dkT/dr
-    T = scipy.ndimage.filters.gaussian_filter1d(T, 10)  # sigma=10
-    spline = scipy.interpolate.splrep(r, T)  # built-in smoothing breaks
-
-    # Evaluate spline, der=0 for fit to the data and der=1 for first derivative.
-    T = scipy.interpolate.splev(radii, spline, der=0)
-    dT_dr = scipy.interpolate.splev(radii, spline, der=1)
-
-    Mhe_below_r = profiles.smith_hydrostatic_mass(radii, ne, dne_dr, T, dT_dr)
+    pyplot.figure(figsize=(12, 9))
+    pyplot.loglog(c.HE_radii*convert.cm2kpc, c.HE_M_below_r*convert.g2msun, **ana)
+    pyplot.ylabel("Hydrostatic Mass [MSun]")
+    pyplot.xlabel("Radius [kpc]")
+    pyplot.tight_layout()
+    pyplot.savefig("out/{0}_hydrostaticmass.pdf".format(c.name), dpi=300)
+    pyplot.close()
 
     if debug:
         matplotlib.rc("font", **{"size": 22})
@@ -330,15 +294,15 @@ def smith_hydrostatic_mass(c, debug=False):
         ax0 = pyplot.subplot(gs1[0], sharex=ax3)
 
         pyplot.sca(ax0); c.plot_chandra_average(parm="n", style=avg)
-        ax0.loglog(radii*convert.cm2kpc, ne, **ana)
+        ax0.loglog(c.HE_radii*convert.cm2kpc, c.HE_ne, **ana)
         ax0.set_ylabel("n$_e$(r) [1/cm$^3$]")
-        ax1.semilogx(radii*convert.cm2kpc, dne_dr, **ana)
+        ax1.semilogx(c.HE_radii*convert.cm2kpc, c.HE_dne_dr, **ana)
         ax1.set_ylabel("dn$_e$ / dr")
         pyplot.sca(ax2); c.plot_chandra_average(parm="T", style=avg)
-        ax2.loglog(radii*convert.cm2kpc, T, **ana)
+        ax2.loglog(c.HE_radii*convert.cm2kpc, c.HE_T, **ana)
         ax2.set_yticks([3e7, 5e7, 7e7, 9e7])
         ax2.set_ylabel("T(r) [K]")
-        ax3.semilogx(radii*convert.cm2kpc, dT_dr, **ana)
+        ax3.semilogx(c.HE_radii*convert.cm2kpc, c.HE_dT_dr, **ana)
         ax3.set_ylabel("dT / dr")
         ax3.set_xlabel("Radius [kpc]")
 
@@ -366,15 +330,89 @@ def smith_hydrostatic_mass(c, debug=False):
         pyplot.xlim(-2, 1100)
         pyplot.tight_layout()
         pyplot.savefig("out/{0}_hydrostaticmass_debug.pdf".format(c.name), dpi=300)
-        pyplot.show()
+        pyplot.close()
         matplotlib.rc("font", **{"size": 28})
 
-    pyplot.figure(figsize=(12, 9))
-    pyplot.loglog(radii*convert.cm2kpc, Mhe_below_r*convert.g2msun, **ana)
-    pyplot.ylabel("Hydrostatic Mass [MSun]")
-    pyplot.xlabel("Radius [kpc]")
+    # Smith assumes a specific temperature structure and fits it to the data
+    # Set smith to True to show this best-fit compares to 1 Msec Chandra
+    smith = False
+    if smith and c.name == "cygA":
+        mle, err = fit.smith_centrally_decreasing_temperature(c)
+        print "Smith (2002)", mle, err
+
+        pyplot.figure(figsize=(12, 9))
+        c.plot_chandra_average(parm="kT", style=avg)
+        kT = profiles.smith_centrally_decreasing_temperature(
+            c.avg["r"], mle[0], mle[1], mle[2])
+        # Fit of the Smith temperature structure breaks for latest Tobs
+        pyplot.plot(c.avg["r"], kT, label="my fit")
+
+        mle = (7.81, 7.44, 76.4)  # best-fit in the Smith paper
+        kT = profiles.smith_centrally_decreasing_temperature(
+            c.avg["r"], mle[0], mle[1], mle[2])
+        pyplot.plot(c.avg["r"], kT, label="Smith 2002")
+        pyplot.xlabel("Radius [kpc]")
+        pyplot.ylabel("Temperature [keV]")
+        # pyplot.xscale("log")
+        pyplot.legend(loc="best", fontsize=14)
+        pyplot.savefig("out/{0}_smith_temperature.pdf".format(c.name), dpi=300)
+
+
+def donnert2014_figure1(c, do_cut=False):
+    """ Create Donnert (2014) Figure 1 for the Cygnus observation + best-fit models
+        @param c: ObservedCluster """
+
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 2 }
+    gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
+    dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
+    tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
+
+    fig, ((ax0, ax1), (ax2, ax3)) = pyplot.subplots(2, 2, figsize=(18, 16))
+
+    pyplot.sca(ax0)
+    c.plot_chandra_average(parm="rho", style=avg)
+    c.plot_bestfit_betamodel(style=gas, rho=True, do_cut=do_cut)
+    c.plot_inferred_nfw_profile(style=dm, rho=True, do_cut=do_cut)
+    ax0.set_yscale("log")
+    ax0.set_ylim(1e-30, 1e-22)
+
+    pyplot.sca(ax1)
+    c.plot_bestfit_betamodel_mass(style=gas, do_cut=do_cut)
+    c.plot_inferred_nfw_mass(style=dm, do_cut=do_cut)
+    c.plot_inferred_total_gravitating_mass(style=tot, do_cut=do_cut)
+    c.plot_hydrostatic_mass(style=tot)
+    c.plot_verlinde_apparent_darkmatter_mass(style=tot)
+    #ax1.loglog(radii, convert.g2msun*masstot_check, **tot)
+    ax1.set_yscale("log")
+    ax1.set_ylim(1e5, 1e16)
+
+    pyplot.sca(ax2)
+    c.plot_chandra_average(parm="kT", style=avg)
+    c.plot_inferred_temperature(style=tot)
+    ax2.set_ylim(-1, 10)
+
+    pyplot.sca(ax3)
+    c.plot_chandra_average(parm="P", style=avg)
+    c.plot_inferred_pressure(style=tot, do_cut=do_cut)
+    #ax3.loglog(radii, hydrostatic_pressure, **tot)
+    ax3.set_yscale("log")
+    ax3.set_ylim(1e-15, 1e-9)
+
+    for ax in [ax0, ax1, ax2, ax3]:
+        ax.set_xlabel("Radius [kpc]")
+        ax.set_xscale("log")
+        ax.set_xlim(0, 5000)
+        ax.legend(fontsize=12)
+    ax0.set_ylabel("Density [g/cm$^3$]")
+    ax1.set_ylabel("Mass [MSun]")
+    ax2.set_ylabel("Temperature [keV]")
+    ax3.set_ylabel("Pressure [erg/cm$^3$]")
+
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_hydrostaticmass.pdf".format(c.name), dpi=300)
+    pyplot.savefig("out/{0}_donnert2014figure1_cNFW={1:.3f}_bf={2:.4f}{3}.pdf"
+        .format(c.name,  c.halo["cNFW"], c.halo["bf200"], "_cut" if do_cut else ""),
+        dpi=300)
+    # pyplot.close()
 # ----------------------------------------------------------------------------
 
 

@@ -251,7 +251,7 @@ def smith_centrally_decreasing_temperature(c):
 
 def temperature_wrapper(c, cNFW, bf, do_plot=False):
     print "Trying cNFW = {0}, bf = {1}".format(cNFW, bf)
-    c.set_total_gravitating_mass(cNFW=cNFW, bf=bf)
+    c.infer_NFW_mass(cNFW=cNFW, bf=bf)
     c.set_inferred_temperature(fit=True, verbose=True, debug=False)
     if do_plot: plot.inferred_temperature(c, fit=True)
     return c.hydrostatic
@@ -262,6 +262,7 @@ def total_gravitating_mass_freecbf(c, verbose=False, do_plot=False):
         @param c:  ObservedCluster
         @return:   (MLE, one sigma confidence interval), tuple """
 
+    print "Retrieving cNFW, bf to retrieve T_HE = Tobs"
     if c.name == "cygA":
         p0 = [12.18, 0.075]
     if c.name == "cygNW":
