@@ -67,9 +67,8 @@ def dm_mass_nfw_cut(rmax, rho0_dm, rs, rcut):
         @param rcut:     NFW scale radius, float
         @return:         NFW DM mass profile M(<r), float """
 
-    M_dm = scipy.integrate.quad(lambda r:
-        p2(r)*dm_density_nfw(r, rho0_dm, rs, rcut=rcut, do_cut=True),
-        0, rmax)
+    M_dm = scipy.integrate.quad(lambda r: p2(r) *
+        dm_density_nfw(r, rho0_dm, rs, rcut=rcut, do_cut=True), 0, rmax)
     return 4*numpy.pi*M_dm[0]
 
 
@@ -152,6 +151,30 @@ def gas_mass_betamodel_cut(rmax, rho0, beta, rc, rcut):
         p2(r)*gas_density_betamodel(r, rho0, beta, rc, rcut=rcut, do_cut=True),
         0, rmax)
     return 4*numpy.pi*M_gas[0]
+
+
+def verlinde_apparent_DM_mass(rmax, rho0, beta, rc):
+    """ Emergent Gravity (Verlinde 2016) apparent dark matter mass.
+        Equation adopted from Brouwer+ (2016; eq. 17)
+        https://arxiv.org/pdf/1612.03034.pdf
+
+        M_D(r) ^2 = cH_0/6G d(M_b(r)) / dr
+        @param rmax: radius
+        @param rho0: Baryonic matter central density, float
+        @param beta: Ratio specific kinetic energy of galaxies to gas; slope, float
+        @param rc  : Core radius (profile is constant within rc), float
+        @return    : Apparent Dark Matter mass """
+
+    H0 = 2.269e-18  # 70 km/s/Mpc --> 1/s b/c cgs
+    fac = const.c.cgs.value*H0*4*numpy.pi*rho0*p2(rmax)/(6*const.G.cgs.value)
+
+    # print numpy.sqrt(fac*scipy.misc.derivative(lambda r: gas_mass_betamodel(
+    #    r, rho0, beta, rc), rmax))
+
+    M_Dapparent = ((4./3*p3(rmax)* special.hyp2f1(1.5, 1.5*beta, 2.5, -p2(rmax/rc))) \
+        - (0.6*beta*p3(rmax)*p2(rmax)*special.hyp2f1(2.5, 1.5*beta+1, 3.5, -p2(rmax/rc))/p2(rc)))
+
+    return numpy.sqrt(fac * M_Dapparent)
 
 
 def smith_centrally_decreasing_temperature(r, a, b, c):

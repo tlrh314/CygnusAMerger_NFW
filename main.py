@@ -16,10 +16,7 @@ style = PlotSettings()
 # warnings.simplefilter('error', UserWarning)
 
 
-def show_observations(a):
-    cygA = ObservedCluster("cygA", verbose=a.verbose)
-    cygNW = ObservedCluster("cygNW", verbose=a.verbose)
-
+def show_observations(cygA, cygNW):
     for parm in ["n", "rho", "kT", "P"]:  # CygA and CygNW
         plot.quiescent_parm(cygA, parm)
         plot.quiescent_parm(cygNW, parm)
@@ -39,25 +36,7 @@ def show_observations(a):
     plot.inferred_temperature(cygNW)
 
 
-def infer_hydrostatic_mass(a):
-    """ Smith+ (2002; eq. 3) Hydrostatic mass from observed temperature and
-        number density"""
-    cygA = ObservedCluster("cygA", verbose=a.verbose, debug=a.debug)
-    cygNW = ObservedCluster("cygNW", verbose=a.verbose, debug=a.debug)
-
-    plot.smith_hydrostatic_mass(cygA, debug=a.debug)
-    plot.smith_hydrostatic_mass(cygNW, debug=a.debug)
-
-
-def write_ics(a):
-    mle, cis = fit.total_gravitating_mass_freecbf(
-        ObservedCluster("cygA"), verbose=False, do_plot=True)
-    cygA = ObservedCluster("cygA", cNFW=mle[0], bf=mle[1], verbose=a.verbose)
-
-    mle, cis = fit.total_gravitating_mass_freecbf(
-        ObservedCluster("cygNW"), verbose=False, do_plot=True)
-    cygNW = ObservedCluster("cygNW", cNFW=mle[0], bf=mle[1], verbose=a.verbose)
-
+def write_ics(cygA, cygNW):
     ic_cygA= { "description": "(free) betamodel+NFW. Cygnus A single halo.",
                "Mtotal": cygA.halo["M200"]/1e10, "Mass_Ratio": 0,
                "beta_0": cygA.beta, "beta_1": 0,
@@ -81,9 +60,9 @@ def write_ics(a):
                "c_nfw_0": cygA.halo["cNFW"], "rc_0": cygA.rc,
                "c_nfw_1": cygNW.halo["cNFW"], "rc_1": cygNW.rc,
                "filename": "ic_both_free_hacked.par"}
-    # write_toycluster_parameterfile(ic_cygA)
-    # write_toycluster_parameterfile(ic_cygNW)
-    # write_toycluster_parameterfile(ic_both)
+    write_toycluster_parameterfile(ic_cygA)
+    write_toycluster_parameterfile(ic_cygNW)
+    write_toycluster_parameterfile(ic_both)
 
 
 def check_toycluster_rho_and_temperature(a, match_Tobs=True):
@@ -132,7 +111,6 @@ def plot_smac_snapshots(a):
         sim = Simulation(a.basedir, a.timestamp)
 
 
-
 def test_cnfw(a):
     for cNFW in range(1, 25, 2):
         cygA = ObservedCluster("cygA", cNFW=cNFW, verbose=a.verbose)
@@ -148,7 +126,7 @@ def new_argument_parser():
     args.add_argument("-b", "--basedir", dest="basedir",
         help="Path to the base directory", default="/usr/local/mscproj")
     args.add_argument("-c", "--clustername", dest="clustername",
-        help="Name of the subcluster", default=None, choices=["cygA", "cygNW"])
+        help="Name of the subcluster", default=None, choices=["cygA", "cygNW", "both"])
     args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
         help="Toggle verbose. Verbose is True by default", default=True)
     args.add_argument("-d", "--debug", dest="debug", action="store_true",
@@ -162,26 +140,32 @@ def new_argument_parser():
 
 if __name__ == "__main__":
     a = new_argument_parser().parse_args()
-    # show_observations(a)
-    # infer_hydrostatic_mass(a)
-    # write_ics(a)
-    # plot_smac_snapshots(a)
+    sim = Simulation(a.basedir, a.timestamp, a.clustername)
 
-    # For fun, fit the concentration parameter and baryon fraction
-    # fit.total_gravitating_mass_freecbf(ObservedCluster("cygNW"), verbose=True)
-    # cygA = ObservedCluster("cygA", cNFW=12.181, bf=0.0740,
-    #                        verbose=a.verbose, debug=a.debug)
-    # cygNW = ObservedCluster("cygNW", cNFW=5.13, bf=0.055,
-    #                         verbose=a.verbose, debug=a.debug)
+    # Fit the concentration parameter and baryon fraction
+    # mle, cis = fit.total_gravitating_mass_freecbf(
+    #     ObservedCluster("cygA"), verbose=False, do_plot=a.debug)
+    # cygA = ObservedCluster("cygA", cNFW=mle[0], bf=mle[1], verbose=a.verbose)
+    # cygA = ObservedCluster("cygA", cNFW=12.4036, bf=0.0765, verbose=a.verbose)
 
-    # cygA = ObservedCluster("cygA", verbose=a.verbose, debug=a.debug)
-    # cygNW = ObservedCluster("cygNW", verbose=a.verbose, debug=a.debug)
+    # mle, cis = fit.total_gravitating_mass_freecbf(
+    #     ObservedCluster("cygNW"), verbose=False, do_plot=a.debug)
+    # cygNW = ObservedCluster("cygNW", cNFW=mle[0], bf=mle[1], verbose=a.verbose)
+    # cygNW = ObservedCluster("cygNW", cNFW=5.1709, bf=0.0550, verbose=a.verbose)
+
+    # show_observations(cygA, cygNW)
     # plot.inferred_nfw_profile(cygA)
     # plot.inferred_mass(cygA)
     # plot.inferred_temperature(cygA)
     # plot.inferred_pressure(cygA)
+    # plot.smith_hydrostatic_mass(cygA, debug=a.debug)
+    # plot.smith_hydrostatic_mass(cygNW, debug=a.debug)
+    # plot.donnert2014_figure1(cygA)
+    # plot.donnert2014_figure1(cygNW)
+
+    # write_ics(cygA, cygNW)
+
+    # plot_smac_snapshots(a)  # TODO: have correct cNFW, bf
 
     # check_toycluster_rho_and_temperature(a, match_Tobs=True)
     # sim = check_twocluster_ics(a)
-
-    # pyplot.show()

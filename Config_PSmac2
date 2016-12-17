@@ -6,9 +6,9 @@ I_GADGET2                    // Gadget input
 #O_FITS_COMPRESSED           // FPACK-RICE compressed .fits file
 O_FITS_COMPRESSED_CUBE       // Allow looping one input parameter by giving min max step
 
-WK_CUBIC                     // Project using cubic spline kernel
+#WK_CUBIC                     // Project using cubic spline kernel
 #WK_QUINTIC                  // project using quintic spline kernel
-#WK_WC6                      // project using Wendland C6 kernel
+WK_WC6                      // project using Wendland C6 kernel
 #WK_WC4                      // project using Wendland C6 kernel
 
 ## Additional Options ##
