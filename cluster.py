@@ -17,7 +17,7 @@ from macro import *
 # ----------------------------------------------------------------------------
 class ObservedCluster(object):
     """ Parse and store Chandra XVP (PI Wise) observation """
-    def __init__(self, name, cNFW=None, bf=0.17, verbose=True, debug=False,
+    def __init__(self, basedir, name, cNFW=None, bf=0.17, verbose=True, debug=False,
                  cut=False):
         """ Read in the quiescent radial profiles of CygA/CygNW afer 1.03 Msec
             Chandra XVP observations (PI Wise). Data courtesy of M.N. de Vries.
@@ -28,19 +28,20 @@ class ObservedCluster(object):
 
         if name != "cygA" and name != "cygNW":
             print "ERROR: incorrect ObservedCluster name specified: '{0}'".format(name)
+        self.basedir = basedir
         self.name = name
 
         # Redshift of Cygnus cluster Owen+ 1997. CygNW might have different z.
         # We adopt concordance cosmology with generic cosmological parameters
         self.cc = CosmologyCalculator(z=0.0562, H0=70, WM=0.3, WV=0.7)
 
-        self.avg = parse.chandra_quiescent(self.name)
+        self.avg = parse.chandra_quiescent(self.basedir, self.name)
         self.set_radius(self.avg)
         self.set_massdensity(self.avg)
         self.set_temperature_kelvin(self.avg)
         if self.name == "cygA":  # no have sectoranalysis for CygNW
             self.avg = self.mask_bins(self.avg, first=5, last=3)  # or 2 2
-            self.merger, self.hot, self.cold = parse.chandra_sectors()
+            self.merger, self.hot, self.cold = parse.chandra_sectors(self.basedir)
             self.set_radius(self.merger)
             self.set_radius(self.hot)
             self.set_radius(self.cold)

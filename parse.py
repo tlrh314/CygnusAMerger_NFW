@@ -10,9 +10,9 @@ from macro import p2
 # ----------------------------------------------------------------------------
 # Parse Chandra observation: i) quiescent/non-merger; ii) sector analysis
 # ----------------------------------------------------------------------------
-def chandra_quiescent(name):
+def chandra_quiescent(basedir, name):
     """ `quiescent', or average profile (data copied at 20161108) """
-    datadir = "/usr/local/mscproj/CygnusAMerger_NFW/data/20161108/"
+    datadir = basedir+"/CygnusAMerger_NFW/data/20161108/"
 
     # /scratch/martyndv/cygnus/combined/spectral/maps/radial/sn100/cygA_plots
     # Last edit: Oct 18 09:27 (CygA), and Oct 18 11:37 (CygNW).
@@ -35,9 +35,9 @@ def chandra_quiescent(name):
     avg = astropy.table.hstack([sbresults, neresults])
     return avg
 
-def chandra_sectors():
+def chandra_sectors(basedir):
     """ hot/cold/merger profiles (data copied at 20161108) """
-    datadir = "/usr/local/mscproj/CygnusAMerger_NFW/data/20161108/"
+    datadir = basedir+"/CygnusAMerger_NFW/data/20161108/"
 
     # /scratch/martyndv/cygnus/combined/spectral/maps/sector/plots
     # Last edit: Oct 18 12:33
