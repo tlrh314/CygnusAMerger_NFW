@@ -126,7 +126,7 @@ def new_argument_parser():
     args.add_argument("-b", "--basedir", dest="basedir",
         help="Path to the base directory", default="/usr/local/mscproj")
     args.add_argument("-c", "--clustername", dest="clustername",
-        help="Name of the subcluster", default=None, choices=["cygA", "cygNW"])
+        help="Name of the subcluster", default=None, choices=["cygA", "cygNW", "both"])
     args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
         help="Toggle verbose. Verbose is True by default", default=True)
     args.add_argument("-d", "--debug", dest="debug", action="store_true",
@@ -140,17 +140,18 @@ def new_argument_parser():
 
 if __name__ == "__main__":
     a = new_argument_parser().parse_args()
+    sim = Simulation(a.basedir, a.timestamp, a.clustername)
 
     # Fit the concentration parameter and baryon fraction
     # mle, cis = fit.total_gravitating_mass_freecbf(
     #     ObservedCluster("cygA"), verbose=False, do_plot=a.debug)
     # cygA = ObservedCluster("cygA", cNFW=mle[0], bf=mle[1], verbose=a.verbose)
-    cygA = ObservedCluster("cygA", cNFW=12.4036, bf=0.0765, verbose=a.verbose)
+    # cygA = ObservedCluster("cygA", cNFW=12.4036, bf=0.0765, verbose=a.verbose)
 
     # mle, cis = fit.total_gravitating_mass_freecbf(
     #     ObservedCluster("cygNW"), verbose=False, do_plot=a.debug)
     # cygNW = ObservedCluster("cygNW", cNFW=mle[0], bf=mle[1], verbose=a.verbose)
-    cygNW = ObservedCluster("cygNW", cNFW=5.1709, bf=0.0550, verbose=a.verbose)
+    # cygNW = ObservedCluster("cygNW", cNFW=5.1709, bf=0.0550, verbose=a.verbose)
 
     # show_observations(cygA, cygNW)
     # plot.inferred_nfw_profile(cygA)
@@ -159,8 +160,8 @@ if __name__ == "__main__":
     # plot.inferred_pressure(cygA)
     # plot.smith_hydrostatic_mass(cygA, debug=a.debug)
     # plot.smith_hydrostatic_mass(cygNW, debug=a.debug)
-    plot.donnert2014_figure1(cygA)
-    plot.donnert2014_figure1(cygNW)
+    # plot.donnert2014_figure1(cygA)
+    # plot.donnert2014_figure1(cygNW)
 
     # write_ics(cygA, cygNW)
 

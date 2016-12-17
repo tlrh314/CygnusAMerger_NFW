@@ -508,10 +508,27 @@ class Gadget2Output(object):  # TODO parse individual snapshots, split box in ha
         """ Class to hold Gadgget-2 simulation output
         @param simdir: path to the directory with Gadget-2 output, string
         @return      : instance of Gadget2Output class"""
-        self.parms = parse.read_gadget_parms(simdir+"gadget2.par")
+        self.parms = parse.read_gadget2_parms(simdir+"gadget2.par")
 
     def __str__(self):
         tmp = "Gadget-2 parameters:\n"
+        for k, v in self.parms.iteritems(): tmp += "    {0:<25}: {1}\n".format(k, v)
+        return tmp
+
+
+# ----------------------------------------------------------------------------
+# Class to hold Gadget-3 simulation snaphots
+# ----------------------------------------------------------------------------
+class Gadget2Output(object):  # TODO parse individual snapshots, split box in half, etc
+    """ Parse and store Gadget-3 simulation snapshots"""
+    def __init__(self, simdir, verbose=True):
+        """ Class to hold Gadgget-2 simulation output
+        @param simdir: path to the directory with Gadget-3 output, string
+        @return      : instance of Gadget2Output class"""
+        self.parms = parse.read_gadget3_parms(simdir+"gadget3.par")
+
+    def __str__(self):
+        tmp = "Gadget-3 parameters:\n"
         for k, v in self.parms.iteritems(): tmp += "    {0:<25}: {1}\n".format(k, v)
         return tmp
 

@@ -302,10 +302,12 @@ setup_toycluster() {
         # Queued jobs start at random times. Could conflict in code directories
         # at compile time. Lock directory when setting compile settings,
         # compiling and moving compiled files to runs/SimulationID dir.
-        while true; do
+        x=1
+        while [ $x -le 5 ]; do
             if [ -f "${TOYCLUSTERDIR}/compiling.lock" ]; then
                 echo "LOCKED. WAITING.."
                 sleep 60
+                x=$(( $x + 1 ))
             else
                 touch "${TOYCLUSTERDIR}/compiling.lock"
                 set_toycluster_compile_files
@@ -316,6 +318,10 @@ setup_toycluster() {
                 break
             fi
         done
+        if [ $x -eq 6 ]; then
+            echo "Toycluster did not compile: src dir locked"
+            exit 1
+        fi
 
         run_toycluster
 
@@ -452,7 +458,8 @@ check_toycluster_run() {
 }
 
 setup_gadget() {
-    GADGETDIR="${BASEDIR}/Gadget-2.0.7/Gadget2"
+    # GADGETDIR="${BASEDIR}/Gadget-2.0.7/Gadget2"
+    GADGETDIR="${BASEDIR}/P-Gadget3"
     #GADGETLOGFILENAME="runGadget.log"
 
     SIMOUTDIR="${SIMULATIONDIR}/snaps"
@@ -464,12 +471,16 @@ setup_gadget() {
     if [ ! -d "${SIMOUTDIR}" ]; then
         echo "No SIMOUTDIR  --> Running simulations!"
         mkdir "${SIMOUTDIR}"
+        mkdir "${SIMOUTDIR}/log"
         echo "Created         : ${SIMOUTDIR}"
+        echo "Created         : ${SIMOUTDIR}/log"
 
-        while true; do
+        x=1
+        while [ $x -le 5 ]; do
             if [ -f "${GADGETDIR}/compiling.lock" ]; then
                 echo "LOCKED. WAITING.."
                 sleep 60
+                x=$(( $x + 1 ))
             else
                 touch "${GADGETDIR}/compiling.lock" 
                 set_gadget_compile_files
@@ -479,20 +490,25 @@ setup_gadget() {
                 break
             fi
         done
+        if [ $x -eq 6 ]; then
+            echo "P-Gadget-3 did not compile: src dir locked"
+            exit 1
+        fi
         run_gadget
     else
-        GADGETMAKEFILE="${SIMOUTDIR}/Makefile_Gadget2"
+        GADGETMAKEFILE="${SIMOUTDIR}/Makefile_Gadget3"
         GADGETEXECNAME=$(grep "EXEC = " "${GADGETMAKEFILE}" | cut -d' ' -f3)
+        echo $GADGETEXECNAME
         GADGETEXEC="${SIMOUTDIR}/${GADGETEXECNAME}"
-        GADGETPARAMETERS="${SIMOUTDIR}/gadget2.par"
+        GADGETPARAMETERS="${SIMOUTDIR}/gadget3.par"
         GADGETICFILE="${SIMOUTDIR}/${ICFILENAME}"
         #GADGETLOGFILE="${SIMOUTDIR}/${GADGETLOGFILENAME}"
     fi
 
-    GADGETENERGY="${SIMOUTDIR}/energy.txt"
-    GADGETINFO="${SIMOUTDIR}/info.txt"
-    GADGETTIMINGS="${SIMOUTDIR}/timings.txt"
-    GADGETCPU="${SIMOUTDIR}/cpu.txt"
+    GADGETENERGY="${SIMOUTDIR}/log/energy.txt"
+    GADGETINFO="${SIMOUTDIR}/log/info.txt"
+    GADGETTIMINGS="${SIMOUTDIR}/log/timings.txt"
+    GADGETCPU="${SIMOUTDIR}/log/cpu.txt"
 
     check_gadget_run
 
@@ -534,41 +550,53 @@ setup_gadget() {
 }
 
 set_gadget_compile_files() {
-    GADGETMAKEFILE_GIT="${GITHUBDIR}/Makefile_Gadget2"
+    GADGETMAKEFILE_GIT="${GITHUBDIR}/Makefile_Gadget3"
+    GADGETCONFIGFILE_GIT="${GITHUBDIR}/Config_Gadget3.sh"
     if [ ! -f "${GADGETMAKEFILE_GIT}" ]; then
         echo "Error: ${GADGETMAKEFILE_GIT} does not exist!"
         exit 1
     fi
+    if [ ! -f "${GADGETCONFIGFILE_GIT}" ]; then
+        echo "Error: ${GADGETCONFIGFILE_GIT} does not exist!"
+        exit 1
+    fi
     cp "${GADGETMAKEFILE_GIT}" "${GADGETDIR}/Makefile"
+    cp "${GADGETCONFIGFILE_GIT}" "${GADGETDIR}/Config.sh"
 }
 
 compile_gadget() {
     # If needed: unpack tar archive with source code
     # ( cd source ; tar xzv --strip-components=1 -f - ) < gadget-2.0.7.tar.gz
 
-    echo "Compiling Gadget..."
+    echo "Compiling P-Gadget3..."
 
     cd "${GADGETDIR}"
     nice -n $NICE make clean
     nice -n $NICE make
 
-    echo "... done compiling Gadget"
+    echo "... done compiling P-Gadget3"
 }
 
 set_gadget_runtime_files() {
-    GADGETMAKEFILE="${SIMOUTDIR}/Makefile_Gadget2"
+    GADGETMAKEFILE="${SIMOUTDIR}/Makefile_Gadget3"
+    GADGETCONFIGFILE="${SIMOUTDIR}/Config_Gadget3"
     mv "${GADGETDIR}/Makefile" "${GADGETMAKEFILE}"
+    mv "${GADGETDIR}/Config.sh" "${GADGETCONFIGFILE}"
     GADGETEXECNAME=$(grep "EXEC = " "${GADGETMAKEFILE}" | cut -d' ' -f3)
+    if [ ! -f "${GADGETEXECNAME}" ]; then
+        echo "Error: Gadget EXEC file not found"
+        exit 1
+    fi
     mv "${GADGETDIR}/${GADGETEXECNAME}" "${SIMOUTDIR}"
     GADGETEXEC="${SIMOUTDIR}/${GADGETEXECNAME}"
 
-    GADGETPARAMETERS_GIT="${GITHUBDIR}/gadget2.par"
+    GADGETPARAMETERS_GIT="${GITHUBDIR}/gadget3.par"
     if [ ! -f "${GADGETPARAMETERS_GIT}" ]; then
         echo "Error: ${GADGETPARAMETERS_GIT} does not exist!"
         exit 1
     fi
     cp "${GADGETPARAMETERS_GIT}" "${SIMOUTDIR}"
-    GADGETPARAMETERS="${SIMOUTDIR}/gadget2.par"
+    GADGETPARAMETERS="${SIMOUTDIR}/gadget3.par"
 
     # Set correct BoxSize
     # echo "Press enter to continue..." && read enterKey
@@ -597,21 +625,22 @@ set_gadget_runtime_files() {
 }
 
 run_gadget() {
-    echo "Running Gadget2..."
+    echo "Running Gadget3..."
     cd "${SIMOUTDIR}"
 
     if [[ "${SYSTYPE}" == *".lisa.surfsara.nl" ]]; then
         # Gadget2 is MPI only. PBS fixes the correct number of MPI ranks
-        mpiexec "${GADGETEXEC}" "${GADGETPARAMETERS}" # 2&1> "${GADGETLOGFILE}"
+        # Gadget3 is hybrid, but we use MPI parallel only
+        OMP_NUM_THREADS=1 mpirun -np $THREADS "${GADGETEXEC}" "${GADGETPARAMETERS}" # 2&1> "${GADGETLOGFILE}"
     elif [ "${SYSTYPE}" == "taurus" ]; then
         nice -n $NICE mpiexec.hydra -np $THREADS "${GADGETEXEC}" "${GADGETPARAMETERS}" # 2&1> "${GADGETLOGFILE}"
     elif [ "${SYSTYPE}" == "MBP" ]; then
-        nice -n $NICE mpirun -np $THREADS "${GADGETEXEC}" "${GADGETPARAMETERS}" # 2&1> "${GADGETLOGFILE}"
+        OMP_NUM_THREADS=1 nice -n $NICE mpirun -np $THREADS "${GADGETEXEC}" "${GADGETPARAMETERS}" # 2&1> "${GADGETLOGFILE}"
     elif [[ "${SYSTYPE}" == *".uwp.science.uva.nl" ]]; then
         nice -n $NICE mpiexec.hydra -np $THREADS "${GADGETEXEC}" "${GADGETPARAMETERS}" # 2&1> "${GADGETLOGFILE}"
     fi
 
-    echo "... done running Gadget2"
+    echo "... done running Gadget3"
 }
 
 check_gadget_run() {
@@ -621,6 +650,10 @@ check_gadget_run() {
     fi
     if [ ! -d "${SIMOUTDIR}" ]; then
         echo "Error: ${SIMOUTDIR} does not exist!"
+        exit 1
+    fi
+    if [ ! -d "${SIMOUTDIR}/log" ]; then
+        echo "Error: ${SIMOUTDIR}/log does not exist!"
         exit 1
     fi
     if [ ! -f "${GADGETMAKEFILE}" ]; then
@@ -685,14 +718,12 @@ setup_psmac2() {
             exit 1
         fi
 
-        # TODO: do not loop ad infinitum?
-        #x=1
-        #while [ $x -le 5 ]; do
-        while true; do
+        x=1
+        while [ $x -le 5 ]; do
             if [ -f "${PSMAC2DIR}/compiling.lock" ]; then
                 echo "LOCKED. WAITING.."
                 sleep 60
-                #x=$(( $x + 1 ))
+                x=$(( $x + 1 ))
             else
                 touch "${PSMAC2DIR}/compiling.lock"
                 cp "${PSMAC2MAKEFILE_GIT}" "${PSMAC2DIR}/Makefile"
@@ -716,6 +747,10 @@ setup_psmac2() {
                 break
             fi
         done
+        if [ $x -eq 6 ]; then
+            echo "P-Smac2 did not compile: src dir locked"
+            exit 1
+        fi
     else
         PSMAC2MAKEFILE="${ANALYSISDIR}/Makefile_PSmac2"
         PSMAC2CONFIG="${ANALYSISDIR}/Config_PSmac2"

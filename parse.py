@@ -321,7 +321,7 @@ def toycluster_icfile(filename, verbose=False):
 # ----------------------------------------------------------------------------
 # Eat Gadget-2 output
 # ----------------------------------------------------------------------------
-def read_gadget_parms(filename):
+def read_gadget2_parms(filename):
     parameters = OrderedDict()
     string_parms = ["InitCondFile", "OutputDir", "EnergyFile", "InfoFile",
                     "TimingsFile", "CpuFile", "RestartFile", "SnapshotFileBase",
@@ -333,6 +333,30 @@ def read_gadget_parms(filename):
             if len(line) > 1 and not line.strip().startswith("%"):
                 line = line.strip().split("%")[0]  # Ignore comments in lines
                 keyvaluepair = line.split()
+                if keyvaluepair[0] not in string_parms:
+                    parameters[keyvaluepair[0]] = float(keyvaluepair[1])
+                else:
+                    parameters[keyvaluepair[0]] = keyvaluepair[1]
+
+    return parameters
+
+
+# ----------------------------------------------------------------------------
+# Eat Gadget-3 output
+# ----------------------------------------------------------------------------
+def read_gadget3_parms(filename):
+    parameters = OrderedDict()
+    string_parms = ["InitCondFile", "OutputDir", "EnergyFile", "InfoFile",
+                    "TimingsFile", "CpuFile", "TimebinFile", "RestartFile",
+                    "SnapshotFileBase", "OutputListFilename", "ResubmitCommand"]
+
+    with open(filename, "r") as f:
+        for line in f:
+            # Ignore commented lines
+            if len(line) > 1 and not line.strip().startswith("%"):
+                line = line.strip().split("%")[0]  # Ignore comments in lines
+                keyvaluepair = line.split()
+                print keyvaluepair
                 if keyvaluepair[0] not in string_parms:
                     parameters[keyvaluepair[0]] = float(keyvaluepair[1])
                 else:
