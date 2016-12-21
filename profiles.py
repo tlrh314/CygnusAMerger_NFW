@@ -11,10 +11,11 @@ from macro import *
 def dm_density_hernquist(r, M_dm, a):
     """ Hernquist (1990; eq. 2) profile for dark matter halo density.
         Also see Binney & Tremaine (1987; eq. 2.64)
-        @param r:     radius, float or array
-        @param M_dm:  total dark matter mass, float
-        @param a:     Hernquist scale length, float
-        @return:      Hernquist DM density profile rho(r), float or array """
+
+        @param r   : radius, float or array, [cm]
+        @param M_dm: total dark matter mass, float, [g]
+        @param a   : Hernquist scale length, float, [cm]
+        @return    : Hernquist DM density profile rho(r), float or array, [g/cm^3] """
 
     rho_dm = M_dm/(2*numpy.pi) * a / (r*p3(r + a))
     return rho_dm
@@ -22,58 +23,59 @@ def dm_density_hernquist(r, M_dm, a):
 
 def dm_mass_hernquist(r, M_dm, a):
     """ Hernquist (1990; eq. 3) profile for dark matter halo mass.
-        @param r:     radius, float or array
-        @param M_dm:  total dark matter mass, float
-        @param a:     Hernquist scale length, float
-        @return:      Hernquist DM mass profile M(<r), float or array """
+
+        @param r   : radius, float or array, [cm or kpc]
+        @param M_dm: total dark matter mass, float, [g or MSun]
+        @param a   : Hernquist scale length, float, [cm or kpc]
+        @return    : Hernquist DM mass profile M(<r), float or array, [g or MSun] """
 
     M_dm = M_dm * p2(r) / p2(r + a)
     return M_dm
 
 
-def dm_density_nfw(r, rho0_dm, rs, rcut=1e10, do_cut=False):
+def dm_density_nfw(r, rho0_dm, rs, rcut=None):
     """ Navarro, Frenk, White (1996) profile for dark matter halo density
-        @param r:        radius, float or array
-        @param rho0_dm:  dark matter central denisty, float
-        @param rs:       NFW scale radius, float
-        @param rcut:     NFW does not converge. Cut at sample radius
-        @param do_cut:   Flag to cut at rcut (when sampling), or not (in fit), bool
-        @return:         NFW DM density profile rho(r), float or array """
+
+        @param r      : radius, float or array, [cm or kpc]
+        @param rho0_dm: dark matter central density, float, [1/cm^3, g/cm^3, or MSun/kpc^3]
+        @param rs     : NFW scale radius, float, [cm or kpc]
+        @param rcut   : NFW does not converge. Optional cut-off radius, float, [cm or kpc]
+                            Set 'rcut' to 'None' for no cut-off.
+        @return       : NFW DM density profile rho(r), float or array, [same unit as rho0_dm] """
 
     ra = r/rs
 
     rho_nfw = rho0_dm / (ra * p2(1+ra))
-    if do_cut:
+    if rcut is not None:
         rho_nfw /= (1 + p3(r/rcut))  # with cutoff
     return rho_nfw
 
 
-def dm_mass_nfw(r, rho0_dm, rs):
-    """ Navarro, Frenk, White (1996) profile for dark matter halo density
-        @param r:        radius, float or array
-        @param rho0_dm:  dark matter central denisty, float
-        @param rs:       NFW scale radius, float
-        @return:         NFW DM mass profile M(<r), float or array """
+def dm_mass_nfw(r, rho0_dm, rs, rcut=None):
+    """ Navarro, Frenk, White (1996) profile for dark matter halo mass
 
-    return 4*numpy.pi*rho0_dm*p3(rs) * (numpy.log((rs+r)/rs) - r/(rs+r))
+        @param r      : radius, float or array, [cm or kpc]
+        @param rho0_dm: dark matter central density, float, [g/cm^3 or MSun/kpc^3]
+        @param rs     : NFW scale radius, float, [cm or kpc]
+        @param rcut   : NFW does not converge. Optional cut-off radius, float, [cm or kpc]
+                            Set 'rcut' to 'None' for no cut-off.
+        @return       : NFW DM mass profile M(<r), float or array, [g or MSun depending on rho0_dm] """
 
-
-def dm_mass_nfw_cut(rmax, rho0_dm, rs, rcut):
-    """ Navarro, Frenk, White (1996) profile for dark matter halo density
-        An additional cut-off at rcut=r_sample is used when sampling the density
-        @param r:        radius, float (does not work for arrays)
-        @param rho0_dm:  dark matter central denisty, float
-        @param rs:       NFW scale radius, float
-        @param rcut:     NFW scale radius, float
-        @return:         NFW DM mass profile M(<r), float """
-
-    M_dm = scipy.integrate.quad(lambda r: p2(r) *
-        dm_density_nfw(r, rho0_dm, rs, rcut=rcut, do_cut=True), 0, rmax)
-    return 4*numpy.pi*M_dm[0]
+    if rcut is None:
+        return 4*numpy.pi*rho0_dm*p3(rs) * (numpy.log((rs+r)/rs) - r/(rs+r))
+    else:
+        r = numpy.array([r]) if type(r) != numpy.ndarray else r
+        N = len(r)
+        mass = numpy.zeros(N)
+        for i, ri in enumerate(r):  # deco threaded slows things down
+            mass[i] = scipy.integrate.quad(lambda r: p2(r) * dm_density_nfw(
+                r, rho0_dm, rs, rcut=rcut), 0, ri)[0]
+        return (4*numpy.pi) * mass[0] if N == 1 else mass
 
 
 def cNFW(M200):
     """ Duffy+ (2008) concentration parameter for the dark matter halo
+
     NB we assume H0 = 70 km/s/Mpc.
     @param M200: total mass enclosed in virial radius r200 [MSun], float
     @return:     cNFW """
@@ -86,71 +88,67 @@ def cNFW(M200):
     return A * numpy.power( M200/Mpivot, B)  # * numpy.power( 1+z, C)
 
 
-def gas_density_betamodel(r, rho0, beta, rc, rcut=None, do_cut=False):
+def gas_density_betamodel(r, rho0, beta, rc, rcut=None):
     """ Cavaliere & Fusco-Femiano (1978) betamodel for baryonic mass density
         Also see Donnert (2014; eq. 6), Donnert (2017, in prep)
-        @param r:      Radius, float or array
-        @param rho0:   Baryonic matter central density, float
+
+        @param r:      Radius, float or array, [cm or kpc]
+        @param rho0:   Baryonic matter central density, float, [1/cm^3, g/cm^3, or MSun/kpc^3]
         @param beta:   Ratio specific kinetic energy of galaxies to gas; slope, float
-        @param rc:     Core radius (profile is constant within rc), float
-        @param rcut:   Numerical cutoff: keep local baryon fraction above unity, float
-        @param do_cut: Flag to cut at rcut (when sampling), or not (in fit), bool
-        @return:       Gas DM density profile rho(r), float or array """
+        @param rc:     Core radius (profile is constant within rc), float, [cm or kpc]
+        @param rcut:   Numerical cutoff: keep local baryon fraction above unity, float, [cm or kpc]
+                           Set 'rcut' to 'None' for no cut-off.
+        @return:       Gas DM density profile rho(r), float or array, [same unit as rho0] """
 
     rho_gas = rho0 * numpy.power(1 + p2(r/rc), -3.0/2.0*beta)
-    if do_cut:
+    if rcut is not None:
         rho_gas /= (1 + p3(r/rcut))
     return rho_gas
 
 
 def d_gas_density_betamodel_dr(r, rho0, beta, rc):
-    """ Cavaliere & Fusco-Femiano (1978) betamodel for baryonic mass density
+    """ d/dr of uncut Cavaliere & Fusco-Femiano (1978) betamodel for baryonic mass density
         Also see Donnert (2014; eq. 6), Donnert (2017, in prep)
-        @param r:      Radius, float or array
-        @param rho0:   Baryonic matter central density, float
+
+        @param r:      Radius, float or array, [cm or kpc]
+        @param rho0:   Baryonic matter central density, float, [1/cm^3, g/cm^3, or MSun/kpc^3]
         @param beta:   Ratio specific kinetic energy of galaxies to gas; slope, float
-        @param rc:     Core radius (profile is constant within rc), float
-        @return:       Gas DM density profile derivative drho/dr, float or array """
+        @param rc:     Core radius (profile is constant within rc), float, [cm or kpc]
+        @return:       Gas DM density profile derivative drho/dr, float or array,
+                           [g/cm^4 or MSun/kpc^4 depending on rho0] """
 
     rho_gas = rho0*(-3*beta*r/p2(rc))*numpy.power(1 + p2(r/rc),-1.5*beta-1)
     return rho_gas
 
 
-def gas_mass_betamodel(r, rho0, beta, rc):
+def gas_mass_betamodel(r, rho0, beta, rc, rcut=None):
     """ Cavaliere & Fusco-Femiano (1978) betamodel for baryonic mass density
         Also see Donnert (2014; eq. 6), Donnert (2017, in prep)
-        @param r:      Radius, float or array
-        @param rho0:   Baryonic matter central density, float
+
+        @param r:      Radius, float or array, [cm or kpc]
+        @param rho0:   Baryonic matter central density, float, [1/cm^3, g/cm^3, or MSun/kpc^3]
         @param beta:   Ratio specific kinetic energy of galaxies to gas; slope, float
-        @param rc:     Core radius (profile is constant within rc), float
+        @param rc:     Core radius (profile is constant within rc), float, [cm or kpc]
+        @param rcut:   Cut radius (cut is at r200), float, [cm or kpc]
+                           Set 'rcut' to 'None' for no cut-off.
         @return:       Gas DM density profile rho(r), float or array """
 
     # beta = 2/3 (e.g. Mastropietro & Burkert 2008) has an analytic solution
     # if beta == 2./3:
     #     M_gas = 4*numpy.pi*p3(rc)*rho0 * (r/rc - numpy.arctan(r/rc))
 
-    # Arbitrary beta: solved /w Scipy built-in Gauss Hypergeometric function
-    M_gas = special.hyp2f1(1.5, 1.5*beta, 2.5, -p2(r/rc))
-    M_gas *= 4*numpy.pi*rho0*p3(r)/3
-    return M_gas
-
-
-def gas_mass_betamodel_cut(rmax, rho0, beta, rc, rcut):
-    """ Cavaliere & Fusco-Femiano (1978) betamodel for baryonic mass density
-        Also see Donnert (2014; eq. 6), Donnert (2017, in prep)
-        M_gas (<rmax) from numerically integrated betamodel with additional cut-off
-        No solution in terms of known mathematical functions exists.
-        @param rmax:   Radius, float (does not work for arrays)
-        @param rho0:   Baryonic matter central density, float
-        @param beta:   Ratio specific kinetic energy of galaxies to gas; slope, float
-        @param rc:     Core radius (profile is constant within rc), float
-        @param rcut:   Cut radius (cut is at r200), float
-        @return:       Gas DM density profile rho(r), float or array """
-
-    M_gas = scipy.integrate.quad(lambda r:
-        p2(r)*gas_density_betamodel(r, rho0, beta, rc, rcut=rcut, do_cut=True),
-        0, rmax)
-    return 4*numpy.pi*M_gas[0]
+    if rcut is None:
+        # Arbitrary beta: solved /w Scipy built-in Gauss Hypergeometric function
+        M_gas = special.hyp2f1(1.5, 1.5*beta, 2.5, -p2(r/rc))
+        return M_gas * 4*numpy.pi*rho0*p3(r)/3
+    else:
+        r = numpy.array([r]) if type(r) != numpy.ndarray else r
+        N = len(r)
+        mass = numpy.zeros(N)
+        for i, ri in enumerate(r):  # deco threaded slows things down
+            mass[i] = scipy.integrate.quad(lambda r: p2(r) * gas_density_betamodel(
+                r, rho0, beta, rc, rcut=rcut), 0, ri)[0]
+        return (4*numpy.pi) * mass[0] if N == 1 else mass
 
 
 def verlinde_apparent_DM_mass(rmax, rho0, beta, rc):
@@ -165,14 +163,14 @@ def verlinde_apparent_DM_mass(rmax, rho0, beta, rc):
         @param rc  : Core radius (profile is constant within rc), float
         @return    : Apparent Dark Matter mass """
 
-    H0 = 2.269e-18  # 70 km/s/Mpc --> 1/s b/c cgs
-    fac = const.c.cgs.value*H0*4*numpy.pi*rho0*p2(rmax)/(6*const.G.cgs.value)
-
+    H0 = 2.269e-18  # 70 km/s/Mpc --> one over second in cgs
+    fac = (const.c.cgs.value*H0*p2(rmax)/(6*const.G.cgs.value))*4*numpy.pi*rho0*p3(rmax)
     # print numpy.sqrt(fac*scipy.misc.derivative(lambda r: gas_mass_betamodel(
     #    r, rho0, beta, rc), rmax))
 
-    M_Dapparent = ((4./3*p3(rmax)* special.hyp2f1(1.5, 1.5*beta, 2.5, -p2(rmax/rc))) \
-        - (0.6*beta*p3(rmax)*p2(rmax)*special.hyp2f1(2.5, 1.5*beta+1, 3.5, -p2(rmax/rc))/p2(rc)))
+    M_Dapparent = ( (p2(rmax/rc) + 1)**(-3*beta/2) -
+                    special.hyp2f1(1.5, 1.5*beta, 2.5, -p2(rmax/rc)) +
+                    4./3 * special.hyp2f1(1.5, 1.5*beta, 2.5, -p2(rmax/rc)) )
 
     return numpy.sqrt(fac * M_Dapparent)
 
@@ -249,32 +247,30 @@ def hydrostatic_temperature(r, Rmax, rho_gas, M_tot):
         CAUTION: constants used in this function are in cgs. Make sure that the
         rho_gas, M_tot and r are all in cgs units!!
 
-        @param Rmax   : maximum value in integration
-        @param rho_gas: callable gas density profile
-        @param M_tot  : callable total mass profile
+        @param Rmax   : maximum value in integration, float, [cm]
+        @param rho_gas: callable gas density profile, function pointer
+        @param M_tot  : callable total mass profile, function pointer
         @return       : hydrostatic temperature in Kelvin"""
+
     m_p = const.m_p.to(u.g).value
     kB = const.k_B.to(u.erg/u.K).value
     fac = convert.umu * m_p/kB * const.G.cgs.value / rho_gas(r)
 
-    # gas_mass_betamodel_cut(rmax, rho0, beta, rc, rcut)
-    # dm_mass_nfw(r, rho0_dm, rs)
-    # gas_density_betamodel(r, rho0, beta, rc, rcut=None, do_cut=False)
-
-    tmp = scipy.integrate.quad(lambda t: rho_gas(t)/p2(t)*M_tot(t), r, Rmax)
-    return fac*tmp[0]
+    temperature = scipy.integrate.quad(lambda t: rho_gas(t)/p2(t)*M_tot(t), r, Rmax)
+    return fac*temperature[0]
 
 
 def hydrostatic_gas_pressure(r, Rmax, rho_gas, M_tot):
     """ Gas pressure from hydrostatic equation (Donnert 2014, eq. 8)
-        @param Rmax   : maximum value in integration
-        @param rho_gas: callable gas density profile
-        @param M_tot  : callable total mass profile
+        @param Rmax   : maximum value in integration, float, [cm]
+        @param rho_gas: callable gas density profile, function pointer
+        @param M_tot  : callable total mass profile, function pointer
         @return       : hydrostatic gas pressure erg/cm^3 """
+
     fac = const.G.cgs.value
 
-    tmp = scipy.integrate.quad(lambda t: rho_gas(t)/p2(t)*M_tot(t), r, Rmax)
-    return fac*tmp[0]
+    pressure = scipy.integrate.quad(lambda t: rho_gas(t)/p2(t)*M_tot(t), r, Rmax)
+    return fac*pressure[0]
 
 
 def sarazin_coolingtime(n_p, T_g):
@@ -285,28 +281,3 @@ def sarazin_coolingtime(n_p, T_g):
     """
 
     return 8.5e10*u.yr * (1e-3/u.cm**3)/n_p * numpy.sqrt(T_g/(1e8*u.K))
-
-
-if __name__ == "__main__":
-    r = numpy.arange(0.1, 2000, 0.1)
-    rho1 = dm_density_nfw(r, 1.0, 367.94, do_cut=True)
-    rho2 = dm_density_nfw(r, 1.0, 367.94, do_cut=False)
-
-    from matplotlib import pyplot
-    # pyplot.figure(figsize=(12,9))
-    # pyplot.loglog(r, rho1, label="yes cut")
-    # pyplot.loglog(r, rho2, label="no  cut")
-    # pyplot.ylabel("DM Density NFW")
-    # pyplot.xlabel("Radius [kpc]")
-    # pyplot.legend()
-
-    Mdm1 = dm_mass_hernquist(r, 7e8, 557.22)
-    Mdm2 = dm_mass_nfw(r, 1, 367.94)
-
-    pyplot.figure(figsize=(12,9))
-    pyplot.loglog(r, Mdm1, label="Hernquist")
-    pyplot.loglog(r, Mdm2, label="NFW")
-    pyplot.ylabel("DM Mass")
-    pyplot.xlabel("Radius [kpc]")
-    pyplot.legend(loc="upper left")
-    pyplot.show()

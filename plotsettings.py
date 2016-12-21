@@ -1,6 +1,6 @@
 import matplotlib
 from matplotlib import pyplot
-matplotlib.use("Qt4Agg", warn=False)
+#matplotlib.use("Qt4Agg", warn=False)
 #from matplotlib import rc
 #matplotlib.rc("font", **{"family":"serif", "serif":["Computer Modern Roman"],
 #                         "size":28, "weight":"bold"})

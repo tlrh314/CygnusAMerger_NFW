@@ -161,7 +161,7 @@ def inferred_nfw_profile(c):
 
     pyplot.figure(figsize=(12,9))
     c.plot_chandra_average(parm="rho", style=avg)
-    c.plot_bestfit_betamodel(style=fit, do_cut=True)
+    c.plot_bestfit_betamodel(style=fit)
     c.plot_inferred_nfw_profile(style=dm)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
@@ -177,9 +177,9 @@ def inferred_nfw_profile(c):
     pyplot.ylim(ymin=1e-32, ymax=9e-24)
     pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
-    # pyplot.savefig("out/{0}_inferred_nfw_cNFW={1:.3f}_bf={2:.4f}.png"
-    #    .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
-    # pyplot.close()
+    pyplot.savefig("out/{0}_inferred_nfw_cNFW={1:.3f}_bf={2:.4f}.png"
+       .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+    pyplot.close()
 
 
 def inferred_mass(c):
@@ -200,12 +200,12 @@ def inferred_mass(c):
     pyplot.yscale("log")
     pyplot.legend(loc="best", fontsize=22)
     pyplot.tight_layout()
-    # pyplot.savefig("out/{0}_hydrostatic-temperature_cNFW={1:.3f}_bf={2:.4f}.png"
-    #    .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
-    # pyplot.close()
+    pyplot.savefig("out/{0}_hydrostatic-temperature_cNFW={1:.3f}_bf={2:.4f}.png"
+       .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+    pyplot.close()
 
 
-def inferred_temperature(c, fit=False):
+def inferred_temperature(c):
     """ Plot the observed temperature profile and the inferred hydrostatic
         temperature for the best-fit betamodel and inferred total mass profile
         M_tot (spherically symmetric volume-integrated NFW plus ~ betamodel)
@@ -214,22 +214,29 @@ def inferred_temperature(c, fit=False):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
             "elinewidth": 2, "label": "Average kT" }
+    tot = { "color": "k", "lw": 1, "linestyle": "solid" }
 
-    pyplot.figure(figsize=(12, 9))
-    c.plot_chandra_average(parm="kT", style=avg)
-    c.plot_inferred_temperature(fit=fit)
+    fig, (ax0, ax1) = pyplot.subplots(1, 2, figsize=(16, 8))
 
-    pyplot.xlabel("Radius [kpc]")
-    pyplot.ylabel("kT [keV]")
-    pyplot.xscale("log")
-    pyplot.xlim(3, 2000)
-    pyplot.ylim(0.1, 12)
+    for ax in [ax0, ax1]:
+        pyplot.sca(ax)
+        c.plot_chandra_average(parm="kT", style=avg)
+        c.plot_inferred_temperature(style=tot)
+        ax.set_xlabel("Radius [kpc]")
+        ax.set_ylabel("kT [keV]")
+        ax.set_ylim(0.1, 12)
+
+    ax0.set_xlim(1, 1000)
+    ax1.set_xlim(1, 2000)
+    ax1.set_xscale("log")
     pyplot.legend(loc="best", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_hydrostatic-temperature_cNFW={1:.3f}_bf={2:.4f}.png"
-       .format(c.name, c.halo["cNFW"], c.halo["bf200"]), dpi=150)
+    cut = "_rcut={0:1.3f}".format(c.halo["rcut"]) if c.halo["rcut"] is not None else ""
+    pyplot.savefig("out/{0}{1}_hydrostatic-temperature{2}_cNFW={3:.3f}_bf={4:.4f}{5}.png"
+       .format("fit/" if hasattr(c, "fit_counter") is not None else "", c.name,
+               "_fit-{0:02d}".format(c.fit_counter) if hasattr(c, "fit_counter") else "",
+               c.halo["cNFW"], c.halo["bf200"], cut), dpi=150)
     pyplot.close()
-
 
 def inferred_pressure(c):
     """ Plot the observed pressure profile and the inferred hydrostatic
@@ -240,14 +247,16 @@ def inferred_pressure(c):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
             "elinewidth": 2, "label": "Average P" }
+    tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
 
     pyplot.figure(figsize=(12, 9))
     c.plot_chandra_average(parm="P", style=avg)
-    c.plot_inferred_temperature(style=tot)
+    c.plot_inferred_pressure(style=tot)
 
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Pressure [erg/cm$^3$]")
     pyplot.xscale("log")
+    pyplot.yscale("log")
     pyplot.legend(loc="best", fontsize=22)
     pyplot.tight_layout()
     pyplot.savefig("out/{0}_hydrostatic-pressure={1:.3f}_bf={2:.4f}.png"
@@ -358,7 +367,7 @@ def smith_hydrostatic_mass(c, debug=False):
         pyplot.savefig("out/{0}_smith_temperature.pdf".format(c.name), dpi=300)
 
 
-def donnert2014_figure1(c, do_cut=False):
+def donnert2014_figure1(c, verlinde=False):
     """ Create Donnert (2014) Figure 1 for the Cygnus observation + best-fit models
         @param c: ObservedCluster """
 
@@ -371,17 +380,16 @@ def donnert2014_figure1(c, do_cut=False):
 
     pyplot.sca(ax0)
     c.plot_chandra_average(parm="rho", style=avg)
-    c.plot_bestfit_betamodel(style=gas, rho=True, do_cut=do_cut)
-    c.plot_inferred_nfw_profile(style=dm, rho=True, do_cut=do_cut)
+    c.plot_bestfit_betamodel(style=gas, rho=True)
+    c.plot_inferred_nfw_profile(style=dm, rho=True)
     ax0.set_yscale("log")
     ax0.set_ylim(1e-30, 1e-22)
 
     pyplot.sca(ax1)
-    c.plot_bestfit_betamodel_mass(style=gas, do_cut=do_cut)
-    c.plot_inferred_nfw_mass(style=dm, do_cut=do_cut)
-    c.plot_inferred_total_gravitating_mass(style=tot, do_cut=do_cut)
+    c.plot_bestfit_betamodel_mass(style=gas)
+    c.plot_inferred_nfw_mass(style=dm)
+    c.plot_inferred_total_gravitating_mass(style=tot)
     c.plot_hydrostatic_mass(style=tot)
-    c.plot_verlinde_apparent_darkmatter_mass(style=tot)
     #ax1.loglog(radii, convert.g2msun*masstot_check, **tot)
     ax1.set_yscale("log")
     ax1.set_ylim(1e5, 1e16)
@@ -393,10 +401,13 @@ def donnert2014_figure1(c, do_cut=False):
 
     pyplot.sca(ax3)
     c.plot_chandra_average(parm="P", style=avg)
-    c.plot_inferred_pressure(style=tot, do_cut=do_cut)
+    c.plot_inferred_pressure(style=tot)
     #ax3.loglog(radii, hydrostatic_pressure, **tot)
     ax3.set_yscale("log")
     ax3.set_ylim(1e-15, 1e-9)
+
+    # Add Verlinde profiles
+    if verlinde: c.plot_verlinde(ax1, ax2, ax3, style=tot)
 
     for ax in [ax0, ax1, ax2, ax3]:
         ax.set_xlabel("Radius [kpc]")
@@ -409,10 +420,12 @@ def donnert2014_figure1(c, do_cut=False):
     ax3.set_ylabel("Pressure [erg/cm$^3$]")
 
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_donnert2014figure1_cNFW={1:.3f}_bf={2:.4f}{3}.pdf"
-        .format(c.name,  c.halo["cNFW"], c.halo["bf200"], "_cut" if do_cut else ""),
-        dpi=300)
-    # pyplot.close()
+    pyplot.savefig("out/{0}{1}_donnert2014figure1{2}_cNFW={3:.3f}_bf={4:.4f}{5}{6}.pdf"
+        .format("fit/" if hasattr(c, "fit_counter") else "", c.name,
+                "_fit-{0:02d}".format(c.fit_counter) if hasattr(c, "fit_counter") else "",
+                c.halo["cNFW"], c.halo["bf200"], "_cut" if c.rcut_kpc is not None else "",
+                "_withVerlinde" if verlinde else ""), dpi=300)
+    pyplot.close()
 # ----------------------------------------------------------------------------
 
 
@@ -440,7 +453,7 @@ def toycluster_profiles(obs, sim, halo="000"):
     rho_dm = convert.toycluster_units_to_cgs(sim.toy.profiles[halo]["rho_dm"])
     pyplot.plot(sim.toy.profiles[halo]["r"], rho_gas, **gas_a)
     pyplot.plot(sim.toy.profiles[halo]["r"], rho_dm, **dm_a)
-    # obs.plot_bestfit_betamodel(style=fit, do_cut=True)
+    # obs.plot_bestfit_betamodel(style=fit)
     # obs.plot_inferred_nfw_profile(style=dm)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
@@ -478,11 +491,11 @@ def toyclustercheck(obs, sim, halo="000"):
     pyplot.plot(sim.toy.gas["r"], sim.toy.gas["rho"], **gas)
     pyplot.plot(sim.toy.dm_radii, sim.toy.rho_dm_below_r, **dm)
     obs.plot_chandra_average(parm="rho", style=avg)
-    obs.plot_bestfit_betamodel(style=dashed, do_cut=True)
-    obs.plot_bestfit_betamodel(style=dotted, do_cut=False)
+    obs.plot_bestfit_betamodel(style=dashed)  # cut (TODO: change obs.rcut_kpc?)
+    obs.plot_bestfit_betamodel(style=dotted)  # uncut
     obs.plot_inferred_nfw_profile(style=dotted)
     rho_dm_cut = profiles.dm_density_nfw(radii, obs.halo["rho0_dm"],
-        obs.halo["rs"], sim.toy.r_sample, do_cut=True)
+        obs.halo["rs"], sim.toy.r_sample)
     pyplot.plot(radii, rho_dm_cut, **solid)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
