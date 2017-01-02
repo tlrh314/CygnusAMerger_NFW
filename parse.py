@@ -75,7 +75,7 @@ def toycluster_parameterfile(icparms):
 
 Output_file ./IC_single_0   % Base name
 
-Ntotal      200000  % Total Number of Particles in R200
+Ntotal      2000000 % Total Number of Particles in R200
 Mtotal      {Mtotal:05.0f}   % Total Mass in Code Units
 
 Mass_Ratio  {Mass_Ratio:.4f}  % set =0 for single cluster
@@ -90,9 +90,9 @@ beta_1      {beta_1:0.3f}
 
 Redshift    0.0562
 
-Bfld_Norm   0        % B(r) = B0 * normalised_density^eta
-Bfld_Eta    0        % like Bonafede 2010. B0 /=2 if Mtotal<5d4
-Bfld_Scale  0
+Bfld_Norm   5e-6        % B(r) = B0 * normalised_density^eta
+Bfld_Eta    0.5         % like Bonafede 2010. B0 /=2 if Mtotal<5d4
+Bfld_Scale  1
 
 %bf          0.17     % bf in r200, bf = 17% ~ 14% in r500
 h_100       0.7      % HubbleConstant/100
@@ -166,6 +166,24 @@ def read_toycluster_parameterfile(filename):
                     parameters[keyvaluepair[0]] = keyvaluepair[1]
 
     return parameters
+
+
+def read_toycluster_makefile(filename):
+    options = OrderedDict()
+
+    counter = 0
+    with open(filename, "r") as f:
+        for line in f:
+            # Ignore all lines that do not start with "OPT"
+            if len(line) > 1 and line.strip().startswith("OPT"):
+                if "OPTIMIZE" in line: continue
+                line = line.strip().split("#")[0]  # Ignore comments in lines
+                keyvaluepair = line.split("+=")
+                options[keyvaluepair[0].strip()+str(counter)] = \
+                    keyvaluepair[1].strip()
+                counter += 1
+
+    return options
 
 
 def toycluster_profiles(filename):

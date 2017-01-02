@@ -367,9 +367,10 @@ def smith_hydrostatic_mass(c, debug=False):
         pyplot.savefig("out/{0}_smith_temperature.pdf".format(c.name), dpi=300)
 
 
-def donnert2014_figure1(c, verlinde=False):
+def donnert2014_figure1(c, sim=None, verlinde=False):
     """ Create Donnert (2014) Figure 1 for the Cygnus observation + best-fit models
-        @param c: ObservedCluster """
+        @param c  : ObservedCluster
+        @param sim: Simulation """
 
     avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 2 }
     gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
@@ -404,7 +405,7 @@ def donnert2014_figure1(c, verlinde=False):
     c.plot_inferred_pressure(style=tot)
     #ax3.loglog(radii, hydrostatic_pressure, **tot)
     ax3.set_yscale("log")
-    ax3.set_ylim(1e-15, 1e-9)
+    ax3.set_ylim(1e-15, 5e-9)
 
     # Add Verlinde profiles
     if verlinde: c.plot_verlinde(ax1, ax2, ax3, style=tot)
@@ -418,6 +419,47 @@ def donnert2014_figure1(c, verlinde=False):
     ax1.set_ylabel("Mass [MSun]")
     ax2.set_ylabel("Temperature [keV]")
     ax3.set_ylabel("Pressure [erg/cm$^3$]")
+
+    if sim:
+        gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
+                "markeredgecolor": "none",  "label": ""}
+        dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
+                "markeredgecolor": "none", "label": ""}
+
+        pyplot.sca(ax0)
+        pyplot.plot(sim.toy.gas["r"], sim.toy.gas["rho"], **gas)
+        pyplot.plot(sim.toy.dm_radii, sim.toy.rho_dm_below_r, **dm)
+
+        pyplot.sca(ax1)
+        pyplot.plot(sim.toy.gas["r"], sim.toy.gas["mass"], **gas)
+        pyplot.plot(sim.toy.dm_radii, sim.toy.M_dm_below_r, **dm)
+
+        pyplot.sca(ax2)
+        pyplot.plot(sim.toy.gas["r"], sim.toy.gas["kT"], **gas)
+
+        pyplot.sca(ax3)
+        pyplot.plot(sim.toy.gas["r"], sim.toy.gas["P"], **gas)
+
+        inner = numpy.where(sim.toy.gas["r"] < 100)
+        hsml = 2*numpy.median(sim.toy.gas["hsml"][inner])
+        for ax in fig.axes:
+            # The y coordinates are axes while the x coordinates are data
+            trans = matplotlib.transforms.blended_transform_factory(
+                ax.transData, ax.transAxes)
+            pyplot.sca(ax)
+            pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 0, 1,
+                facecolor="grey", edgecolor="grey", alpha=0.2,
+                transform=trans)
+            pyplot.axvline(x=hsml, c="g", ls=":")
+            pyplot.text(hsml, 0.05, r"$2 h_{sml}$", ha="left", color="g",
+                transform=trans, fontsize=22)
+
+        pyplot.tight_layout()
+        pyplot.savefig(sim.outdir+"{0}_donnert2014figure1_cNFW={1:.3f}_bf={2:.4f}{3}.png"
+            .format(c.name, c.halo["cNFW"], c.halo["bf200"],
+                    "_withVerlinde" if verlinde else ""), dpi=300)
+        pyplot.close()
+        return
 
     pyplot.tight_layout()
     pyplot.savefig("out/{0}{1}_donnert2014figure1{2}_cNFW={3:.3f}_bf={4:.4f}{5}{6}.pdf"
@@ -492,11 +534,11 @@ def toyclustercheck(obs, sim, halo="000"):
     pyplot.plot(sim.toy.dm_radii, sim.toy.rho_dm_below_r, **dm)
     obs.plot_chandra_average(parm="rho", style=avg)
     obs.plot_bestfit_betamodel(style=dashed)  # cut (TODO: change obs.rcut_kpc?)
-    obs.plot_bestfit_betamodel(style=dotted)  # uncut
+    # obs.plot_bestfit_betamodel(style=dotted)  # uncut
     obs.plot_inferred_nfw_profile(style=dotted)
-    rho_dm_cut = profiles.dm_density_nfw(radii, obs.halo["rho0_dm"],
-        obs.halo["rs"], sim.toy.r_sample)
-    pyplot.plot(radii, rho_dm_cut, **solid)
+    # rho_dm_cut = profiles.dm_density_nfw(radii, obs.halo["rho0_dm"],
+    #     obs.halo["rs"], sim.toy.r_sample)
+    # pyplot.plot(radii, rho_dm_cut, **solid)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
         facecolor="grey", edgecolor="grey", alpha=0.2)
@@ -519,19 +561,19 @@ def toyclustercheck(obs, sim, halo="000"):
     pyplot.plot(sim.toy.dm_radii, sim.toy.M_dm_below_r, **dm)
     mdm = profiles.dm_mass_nfw(radii,
         convert.density_cgs_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"])
-    mdm_cut = [profiles.dm_mass_nfw_cut(r,
-        convert.density_cgs_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"], sim.toy.r_sample)
-        for r in radii]
+    # mdm_cut = [profiles.dm_mass_nfw_cut(r,
+    #     convert.density_cgs_to_msunkpc(obs.halo["rho0_dm"]), obs.halo["rs"], sim.toy.r_sample)
+    #     for r in radii]
     mgas = profiles.gas_mass_betamodel(radii,
         convert.density_cgs_to_msunkpc(obs.rho0), obs.beta, obs.rc)
-    mgas_cut = [profiles.gas_mass_betamodel_cut(r,
-        convert.density_cgs_to_msunkpc(obs.rho0), obs.beta, obs.rc, obs.halo["r200"])
-        for r in radii]
+    # mgas_cut = [profiles.gas_mass_betamodel_cut(r,
+    #     convert.density_cgs_to_msunkpc(obs.rho0), obs.beta, obs.rc, obs.halo["r200"])
+    #     for r in radii]
 
     pyplot.plot(radii, mdm, **dotted)
-    pyplot.plot(radii, mdm_cut, **solid)
+    # pyplot.plot(radii, mdm_cut, **solid)
     pyplot.plot(radii, mgas, **dotted)
-    pyplot.plot(radii, mgas_cut, **dashed)
+    # pyplot.plot(radii, mgas_cut, **dashed)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e7, 1e15,
        facecolor="grey", edgecolor="grey", alpha=0.2)
@@ -546,7 +588,7 @@ def toyclustercheck(obs, sim, halo="000"):
     pyplot.ylim(ymin=1e7, ymax=1e15)
     # pyplot.legend(loc="lower left", fontsize=22)
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_sampled_mass.png".format(obs.name), dpi=150)
+    pyplot.savefig(sim.outdir+"{0}_sampled_mass.png".format(obs.name), dpi=150)
 
 
 def toyclustercheck_T(obs, sim, halo="000"):

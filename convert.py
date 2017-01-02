@@ -46,6 +46,9 @@ def keV_to_K(kT):
 def K_to_keV(T):
     return T*(const.k_B.to(u.keV/u.K)).value
 
+def keV_to_erg(kT):
+    return kT * u.keV.to(u.erg)
+
 def gadget_u_to_t(uint):
     """  convert gadget internal energy to temperature in Kelvin
 

@@ -375,6 +375,10 @@ class Toycluster(object):
             self.profiles[halonumber] = parse.toycluster_profiles(filename)
         self.header, self.gas, self.dm = parse.toycluster_icfile(icdir+"IC_single_0")
         self.parms = parse.read_toycluster_parameterfile(glob.glob(icdir+"*.par")[0])
+        self.makefile_options = parse.read_toycluster_makefile(glob.glob(icdir+"Makefile_Toycluster")[0])
+        for k, v in self.makefile_options.iteritems():
+            if "-DRCUT_R200_RATIO=" in v:
+                self.RCUT_R200_RATIO = float(v.split("-DRCUT_R200_RATIO=")[1])
 
         self.r_sample = self.header["boxSize"]/2
 
@@ -383,7 +387,9 @@ class Toycluster(object):
         self.gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(self.gas["u"]))
         if not both:
             self.set_gas_mass()
+            self.set_gas_pressure()
             self.M_dm_tot = self.header["ndm"] * self.header["massarr"][1] * 1e10
+            self.M_gas_tot = self.header["ngas"] * self.header["massarr"][0] * 1e10
             self.set_dm_mass()
             self.set_dm_density()
         else:
@@ -394,7 +400,7 @@ class Toycluster(object):
         for k, v in self.header.iteritems(): tmp += "    {0:<25}: {1}\n".format(k, v)
         return tmp
 
-    def set_gas_mass(self, NGB=50):
+    def set_gas_mass(self, NGB=295):
         """ Set the gas mass from the SPH density, see Price (2012, eq. 11)
             Mtot = 4/3 pi R_kern^3 rho, where R_kern^3 = hsml^3/NGB.
             Toycluster: Wendland C6, NGB=295; Gadget-2: M4, NGB=50.
@@ -416,24 +422,33 @@ class Toycluster(object):
         N = len(self.dm_radii)
 
         particles = numpy.zeros(N)
+        gas_particles = numpy.zeros(N)
         for i, r in enumerate(self.dm_radii):
             particles[i] = ((numpy.where(self.dm["r"] < r)[0]).size)
+            gas_particles[i] = ((numpy.where(self.gas["r"] < r)[0]).size)
             if verbose and (i==(N-1) or i%100 == 0):
                 print_progressbar(i, N, whitespace="    ")
 
         particles_in_shell = numpy.zeros(len(particles))
+        gas_particles_in_shell = numpy.zeros(len(gas_particles))
         for i in range(1, len(particles)):
             particles_in_shell[i-1] = particles[i] - particles[i-1]
+            gas_particles_in_shell[i-1] = gas_particles[i] - gas_particles[i-1]
 
         self.dm_volume = 4 * numpy.pi * self.dm_radii**2 * dr
         self.n_dm_in_shell = particles_in_shell
+        self.n_gas_in_shell = gas_particles_in_shell
         self.M_dm_below_r = particles * self.M_dm_tot/self.header["ndm"]
+        self.M_gas_below_r = gas_particles * self.M_gas_tot/self.header["ngas"]
 
     def set_dm_density(self):
         self.rho_dm_below_r = (self.M_dm_tot*convert.msun2g
                 * (self.n_dm_in_shell/self.header["ndm"])
                 / (self.dm_volume * p3(convert.kpc2cm)))
 
+    def set_gas_pressure(self):
+        self.gas["P"] = convert.rho_to_ne(self.gas["rho"]) *\
+            convert.keV_to_erg(self.gas["kT"])
 
 # ----------------------------------------------------------------------------
 # Class to hold Gadget-2 simulation snaphots
