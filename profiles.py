@@ -68,9 +68,9 @@ def dm_mass_nfw(r, rho0_dm, rs, rcut=None):
         N = len(r)
         mass = numpy.zeros(N)
         for i, ri in enumerate(r):  # deco threaded slows things down
-            mass[i] = scipy.integrate.quad(lambda r: p2(r) * dm_density_nfw(
-                r, rho0_dm, rs, rcut=rcut), 0, ri)[0]
-        return (4*numpy.pi) * mass[0] if N == 1 else mass
+            mass[i] = scipy.integrate.quad(lambda r: 4*numpy.pi*p2(r)
+                * dm_density_nfw(r, rho0_dm, rs, rcut=rcut), 0, ri)[0]
+        return mass[0] if N == 1 else mass
 
 
 def cNFW(M200):
@@ -146,9 +146,9 @@ def gas_mass_betamodel(r, rho0, beta, rc, rcut=None):
         N = len(r)
         mass = numpy.zeros(N)
         for i, ri in enumerate(r):  # deco threaded slows things down
-            mass[i] = scipy.integrate.quad(lambda r: p2(r) * gas_density_betamodel(
+            mass[i] = scipy.integrate.quad(lambda r: 4*numpy.pi*p2(r) * gas_density_betamodel(
                 r, rho0, beta, rc, rcut=rcut), 0, ri)[0]
-        return (4*numpy.pi) * mass[0] if N == 1 else mass
+        return mass[0] if N == 1 else mass
 
 
 def verlinde_apparent_DM_mass(rmax, rho0, beta, rc):
