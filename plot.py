@@ -426,7 +426,8 @@ def donnert2014_figure1(c, sim=None, verlinde=False):
         dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
                 "markeredgecolor": "none", "label": ""}
 
-        pyplot.suptitle("T = {0:04.2f} Gyr".format(int(sim.current_snapnr)*sim.dt))
+        if hasattr(sim, "current_snapnr"):
+            pyplot.suptitle("T = {0:04.2f} Gyr".format(int(sim.current_snapnr)*sim.dt))
 
         pyplot.sca(ax0)
         pyplot.plot(sim.toy.gas["r"], sim.toy.gas["rho"], **gas)

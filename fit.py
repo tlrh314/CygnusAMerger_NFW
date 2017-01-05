@@ -277,32 +277,32 @@ def temperature_wrapper(c, cNFW, bf, RCUT_R200_RATIO=None):
             r, infinity, c.rho_gas, c.M_tot)
 
     # We also set the inferred temperature (with c.ana_radii) for plotting
-    c.set_inferred_temperature(verbose=True, debug=False)
+    c.set_inferred_temperature(verbose=True)
     c.fit_counter += 1
     plot.inferred_temperature(c)
     plot.donnert2014_figure1(c)
     return convert.K_to_keV(temperature)
 
 
-def total_gravitating_mass_freecbf(c, verbose=False):
+def total_gravitating_mass_freecbf(c, do_cut=True, verbose=False):
     """ Fit 'total_gravitating_mass' to temperature /w cNFW, bf free.
-        @param c:  ObservedCluster
-        @return :   (MLE, one sigma confidence interval), tuple """
+        @param c  : ObservedCluster
+        @param cut: also fit the cut-off radius
+        @return   : (MLE, one sigma confidence interval), tuple """
 
     print "Fitting cNFW, bf to retrieve T_HE = Tobs"
     if c.name == "cygA":
-        p0 = [12.18, 0.075]
-        # No cut in temperature profile
-        # p0 = [7.7445649078, 0.0331492359156, 0.522826734691]
+        p0 = [12.18, 0.075] if not do_cut else [10.808, 0.04487, 0.7497]
+        bounds = ((0,0),(20,0.25)) if not do_cut else ((0,0,0),(20,0.25,2))
     if c.name == "cygNW":
-        p0 = [5.13, 0.055]
-        # p0 = [3.36317046953, 0.0410350161654, 0.884445258257]
+        p0 = [4.842, 0.0535] if not do_cut else [3.692, 0.0357, 0.9948]
+        bounds = ((0,0),(20,0.25)) if not do_cut else ((0,0,0),(20,0.25,2))
 
     c.fit_counter = 0
-    ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1:
-        temperature_wrapper(c, parm0, parm1),
+    ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1, parm2:
+        temperature_wrapper(c, parm0, parm1, parm2 if do_cut else None),
         c.avg["r"], c.avg["kT"], p0=p0, sigma=c.avg["fkT"],
-        method="trf", bounds=((0, 0),(20, 0.25)))
+        method="trf", bounds=bounds)
     c.fit_counter = None
 
     return ml_vals, numpy.sqrt(numpy.diag(ml_covar))

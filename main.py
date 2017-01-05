@@ -32,25 +32,45 @@ def show_observations(cygA, cygNW):
     plot.inferred_nfw_profile(cygA)
     plot.inferred_nfw_profile(cygNW)
 
+    plot.inferred_mass(cygA)
+    plot.inferred_mass(cygNW)
+
+    plot.smith_hydrostatic_mass(cygA, debug=True)
+    plot.smith_hydrostatic_mass(cygNW, debug=True)
+
     plot.inferred_temperature(cygA)
     plot.inferred_temperature(cygNW)
 
+    plot.inferred_pressure(cygA)
+    plot.inferred_pressure(cygNW)
+
+    plot.donnert2014_figure1(cygA, verlinde=False)
+    plot.donnert2014_figure1(cygNW, verlinde=False)
+
+    plot.donnert2014_figure1(cygA, verlinde=True)
+    plot.donnert2014_figure1(cygNW, verlinde=True)
+
 
 def write_ics(cygA, cygNW):
+    cutA = cygA.rcut_kpc is not None
+    cutNW = cygNW.rcut_kpc is not None
+    if cutA is not cutNW: print "WARNING: use cut-off in both clusters, or none"
     ic_cygA= { "description": "(free) betamodel+NFW. Cygnus A single halo.",
                "Mtotal": cygA.halo["M200"]/1e10, "Mass_Ratio": 0,
                "beta_0": cygA.beta, "beta_1": 0,
                "bf_0": cygA.halo["bf200"], "bf_1": 0,
                "name_0": cygA.name, "name_1": "N/A",
                "c_nfw_0": cygA.halo["cNFW"], "rc_0": cygA.rc,
-               "c_nfw_1": 0, "rc_1": 0, "filename": "ic_cygA_free.par" }
+               "c_nfw_1": 0, "rc_1": 0, "filename":
+               "ic_cygA_free{0}.par".format("_cut" if cutA else "") }
     ic_cygNW = { "description": "(free) betamodel+NFW. Cygnus NW single halo.",
                  "Mtotal": cygNW.halo["M200"]/1e10, "Mass_Ratio": 0,
                  "beta_0": cygNW.beta, "beta_1": 0,
                  "bf_0": cygNW.halo["bf200"], "bf_1": 0,
                  "name_0": cygNW.name, "name_1": "N/A",
                  "c_nfw_0": cygNW.halo["cNFW"], "rc_0": cygNW.rc,
-                 "c_nfw_1": 0, "rc_1": 0, "filename": "ic_cygNW_free.par" }
+                 "c_nfw_1": 0, "rc_1": 0, "filename":
+                 "ic_cygNW_free{0}.par".format("_cut" if cutNW else "") }
     ic_both = { "description": "(free) betamodel+NFW. Cygnus A and Cygnus NW haloes.",
                "Mtotal": (cygA.halo["M200"]+cygNW.halo["M200"])/1e10,
                "Mass_Ratio": cygNW.halo["M200"]/cygA.halo["M200"],
@@ -59,47 +79,73 @@ def write_ics(cygA, cygNW):
                "name_0": cygA.name, "name_1": cygNW.name,
                "c_nfw_0": cygA.halo["cNFW"], "rc_0": cygA.rc,
                "c_nfw_1": cygNW.halo["cNFW"], "rc_1": cygNW.rc,
-               "filename": "ic_both_free.par"}
+               "filename": "ic_both_free{0}.par".format("_cut" if cutA else "")}
     write_toycluster_parameterfile(ic_cygA)
     write_toycluster_parameterfile(ic_cygNW)
     write_toycluster_parameterfile(ic_both)
 
 
-def check_toycluster_rho_and_temperature(a, match_Tobs=True):
+def infer_toycluster_ics(a):
+    # Fit the concentration parameter and baryon fraction
+    mle, cis = fit.total_gravitating_mass_freecbf(
+        ObservedCluster(a.basedir, "cygA", verbose=True), do_cut=a.do_cut)
+    cygA = ObservedCluster(a.basedir, "cygA", cNFW=mle[0], bf=mle[1],
+                           RCUT_R200_RATIO=mle[2] if a.do_cut else None, verbose=a.verbose)
+
+    mle, cis = fit.total_gravitating_mass_freecbf(
+        ObservedCluster(a.basedir, "cygNW", verbose=False), do_cut=a.do_cut)
+    cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=mle[0], bf=mle[1],
+                            RCUT_R200_RATIO=mle[2] if a.do_cut else None, verbose=a.verbose)
+
+    write_ics(cygA, cygNW)
+
+    return cygA, cygNW
+
+
+def set_observed_cluster(a):
+    if a.clustername == "cygA":
+        if a.do_cut:
+            cNFW = 10.8084913766
+            0.0448823494125
+            RCUT_R200_RATIO = 0.749826451566
+        else:
+            cNFW = 12.1616022474
+            bf = 0.075207094556
+            RCUT_R200_RATIO = None
+
+    if a.clustername == "cygNW":
+        if a.do_cut:
+            cNFW = 3.69286089273
+            bf = 0.0357979867269
+            RCUT_R200_RATIO = 0.994860631699
+        else:
+            cNFW = 4.84194426883
+            bf = 0.0535343411893
+            RCUT_R200_RATIO = None
+
+    obs = ObservedCluster(a.basedir, a.clustername, cNFW=cNFW, bf=bf,
+        RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose)
+
+    return obs
+
+
+def check_toycluster_rho_and_temperature(a):
     if not a.clustername and (a.clustername != "cygA" or a.clustername != "cygNW"):
         print "Please specify clustername. Also for single cluster. Returning."
         return
 
-    if match_Tobs:
-        if a.clustername == "cygA" and match_Tobs:
-            cNFW = 12.1616022474
-            bf = 0.075207094556
-            RCUT_R200_RATIO = None  # in Makefile_Toycluster
-        if a.clustername == "cygNW" and match_Tobs:
-            cNFW = 4.84194426883
-            bf = 0.0535343411893
-            RCUT_R200_RATIO = None
-    else:
-        cNFW = None  # will use Duffy+ 2008
-        bf = 0.17    # Planelles+ 2013
+    obs = set_observed_cluster(a)
+    r500, M500 = fit.find_r500(obs)
+    print "r500    =", r500
+    print "M500tot =", M500
 
     sim = Simulation(a.basedir, a.timestamp, a.clustername)
     if hasattr(sim.toy, "RCUT_R200_RATIO"):
         RCUT_R200_RATIO = None # sim.toy.RCUT_R200_RATIO
 
-    obs = ObservedCluster(a.basedir, a.clustername, cNFW=cNFW, bf=bf,
-        RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose)
-
-    r500, M500 = fit.find_r500(obs)
-    print "r500    =", r500
-    print "M500tot =", M500
-
-    # plot.donnert2014_figure1(obs, sim, verlinde=False)
-    # plot.toycluster_profiles(obs, sim)
-    # plot.toyclustercheck(obs, sim)
-    # plot.toyclustercheck_T(obs, sim)
-
     sim.plot_singlecluster_stability(obs)
+
+    return obs, sim
 
 
 def check_twocluster_ics(a):
@@ -141,6 +187,8 @@ def new_argument_parser():
         help="Path to the base directory", default="/usr/local/mscproj")
     args.add_argument("-c", "--clustername", dest="clustername",
         help="Name of the subcluster", default=None, choices=["cygA", "cygNW", "both"])
+    args.add_argument("--cut", dest="do_cut", action="store_true",
+        help="Show analytical profiles with cut-off", default=False)
     args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
         help="Toggle verbose. Verbose is True by default", default=True)
     args.add_argument("-d", "--debug", dest="debug", action="store_true",
@@ -154,45 +202,12 @@ def new_argument_parser():
 
 if __name__ == "__main__":
     a = new_argument_parser().parse_args()
-    # sim = Simulation(a.basedir, a.timestamp, a.clustername)
 
-    check_toycluster_rho_and_temperature(a, match_Tobs=True)
+    # cygA, cygNW = infer_toycluster_ics(a)
 
-    # Fit the concentration parameter and baryon fraction
-    # mle, cis = fit.total_gravitating_mass_freecbf(
-    #     ObservedCluster(a.basedir, "cygA", verbose=False))
-    # cygA = ObservedCluster(a.basedir, "cygA", cNFW=mle[0], bf=mle[1],
-    #                        RCUT_R200_RATIO=None, verbose=a.verbose)
-    # cygA = ObservedCluster(a.basedir, "cygA",
-    #     # cNFW=10.7444613578, bf=0.066148612882, RCUT_R200_RATIO=0.722808251743,
-    #     cNFW=12.1616022474, bf=0.075207094556, RCUT_R200_RATIO=None,
-    #     verbose=a.verbose, debug=a.debug)
+    # obs = set_observed_cluster(a)
+    # plot.donnert2014_figure1(obs, verlinde=False)
 
-    # mle, cis = fit.total_gravitating_mass_freecbf(
-    #     ObservedCluster(a.basedir, "cygNW", verbose=False))
-    # cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=mle[0], bf=mle[1],
-    #                         RCUT_R200_RATIO=None, verbose=a.verbose)
-    # cygNW = ObservedCluster(a.basedir, "cygNW",
-    #     # cNFW=3.36312049278, bf=0.0410345976722, RCUT_R200_RATIO=0.884433321242,
-    #     cNFW=4.84194426883, bf=0.0535343411893, RCUT_R200_RATIO=None,
-    #     verbose=a.verbose, debug=a.debug)
-
-    # show_observations(cygA, cygNW)
-    # plot.inferred_nfw_profile(cygA)
-    # plot.inferred_mass(cygA)
-    # plot.inferred_temperature(cygA)
-    # plot.inferred_pressure(cygA)
-    # plot.inferred_nfw_profile(cygNW)
-    # plot.inferred_mass(cygNW)
-    # plot.inferred_temperature(cygNW)
-    # plot.inferred_pressure(cygNW)
-    # plot.smith_hydrostatic_mass(cygA, debug=a.debug)
-    # plot.smith_hydrostatic_mass(cygNW, debug=a.debug)
-    # plot.donnert2014_figure1(cygA, verlinde=False)
-    # plot.donnert2014_figure1(cygNW, verlinde=False)
-
-    # write_ics(cygA, cygNW)
+    obs, sim = check_toycluster_rho_and_temperature(a)
 
     # plot_smac_snapshots(a)  # TODO: have correct cNFW, bf
-
-    # sim = check_twocluster_ics(a)

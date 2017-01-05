@@ -81,7 +81,7 @@ class ObservedCluster(object):
         self.set_inferred_profiles()
 
         # T(r) from hydrostatic equilibrium by plugging in rho_gas, M(<r)
-        self.set_inferred_temperature(verbose=verbose, debug=debug)
+        self.set_inferred_temperature(verbose=verbose)
 
     def __str__(self):
         return str(self.avg)
@@ -160,8 +160,22 @@ class ObservedCluster(object):
                        verbose=False, debug=False):
         self.halo = fit.total_gravitating_mass(self, cNFW=cNFW, bf=bf,
             RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=verbose, debug=debug)
+
+        R200_TO_RMAX_RATIO = 3.75
+        Boxsize = numpy.floor(2*R200_TO_RMAX_RATIO * self.halo["r200"]);
+        self.r_sample_dm = Boxsize/2
+
         self.rcut_kpc = self.halo["rcut"]
-        self.rcut_cm = self.halo["rcut"]*convert.kpc2cm if self.halo["rcut"] is not None else None
+        if self.halo["rcut"] is not None:
+            self.rcut_cm = self.halo["rcut"]*convert.kpc2cm
+            self.rcut_nfw_kpc = self.r_sample_dm
+            self.rcut_nfw_cm = self.r_sample_dm*convert.kpc2cm
+            # TODO: if halo != Halo[0] in Toycluster then the cutoff is different
+            # self.rcut_nfw = 1.5*self.halo["r200"]
+        else:
+            self.rcut_cm = None
+            self.rcut_nfw_kpc = None
+            self.rcut_nfw_cm = None
 
     def set_inferred_profiles(self):
         # We need callable gas profile, and a callable total mass profile
@@ -171,15 +185,15 @@ class ObservedCluster(object):
         self.rho_gas = lambda r: profiles.gas_density_betamodel(r, rho0_gas,
             self.beta, self.rc*convert.kpc2cm, rcut=self.rcut_cm)
         self.rho_dm = lambda r: profiles.dm_density_nfw(r, rho0_dm,
-            self.halo["rs"]*convert.kpc2cm, rcut=self.rcut_cm)
+            self.halo["rs"]*convert.kpc2cm, rcut=self.rcut_nfw_cm)
         self.M_gas = lambda r: profiles.gas_mass_betamodel(r, rho0_gas,
             self.beta, self.rc*convert.kpc2cm, rcut=self.rcut_cm)
         self.M_dm = lambda r: profiles.dm_mass_nfw(r, rho0_dm,
-            self.halo["rs"]*convert.kpc2cm, rcut=self.rcut_cm)
+            self.halo["rs"]*convert.kpc2cm, rcut=self.rcut_nfw_cm)
 
         self.M_tot = lambda r: (self.M_gas(r) + self.M_dm(r))
 
-    def set_inferred_temperature(self, verbose=False, debug=False):
+    def set_inferred_temperature(self, verbose=False):
         """ Assume NFW for DM. Get temperature from hydrostatic equation by
             plugging in best-fit betamodel and the inferred best-fit total
             gravitating mass that retrieves the observed temperature. """
@@ -279,7 +293,7 @@ class ObservedCluster(object):
     def plot_inferred_nfw_profile(self, style=dict(), rho=True):
         rs = self.halo["rs"]
         density = self.halo["rho0_dm"] if rho else self.halo["ne0_dm"]
-        rho_dm = profiles.dm_density_nfw(self.ana_radii, density, rs, rcut=self.rcut_kpc)
+        rho_dm = profiles.dm_density_nfw(self.ana_radii, density, rs, rcut=self.rcut_nfw_kpc)
 
         if "label" not in style:
             label = r"\begin{tabular}{p{2.5cm}ll}"

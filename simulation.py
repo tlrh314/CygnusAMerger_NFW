@@ -80,6 +80,13 @@ class Simulation(object):
         if verbose: print "  {0}".format(self.gadget)
 
     def plot_singlecluster_stability(self, obs):
+        if not hasattr(self, "gadget"):
+            plot.donnert2014_figure1(obs, self, verlinde=False)
+            plot.toycluster_profiles(obs, self)
+            plot.toyclustercheck(obs, self)
+            plot.toyclustercheck_T(obs, self)
+            return
+
         for path_to_snaphot in self.gadget.snapshots:
             print path_to_snaphot
             self.current_snapnr = path_to_snaphot.split("_")[-1]
