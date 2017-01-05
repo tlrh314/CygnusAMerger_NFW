@@ -210,7 +210,7 @@ def find_r500(c, debug=False):
     # Set bestfit betamodel parameters
     ne0, rho0, beta, rc = c.ne0, c.rho0, c.beta, c.rc
     rc *= convert.kpc2cm
-    rcut = c.rcut * convert.kpc2cm if c.rcut is not None else None
+    rcut = c.rcut * convert.kpc2cm if hasattr(c, "rcut") and c.rcut is not None else None
 
     # Set inferred NFW parameters
     rho0_dm, rs = c.halo["rho0_dm"], c.halo["rs"]

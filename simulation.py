@@ -9,7 +9,7 @@ import plot
 import convert
 from macro import p2, p3, print_progressbar
 from cluster import Toycluster
-from cluster import Gadget2Output
+from cluster import Gadget3Output
 from cluster import PSmac2Output
 from panda import create_panda
 
@@ -73,11 +73,30 @@ class Simulation(object):
             print "  Directory '{0}' does not exist.".format(self.simdir)
             return
 
-        if verbose: print "  Parsing Gadet-2 output"
-        self.gadget = Gadget2Output(self.simdir, verbose=verbose)
+        if verbose: print "  Parsing Gadet-3 output"
+        self.gadget = Gadget3Output(self.simdir, verbose=verbose)
         self.dt = self.gadget.parms['TimeBetSnapshot']
         if verbose: print "  Succesfully loaded snaps"
         if verbose: print "  {0}".format(self.gadget)
+
+    def plot_singlecluster_stability(self, obs):
+        for path_to_snaphot in self.gadget.snapshots:
+            print path_to_snaphot
+            self.current_snapnr = path_to_snaphot.split("_")[-1]
+
+            self.toy.header, self.toy.gas, self.toy.dm = parse.toycluster_icfile(path_to_snaphot)
+
+            self.toy.gas["rho"] = convert.toycluster_units_to_cgs(self.toy.gas["rho"])
+            self.toy.gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(self.toy.gas["u"]))
+
+            self.toy.set_gas_mass()
+            self.toy.set_gas_pressure()
+            self.toy.M_dm_tot = self.toy.header["ndm"] * self.toy.header["massarr"][1] * 1e10
+            self.toy.M_gas_tot = self.toy.header["ngas"] * self.toy.header["massarr"][0] * 1e10
+            self.toy.set_dm_mass()
+            self.toy.set_dm_density()
+            plot.donnert2014_figure1(obs, self, verlinde=False)
+            print
 
     def eat_gadget(self, snapnr, verbose=False):
         pass
@@ -92,8 +111,11 @@ class Simulation(object):
         if verbose: print "  Succesfully loaded P-Smac2 fitsfiles"
         if verbose: print "  {0}".format(self.psmac)
         # assumes xray cube is loaded
-        self.nsnaps, self.xlen, self.ylen = self.psmac.xray.shape
-        self.pixelscale = float(self.psmac.xray_header["XYSize"])/int(self.xlen)
+        if hasattr(self.psmac, "xray"):
+            self.nsnaps, self.xlen, self.ylen = self.psmac.xray.shape
+            self.pixelscale = float(self.psmac.xray_header["XYSize"])/int(self.xlen)
+        else:
+            print "Warning: Simulation instance attributes 'nsnaps', 'xlen', 'ylen', 'pixelscale' not set"
 
     def find_cluster_centroids_psmac_dmrho(self, snapnr=0, do_plot=False):
         print "Checking snapshot {0}".format(snapnr)

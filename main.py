@@ -90,10 +90,16 @@ def check_toycluster_rho_and_temperature(a, match_Tobs=True):
     obs = ObservedCluster(a.basedir, a.clustername, cNFW=cNFW, bf=bf,
         RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose)
 
-    plot.donnert2014_figure1(obs, sim, verlinde=False)
-    plot.toycluster_profiles(obs, sim)
-    plot.toyclustercheck(obs, sim)
-    plot.toyclustercheck_T(obs, sim)
+    r500, M500 = fit.find_r500(obs)
+    print "r500    =", r500
+    print "M500tot =", M500
+
+    # plot.donnert2014_figure1(obs, sim, verlinde=False)
+    # plot.toycluster_profiles(obs, sim)
+    # plot.toyclustercheck(obs, sim)
+    # plot.toyclustercheck_T(obs, sim)
+
+    sim.plot_singlecluster_stability(obs)
 
 
 def check_twocluster_ics(a):

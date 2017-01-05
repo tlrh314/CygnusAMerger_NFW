@@ -426,6 +426,8 @@ def donnert2014_figure1(c, sim=None, verlinde=False):
         dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
                 "markeredgecolor": "none", "label": ""}
 
+        pyplot.suptitle("T = {0:04.2f} Gyr".format(int(sim.current_snapnr)*sim.dt))
+
         pyplot.sca(ax0)
         pyplot.plot(sim.toy.gas["r"], sim.toy.gas["rho"], **gas)
         pyplot.plot(sim.toy.dm_radii, sim.toy.rho_dm_below_r, **dm)
@@ -454,10 +456,11 @@ def donnert2014_figure1(c, sim=None, verlinde=False):
             pyplot.text(hsml, 0.05, r"$2 h_{sml}$", ha="left", color="g",
                 transform=trans, fontsize=22)
 
-        pyplot.tight_layout()
-        pyplot.savefig(sim.outdir+"{0}_donnert2014figure1_cNFW={1:.3f}_bf={2:.4f}{3}.png"
+        pyplot.tight_layout(rect=[0, 0.00, 1, 0.98])  # rect b/c suptitle/tight_layout bug
+        pyplot.savefig(sim.outdir+"{0}_donnert2014figure1_cNFW={1:.3f}_bf={2:.4f}{3}{4}.png"
             .format(c.name, c.halo["cNFW"], c.halo["bf200"],
-                    "_withVerlinde" if verlinde else ""), dpi=300)
+                    "_withVerlinde" if verlinde else "",
+                    "_"+sim.current_snapnr if hasattr(sim, "current_snapnr") else ""), dpi=300)
         pyplot.close()
         return
 

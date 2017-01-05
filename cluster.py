@@ -209,12 +209,12 @@ class ObservedCluster(object):
 
     def plot_chandra_average(self, parm="kT", style=dict()):
         """ plot of observed average profile of parm """
-        # barsabove=True because otherwise NaN values raise ValueError
-        pyplot.errorbar(self.avg_for_plotting["r"], self.avg_for_plotting[parm],
-                        xerr=self.avg_for_plotting["fr"]/2,
-                        yerr=[self.avg_for_plotting["f"+parm],
-                              self.avg_for_plotting["f"+parm]],
-                        barsabove=True, **style)
+        # compressed, to avoid "UserWarning: Warning: converting a masked element to nan"
+        pyplot.errorbar(numpy.ma.compressed(self.avg_for_plotting["r"]),
+                        numpy.ma.compressed(self.avg_for_plotting[parm]),
+                        xerr=numpy.ma.compressed(self.avg_for_plotting["fr"])/2,
+                        yerr=[numpy.ma.compressed(self.avg_for_plotting["f"+parm]),
+                              numpy.ma.compressed(self.avg_for_plotting["f"+parm])], **style)
 
     def plot_chandra_sector(self, parm="kT", merger=False, hot=False, cold=False,
                             style=dict()):
@@ -222,20 +222,23 @@ class ObservedCluster(object):
             print "ERROR: Sectoranalysis not available for", self.name
             return
         if merger:
-            pyplot.errorbar(self.merger_for_plotting["r"], self.merger_for_plotting[parm],
-                            xerr=self.merger_for_plotting["fr"]/2,
-                            yerr=[self.merger_for_plotting["f"+parm],
-                                  self.merger_for_plotting["f"+parm]], **style)
+            pyplot.errorbar(numpy.ma.compressed(self.merger_for_plotting["r"]),
+                            numpy.ma.compressed(self.merger_for_plotting[parm]),
+                            xerr=numpy.ma.compressed(self.merger_for_plotting["fr"])/2,
+                            yerr=[numpy.ma.compressed(self.merger_for_plotting["f"+parm]),
+                                  numpy.ma.compressed(self.merger_for_plotting["f"+parm])], **style)
         if hot:
-            pyplot.errorbar(self.hot_for_plotting["r"], self.hot_for_plotting[parm],
-                            xerr=self.hot_for_plotting["fr"]/2,
-                            yerr=[self.hot_for_plotting["f"+parm],
-                                  self.hot_for_plotting["f"+parm]], **style)
+            pyplot.errorbar(numpy.ma.compressed(self.hot_for_plotting["r"]),
+                            numpy.ma.compressed(self.hot_for_plotting[parm]),
+                            xerr=numpy.ma.compressed(self.hot_for_plotting["fr"])/2,
+                            yerr=[numpy.ma.compressed(self.hot_for_plotting["f"+parm]),
+                                  numpy.ma.compressed(self.hot_for_plotting["f"+parm])], **style)
         if cold:
-            pyplot.errorbar(self.cold_for_plotting["r"], self.cold_for_plotting[parm],
-                            xerr=self.cold_for_plotting["fr"]/2,
-                            yerr=[self.cold_for_plotting["f"+parm],
-                                  self.cold_for_plotting["f"+parm]], **style)
+            pyplot.errorbar(numpy.ma.compressed(self.cold_for_plotting["r"]),
+                            numpy.ma.compressed(self.cold_for_plotting[parm]),
+                            xerr=numpy.ma.compressed(self.cold_for_plotting["fr"])/2,
+                            yerr=[numpy.ma.compressed(self.cold_for_plotting["f"+parm]),
+                                  numpy.ma.compressed(self.cold_for_plotting["f"+parm])], **style)
 
     def plot_bestfit_betamodel(self, style=dict(), rho=True):
         fit = profiles.gas_density_betamodel(self.ana_radii,
@@ -422,24 +425,24 @@ class Toycluster(object):
         N = len(self.dm_radii)
 
         particles = numpy.zeros(N)
-        gas_particles = numpy.zeros(N)
+        # gas_particles = numpy.zeros(N)
         for i, r in enumerate(self.dm_radii):
             particles[i] = ((numpy.where(self.dm["r"] < r)[0]).size)
-            gas_particles[i] = ((numpy.where(self.gas["r"] < r)[0]).size)
+            # gas_particles[i] = ((numpy.where(self.gas["r"] < r)[0]).size)
             if verbose and (i==(N-1) or i%100 == 0):
                 print_progressbar(i, N, whitespace="    ")
 
         particles_in_shell = numpy.zeros(len(particles))
-        gas_particles_in_shell = numpy.zeros(len(gas_particles))
+        # gas_particles_in_shell = numpy.zeros(len(gas_particles))
         for i in range(1, len(particles)):
             particles_in_shell[i-1] = particles[i] - particles[i-1]
-            gas_particles_in_shell[i-1] = gas_particles[i] - gas_particles[i-1]
+            # gas_particles_in_shell[i-1] = gas_particles[i] - gas_particles[i-1]
 
         self.dm_volume = 4 * numpy.pi * self.dm_radii**2 * dr
         self.n_dm_in_shell = particles_in_shell
-        self.n_gas_in_shell = gas_particles_in_shell
+        # self.n_gas_in_shell = gas_particles_in_shell
         self.M_dm_below_r = particles * self.M_dm_tot/self.header["ndm"]
-        self.M_gas_below_r = gas_particles * self.M_gas_tot/self.header["ngas"]
+        # self.M_gas_below_r = gas_particles * self.M_gas_tot/self.header["ngas"]
 
     def set_dm_density(self):
         self.rho_dm_below_r = (self.M_dm_tot*convert.msun2g
@@ -456,7 +459,7 @@ class Toycluster(object):
 class Gadget2Output(object):  # TODO parse individual snapshots, split box in half, etc
     """ Parse and store Gadget-2 simulation snapshots"""
     def __init__(self, simdir, verbose=True):
-        """ Class to hold Gadgget-2 simulation output
+        """ Class to hold Gadget-2 simulation output
         @param simdir: path to the directory with Gadget-2 output, string
         @return      : instance of Gadget2Output class"""
         self.parms = parse.read_gadget2_parms(simdir+"gadget2.par")
@@ -470,18 +473,23 @@ class Gadget2Output(object):  # TODO parse individual snapshots, split box in ha
 # ----------------------------------------------------------------------------
 # Class to hold Gadget-3 simulation snaphots
 # ----------------------------------------------------------------------------
-class Gadget2Output(object):  # TODO parse individual snapshots, split box in half, etc
+class Gadget3Output(object):  # TODO parse individual snapshots, split box in half, etc
     """ Parse and store Gadget-3 simulation snapshots"""
     def __init__(self, simdir, verbose=True):
-        """ Class to hold Gadgget-2 simulation output
+        """ Class to hold Gadget-3 simulation output
         @param simdir: path to the directory with Gadget-3 output, string
-        @return      : instance of Gadget2Output class"""
+        @return      : instance of Gadget3Output class"""
+
         self.parms = parse.read_gadget3_parms(simdir+"gadget3.par")
+        self.set_snapshot_paths(simdir)
 
     def __str__(self):
         tmp = "Gadget-3 parameters:\n"
         for k, v in self.parms.iteritems(): tmp += "    {0:<25}: {1}\n".format(k, v)
         return tmp
+
+    def set_snapshot_paths(self, simdir):
+        self.snapshots = glob.glob(simdir+"snapshot_*")
 
 
 # ----------------------------------------------------------------------------
