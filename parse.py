@@ -80,7 +80,7 @@ Mtotal      {Mtotal:05.0f}   % Total Mass in Code Units
 
 Mass_Ratio  {Mass_Ratio:.4f}  % set =0 for single cluster
 
-ImpactParam 50
+ImpactParam 0
 ZeroEOrbitFrac 0
 
 Cuspy       1        % Use cuspy model (rc /= 10)
@@ -106,16 +106,18 @@ UnitVelocity_in_cm_per_s     1e5                %  1 km/sec
 %% here some more merger parameters can be set by hand
 
 % cluster 0 is {name_0:s}
-c_nfw_0     {c_nfw_0:.2f}
-v_com_0     0
-rc_0        {rc_0:.3f}
-bf_0        {bf_0:.5f}
+c_nfw_0           {c_nfw_0:.2f}
+v_com_0           0
+rc_0              {rc_0:.3f}
+bf_0              {bf_0:.5f}
+rcut_r200_ratio_0 {rcut_r200_ratio_0:.5f}
 
 % cluster 1 {name_1:s}
-c_nfw_1     {c_nfw_1:.2f}
-v_com_1     0
-rc_1        {rc_1:.2f}
-bf_1        {bf_1:.5f}
+c_nfw_1           {c_nfw_1:.2f}
+v_com_1           0
+rc_1              {rc_1:.2f}
+bf_1              {bf_1:.5f}
+rcut_r200_ratio_1 {rcut_r200_ratio_1:.5f}
 
 %% -DADD_THIRD_SUBHALO Options
 
@@ -235,6 +237,7 @@ def toycluster_icfile(filename, verbose=False):
             print "  ERROR: blocklengths differ"
             return None
         return content
+
     def name_block(block):
         """ Translate Fortran 77 unformatted block name from ascii values to str
             @param block: list of ascii values
@@ -286,7 +289,7 @@ def toycluster_icfile(filename, verbose=False):
         if verbose: print "    Parsing block as position"
         block = eat_block(f, dtype="float32")
         if name != "v":
-            # Shift halo back to origin (Toycluster single cluster only!)
+            # Shift halo back to origin (TODO: Toycluster single cluster only!)
             block -= header["boxSize"]/2
         block = block.reshape((header["ntot"], 3))
         gaspart = block[0:header["ngas"]]
@@ -301,16 +304,19 @@ def toycluster_icfile(filename, verbose=False):
         if name != "v":  # set radius
             gas["r"] = numpy.sqrt(p2(gas["x"])+p2(gas["y"])+p2(gas["z"]))
             dm["r"] = numpy.sqrt(p2(dm["x"])+p2(dm["y"])+p2(dm["z"]))
+
     def set_id(f, name=None):
         """ uint32, first gas then dm """
         if verbose: print "    Parsing block as id"
         block = eat_block(f, dtype="uint32")
         gas["id"] = block[0:header["ngas"]]
         dm["id"] = block[header["ngas"]:header["ntot"]]
+
     def set_gas_float32(f, name):
         """ float 32, gas only: rho/hsml/u and rhom (Toycluster only) """
         if verbose: print "    Parsing block as gas-only float32"
         gas[name.lower()] = eat_block(f, dtype="float32")
+
     def set_magnetic_field(f, name=None):
         """ float32, gas only, Toycluster only (not Gadget-2) """
         if verbose: print "    Parsing block as magnetic field"
@@ -319,6 +325,7 @@ def toycluster_icfile(filename, verbose=False):
         gas["Bx"] = block[:,0]
         gas["By"] = block[:,1]
         gas["Bz"] = block[:,2]
+
     def void_block(f, name):
         """ read but not save block """
         if verbose: print "    Parsing block as gas-only float32"
@@ -328,7 +335,7 @@ def toycluster_icfile(filename, verbose=False):
     header = dict()
     gas = astropy.table.Table()
     dm = astropy.table.Table()
-    # Map name of block to a callable that handles parsing the data
+    # Map name of block to a function pointer that handles parsing the data
     routines = { "HEAD": set_header, "POS": set_pos_or_vel, "VEL": set_pos_or_vel,
                  "ID": set_id, "RHO": set_gas_float32, "RHOM": set_gas_float32,
                  "HSML": set_gas_float32,  "U": set_gas_float32, "BFLD": set_magnetic_field,
@@ -346,8 +353,11 @@ def toycluster_icfile(filename, verbose=False):
             if blockname: routines.get(blockname, void_block)(f, blockname)
 
     if verbose:
+        print "\nHeader"
         for k, v in header.iteritems(): print "{0:<15}: {1}".format(k, v)
+        print "\nGas"
         print gas
+        print "\nDM"
         print dm
 
     return header, gas, dm

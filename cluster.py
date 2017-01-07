@@ -32,6 +32,7 @@ class ObservedCluster(object):
             return
         self.basedir = basedir
         self.name = name
+        self.RCUT_R200_RATIO = RCUT_R200_RATIO
 
         # Redshift of Cygnus cluster Owen+ 1997. CygNW might have different z.
         # We adopt concordance cosmology with generic cosmological parameters
