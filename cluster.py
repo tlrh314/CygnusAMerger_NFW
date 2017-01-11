@@ -7,7 +7,6 @@ import numpy
 import astropy
 import peakutils
 import copy
-from matplotlib import pyplot
 
 from cosmology import CosmologyCalculator
 import parse
@@ -15,6 +14,9 @@ import convert
 import profiles
 import fit
 from macro import *
+
+# ensure that lambda function inside ObservedCluster is pickleable for deco parallelisation
+import dill
 
 
 # ----------------------------------------------------------------------------
@@ -226,40 +228,40 @@ class ObservedCluster(object):
         self.hydrostatic = convert.K_to_keV(hydrostatic)
         self.hydrostatic_pressure = hydrostatic_pressure
 
-    def plot_chandra_average(self, parm="kT", style=dict()):
+    def plot_chandra_average(self, ax, parm="kT", style=dict()):
         """ plot of observed average profile of parm """
         # compressed, to avoid "UserWarning: Warning: converting a masked element to nan"
-        pyplot.errorbar(numpy.ma.compressed(self.avg_for_plotting["r"]),
-                        numpy.ma.compressed(self.avg_for_plotting[parm]),
-                        xerr=numpy.ma.compressed(self.avg_for_plotting["fr"])/2,
-                        yerr=[numpy.ma.compressed(self.avg_for_plotting["f"+parm]),
-                              numpy.ma.compressed(self.avg_for_plotting["f"+parm])], **style)
+        ax.errorbar(numpy.ma.compressed(self.avg_for_plotting["r"]),
+                    numpy.ma.compressed(self.avg_for_plotting[parm]),
+                    xerr=numpy.ma.compressed(self.avg_for_plotting["fr"])/2,
+                    yerr=[numpy.ma.compressed(self.avg_for_plotting["f"+parm]),
+                          numpy.ma.compressed(self.avg_for_plotting["f"+parm])], **style)
 
-    def plot_chandra_sector(self, parm="kT", merger=False, hot=False, cold=False,
+    def plot_chandra_sector(self, ax, parm="kT", merger=False, hot=False, cold=False,
                             style=dict()):
         if self.name != "cygA":
             print "ERROR: Sectoranalysis not available for", self.name
             return
         if merger:
-            pyplot.errorbar(numpy.ma.compressed(self.merger_for_plotting["r"]),
-                            numpy.ma.compressed(self.merger_for_plotting[parm]),
-                            xerr=numpy.ma.compressed(self.merger_for_plotting["fr"])/2,
-                            yerr=[numpy.ma.compressed(self.merger_for_plotting["f"+parm]),
-                                  numpy.ma.compressed(self.merger_for_plotting["f"+parm])], **style)
+            ax.errorbar(numpy.ma.compressed(self.merger_for_plotting["r"]),
+                        numpy.ma.compressed(self.merger_for_plotting[parm]),
+                        xerr=numpy.ma.compressed(self.merger_for_plotting["fr"])/2,
+                        yerr=[numpy.ma.compressed(self.merger_for_plotting["f"+parm]),
+                              numpy.ma.compressed(self.merger_for_plotting["f"+parm])], **style)
         if hot:
-            pyplot.errorbar(numpy.ma.compressed(self.hot_for_plotting["r"]),
-                            numpy.ma.compressed(self.hot_for_plotting[parm]),
-                            xerr=numpy.ma.compressed(self.hot_for_plotting["fr"])/2,
-                            yerr=[numpy.ma.compressed(self.hot_for_plotting["f"+parm]),
-                                  numpy.ma.compressed(self.hot_for_plotting["f"+parm])], **style)
+            ax.errorbar(numpy.ma.compressed(self.hot_for_plotting["r"]),
+                        numpy.ma.compressed(self.hot_for_plotting[parm]),
+                        xerr=numpy.ma.compressed(self.hot_for_plotting["fr"])/2,
+                        yerr=[numpy.ma.compressed(self.hot_for_plotting["f"+parm]),
+                              numpy.ma.compressed(self.hot_for_plotting["f"+parm])], **style)
         if cold:
-            pyplot.errorbar(numpy.ma.compressed(self.cold_for_plotting["r"]),
-                            numpy.ma.compressed(self.cold_for_plotting[parm]),
-                            xerr=numpy.ma.compressed(self.cold_for_plotting["fr"])/2,
-                            yerr=[numpy.ma.compressed(self.cold_for_plotting["f"+parm]),
-                                  numpy.ma.compressed(self.cold_for_plotting["f"+parm])], **style)
+            ax.errorbar(numpy.ma.compressed(self.cold_for_plotting["r"]),
+                        numpy.ma.compressed(self.cold_for_plotting[parm]),
+                        xerr=numpy.ma.compressed(self.cold_for_plotting["fr"])/2,
+                        yerr=[numpy.ma.compressed(self.cold_for_plotting["f"+parm]),
+                              numpy.ma.compressed(self.cold_for_plotting["f"+parm])], **style)
 
-    def plot_bestfit_betamodel(self, style=dict(), rho=True):
+    def plot_bestfit_betamodel(self, ax, style=dict(), rho=True):
         fit = profiles.gas_density_betamodel(self.ana_radii,
                 self.rho0 if rho else self.ne0, self.beta, self.rc, self.rcut_kpc)
 
@@ -273,29 +275,29 @@ class ObservedCluster(object):
             label += " beta & = & {0:.3f} \\\\".format(self.beta)
             label += " rc & = & {0:.2f} kpc \\\\".format(self.rc)
             label += (" \hline \end{tabular}")
-        pyplot.plot(self.ana_radii, fit, **style)
+        ax.plot(self.ana_radii, fit, **style)
 
         ymin = profiles.gas_density_betamodel(
             self.rc, self.rho0 if rho else self.ne0, self.beta, self.rc)
-        pyplot.vlines(x=self.rc, ymin=ymin, ymax=1e-10 if rho else 9.15,
-                      **{ k: style[k] for k in style.keys() if k != "label" })
-        pyplot.text(self.rc-25 if self.name == "cygNW" else self.rc-1,
-            3e-23 if rho else 4.06, r"$r_c$", ha="right", fontsize=22)
+        ax.vlines(x=self.rc, ymin=ymin, ymax=1e-10 if rho else 9.15,
+                  **{ k: style[k] for k in style.keys() if k != "label" })
+        ax.text(self.rc-25 if self.name == "cygNW" else self.rc-1,
+                3e-23 if rho else 4.06, r"$r_c$", ha="right", fontsize=22)
 
-    def plot_bestfit_residuals(self, rho=False):
+    def plot_bestfit_residuals(self, ax, rho=False):
         fit = profiles.gas_density_betamodel(self.avg["r"],
             self.rho0 if rho else self.ne0, self.beta, self.rc)
 
         residuals = (self.avg["n"] - fit)/self.avg["n"]
 
-        pyplot.errorbar(self.avg["r"], 100*residuals,
-                        yerr=100*self.avg["fn"]/self.avg["n"],
-                        ls="", c="k", lw=3, elinewidth=1)
-        pyplot.errorbar(self.avg["r"]-self.avg["fr"]/2, 100*residuals, c="k",
-                        lw=3, elinewidth=1, drawstyle="steps-post")
-        pyplot.axvline(x=self.rc, lw=3, ls="dashed", c="k")
+        ax.errorbar(self.avg["r"], 100*residuals,
+                    yerr=100*self.avg["fn"]/self.avg["n"],
+                    ls="", c="k", lw=3, elinewidth=1)
+        ax.errorbar(self.avg["r"]-self.avg["fr"]/2, 100*residuals, c="k",
+                    lw=3, elinewidth=1, drawstyle="steps-post")
+        ax.axvline(x=self.rc, lw=3, ls="dashed", c="k")
 
-    def plot_inferred_nfw_profile(self, style=dict(), rho=True):
+    def plot_inferred_nfw_profile(self, ax, style=dict(), rho=True):
         rs = self.halo["rs"]
         density = self.halo["rho0_dm"] if rho else self.halo["ne0_dm"]
         rho_dm = profiles.dm_density_nfw(self.ana_radii, density, rs, rcut=self.rcut_nfw_kpc)
@@ -306,31 +308,30 @@ class ObservedCluster(object):
             label += r" rho0dm & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.halo["rho0_dm"])
             label += " rs & = & {0:.2f} kpc \\\\".format(rs)
             label += (" \hline \end{tabular}")
-        pyplot.plot(self.ana_radii, rho_dm, **style)
+        ax.plot(self.ana_radii, rho_dm, **style)
 
         ymin = profiles.dm_density_nfw(rs, density, rs)
-        pyplot.vlines(x=rs, ymin=ymin, ymax=1e-10 if rho else 9.15,
-                      **{ k: style[k] for k in style.keys() if k != "label" })
-        pyplot.text(rs-25, 3e-23 if rho else 4.06, r"$r_s$", ha="right", fontsize=22)
+        ax.vlines(x=rs, ymin=ymin, ymax=1e-10 if rho else 9.15,
+                  **{ k: style[k] for k in style.keys() if k != "label" })
+        ax.text(rs-25, 3e-23 if rho else 4.06, r"$r_s$", ha="right", fontsize=22)
 
-    def plot_bestfit_betamodel_mass(self, style=dict()):
+    def plot_bestfit_betamodel_mass(self, ax, style=dict()):
         mass = convert.g2msun*self.M_gas(self.ana_radii*convert.kpc2cm)
-        pyplot.plot(self.ana_radii, mass , **style)
+        ax.plot(self.ana_radii, mass , **style)
 
-    def plot_inferred_nfw_mass(self, style=dict()):
+    def plot_inferred_nfw_mass(self, ax, style=dict()):
         mass = convert.g2msun*self.M_dm(self.ana_radii*convert.kpc2cm)
-        pyplot.plot(self.ana_radii, mass, **style)
+        ax.plot(self.ana_radii, mass, **style)
 
-    def plot_inferred_total_gravitating_mass(self, style=dict()):
+    def plot_inferred_total_gravitating_mass(self, ax, style=dict()):
         mass = convert.g2msun*self.M_tot(self.ana_radii*convert.kpc2cm)
-        pyplot.plot(self.ana_radii, mass, **style)
+        ax.plot(self.ana_radii, mass, **style)
 
-    def plot_hydrostatic_mass(self, style=dict()):
+    def plot_hydrostatic_mass(self, ax, style=dict()):
         style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
         style["label"] = "HE"
         style["color"] = "b"
-        pyplot.plot(self.HE_radii*convert.cm2kpc,
-            self.HE_M_below_r*convert.g2msun, **style)
+        ax.plot(self.HE_radii*convert.cm2kpc, self.HE_M_below_r*convert.g2msun, **style)
 
     def plot_verlinde(self, ax1, ax2, ax3, style=dict()):
         style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
@@ -370,15 +371,14 @@ class ObservedCluster(object):
         style["label"] = "Verlinde"
         style["color"] = "r"
 
-    def plot_inferred_temperature(self, style=dict()):
+    def plot_inferred_temperature(self, ax, style=dict()):
         radii = self.ana_radii
-        pyplot.plot(radii, self.hydrostatic,
-            label="cNFW={0:.3f}, bf={1:.4f}".format(
+        ax.plot(radii, self.hydrostatic, label="cNFW={0:.3f}, bf={1:.4f}".format(
             self.halo["cNFW"], self.halo["bf200"]),
             **{ k: style[k] for k in style.keys() if k != "label" })
 
-    def plot_inferred_pressure(self, style=dict(), do_cut=False):
-        pyplot.plot(self.ana_radii, self.hydrostatic_pressure, **style)
+    def plot_inferred_pressure(self, ax, style=dict(), do_cut=False):
+        ax.plot(self.ana_radii, self.hydrostatic_pressure, **style)
 # ----------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------
@@ -417,7 +417,7 @@ class Toycluster(object):
             self.dm["r"] = numpy.sqrt(p2(self.dm["x"] - self.boxhalf) +
                 p2(self.dm["y"] - self.boxhalf) + p2(self.dm["z"] - self.boxhalf))
 
-            self.compute_profiles()
+            self.compute_profiles(verbose=verbose)
         else:
             if verbose: print "    Found two clusters in box --> running find_dm_centroid"
 
@@ -434,8 +434,8 @@ class Toycluster(object):
             # Create Cluster instances to hold the per-halo particles
             self.halo0 = Cluster(self.header)
             self.halo1 = Cluster(self.header)
-            self.halo0.set_toycluster_halo(self.gas[left], self.dm[left], self.centroid0)
-            self.halo1.set_toycluster_halo(self.gas[right], self.dm[right], self.centroid1)
+            self.halo0.set_toycluster_halo(self.gas[left], self.dm[left], self.centroid0, verbose=verbose)
+            self.halo1.set_toycluster_halo(self.gas[right], self.dm[right], self.centroid1, verbose=verbose)
 
     def __str__(self):
         tmp = "Toycluster ICfile header:\n"
@@ -449,10 +449,10 @@ class Toycluster(object):
         self.M_dm_tot = self.header["ndm"] * self.header["massarr"][1] * 1e10
         self.M_gas_tot = self.header["ngas"] * self.header["massarr"][0] * 1e10
 
-    def compute_profiles(self):
+    def compute_profiles(self, verbose=True):
         self.set_gas_mass()
         self.set_gas_pressure()
-        self.set_dm_mass()
+        self.set_dm_mass(verbose=verbose)
         self.set_dm_density()
 
     def set_gas_mass(self, NGB=295):
@@ -593,9 +593,9 @@ class Cluster(Toycluster):
         self.header = header
         if verbose: "  Created Cluster instance"
 
-    def set_toycluster_halo(self, gas, dm, centroid):
+    def set_toycluster_halo(self, gas, dm, centroid, verbose=True):
         self.ics = True
-        self.set_header_properties()
+        self.set_header_properties(verbose=verbose)
         self.gas = gas
         self.dm = dm
         self.centroid = centroid
@@ -608,9 +608,9 @@ class Cluster(Toycluster):
         self.gas["r"] = numpy.sqrt(p2(self.gas["x"]) + p2(self.gas["y"]) +  p2(self.gas["z"]))
         self.dm["r"] = numpy.sqrt(p2(self.dm["x"]) + p2(self.dm["y"]) +  p2(self.dm["z"]))
 
-        self.compute_profiles()
+        self.compute_profiles(verbose=verbose)
 
-    def set_gadget_single_halo(self, snapnr, path_to_snaphot):
+    def set_gadget_single_halo(self, snapnr, path_to_snaphot, verbose=True):
         self.ics = False
         self.header, self.gas, self.dm = parse.toycluster_icfile(path_to_snaphot)
         self.set_header_properties()
@@ -622,7 +622,7 @@ class Cluster(Toycluster):
         self.dm["r"] = numpy.sqrt(p2(self.dm["x"] - self.boxhalf) +
             p2(self.dm["y"] - self.boxhalf) +  p2(self.dm["z"] - self.boxhalf))
 
-        self.compute_profiles()
+        self.compute_profiles(verbose=verbose)
 
 # ----------------------------------------------------------------------------
 # Class to hold Gadget-2 simulation snaphots

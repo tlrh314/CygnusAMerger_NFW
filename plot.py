@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import time
+
 import numpy
 import astropy.units as u
 import astropy.constants as const
@@ -12,9 +14,6 @@ import fit
 import profiles
 import convert
 from line_profiler_support import profile
-
-from deco import concurrent, synchronized
-threads=4
 
 # ----------------------------------------------------------------------------
 # Plots for Chandra observations
@@ -373,12 +372,14 @@ def smith_hydrostatic_mass(c, debug=False):
         pyplot.savefig("out/{0}_smith_temperature.pdf".format(c.name), dpi=300)
 
 
-@profile
-def donnert2014_figure1(c, sim=None, snapnr=None, verlinde=False):
+# @profile
+def donnert2014_figure1(c, add_sim=False, verlinde=False):
     """ Create Donnert (2014) Figure 1 for the Cygnus observation + best-fit models
         @param c     : ObservedCluster
         @param sim   : Simulation
         @param snapnr: TODO, string"""
+
+    time.sleep(10)
 
     avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 2 }
     gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
@@ -387,30 +388,26 @@ def donnert2014_figure1(c, sim=None, snapnr=None, verlinde=False):
 
     fig, ((ax0, ax1), (ax2, ax3)) = pyplot.subplots(2, 2, figsize=(18, 16))
 
-    pyplot.sca(ax0)
-    c.plot_chandra_average(parm="rho", style=avg)
-    c.plot_bestfit_betamodel(style=gas, rho=True)
-    c.plot_inferred_nfw_profile(style=dm, rho=True)
+    c.plot_chandra_average(ax0, parm="rho", style=avg)
+    c.plot_bestfit_betamodel(ax0, style=gas, rho=True)
+    c.plot_inferred_nfw_profile(ax0, style=dm, rho=True)
     ax0.set_yscale("log")
     ax0.set_ylim(1e-30, 1e-22)
 
-    pyplot.sca(ax1)
-    c.plot_bestfit_betamodel_mass(style=gas)
-    c.plot_inferred_nfw_mass(style=dm)
-    c.plot_inferred_total_gravitating_mass(style=tot)
-    c.plot_hydrostatic_mass(style=tot)
+    c.plot_bestfit_betamodel_mass(ax1, style=gas)
+    c.plot_inferred_nfw_mass(ax1, style=dm)
+    c.plot_inferred_total_gravitating_mass(ax1, style=tot)
+    c.plot_hydrostatic_mass(ax1, style=tot)
     #ax1.loglog(radii, convert.g2msun*masstot_check, **tot)
     ax1.set_yscale("log")
     ax1.set_ylim(1e5, 1e16)
 
-    pyplot.sca(ax2)
-    c.plot_chandra_average(parm="kT", style=avg)
-    c.plot_inferred_temperature(style=tot)
+    c.plot_chandra_average(ax2, parm="kT", style=avg)
+    c.plot_inferred_temperature(ax2, style=tot)
     ax2.set_ylim(-1, 10)
 
-    pyplot.sca(ax3)
-    c.plot_chandra_average(parm="P", style=avg)
-    c.plot_inferred_pressure(style=tot)
+    c.plot_chandra_average(ax3, parm="P", style=avg)
+    c.plot_inferred_pressure(ax3, style=tot)
     #ax3.loglog(radii, hydrostatic_pressure, **tot)
     ax3.set_yscale("log")
     ax3.set_ylim(1e-15, 5e-9)
@@ -428,39 +425,39 @@ def donnert2014_figure1(c, sim=None, snapnr=None, verlinde=False):
     ax2.set_ylabel("Temperature [keV]")
     ax3.set_ylabel("Pressure [erg/cm$^3$]")
 
-    # TODO: speed up; runtime is 17 seconds for ics; 1m50s for 6 snaps (2e4 particles)
-    if sim:
+    if add_sim:
+        return fig.number
+    else:
+        fig.tight_layout()
+        fig.savefig("out/{0}{1}_donnert2014figure1{2}_cNFW={3:.3f}_bf={4:.4f}{5}{6}.pdf"
+            .format("fit/" if hasattr(c, "fit_counter") else "", c.name,
+                    "_fit-{0:02d}".format(c.fit_counter) if hasattr(c, "fit_counter") else "",
+                    c.halo["cNFW"], c.halo["bf200"], "_cut" if c.rcut_kpc is not None else "",
+                    "_withVerlinde" if verlinde else ""), dpi=300)
+        pyplot.close(fig)
+
+
+def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None):
         gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
                 "markeredgecolor": "none",  "label": ""}
         dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
                 "markeredgecolor": "none", "label": ""}
 
-        if snapnr is None:
-            halo = getattr(sim, "toy", None)
-        else:
-            halo = getattr(sim, "snap{0}".format(int(snapnr)), None)
-        if halo is None:  # TODO do this check before bothering to plot obs
-            print "ERROR: Simulation has no attr {0}".format(
-                "toy" if not snapnr else "snap"+snapnr)
-            pyplot.close()
-            return
+        fig = pyplot.figure(fignum)
+        ax0, ax1, ax2, ax3 = fig.get_axes()
 
-        if snapnr and hasattr(sim, "dt"):
-            pyplot.suptitle("T = {0:04.2f} Gyr".format(int(snapnr)*sim.dt))
+        if hasattr(halo, "time"):
+            fig.suptitle("T = {0:04.2f} Gyr".format(halo.time))
 
-        pyplot.sca(ax0)
-        pyplot.plot(halo.gas["r"], halo.gas["rho"], **gas)
-        pyplot.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
+        ax0.plot(halo.gas["r"], halo.gas["rho"], **gas)
+        ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
 
-        pyplot.sca(ax1)
-        pyplot.plot(halo.gas["r"], halo.gas["mass"], **gas)
-        pyplot.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
+        ax1.plot(halo.gas["r"], halo.gas["mass"], **gas)
+        ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
 
-        pyplot.sca(ax2)
-        pyplot.plot(halo.gas["r"], halo.gas["kT"], **gas)
+        ax2.plot(halo.gas["r"], halo.gas["kT"], **gas)
 
-        pyplot.sca(ax3)
-        pyplot.plot(halo.gas["r"], halo.gas["P"], **gas)
+        ax3.plot(halo.gas["r"], halo.gas["P"], **gas)
 
         inner = numpy.where(halo.gas["r"] < 100)
         hsml = 2*numpy.median(halo.gas["hsml"][inner])
@@ -468,29 +465,18 @@ def donnert2014_figure1(c, sim=None, snapnr=None, verlinde=False):
             # The y coordinates are axes while the x coordinates are data
             trans = matplotlib.transforms.blended_transform_factory(
                 ax.transData, ax.transAxes)
-            pyplot.sca(ax)
-            pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 0, 1,
+            ax.fill_between(numpy.arange(2000, 1e4, 0.01), 0, 1,
                 facecolor="grey", edgecolor="grey", alpha=0.2,
                 transform=trans)
-            pyplot.axvline(x=hsml, c="g", ls=":")
-            pyplot.text(hsml, 0.05, r"$2 h_{sml}$", ha="left", color="g",
+            ax.axvline(x=hsml, c="g", ls=":")
+            ax.text(hsml, 0.05, r"$2 h_{sml}$", ha="left", color="g",
                 transform=trans, fontsize=22)
 
-        pyplot.tight_layout(rect=[0, 0.00, 1, 0.98])  # rect b/c suptitle/tight_layout bug
-        pyplot.savefig(sim.outdir+"{0}_donnert2014figure1_cNFW={1:.3f}_bf={2:.4f}{3}{4}.png"
-            .format(c.name, c.halo["cNFW"], c.halo["bf200"],
-                    "_withVerlinde" if verlinde else "",
-                    "_"+snapnr if snapnr else ""), dpi=300)
-        pyplot.close()
+        fig.tight_layout(rect=[0, 0.00, 1, 0.98])  # rect b/c suptitle/tight_layout bug
+        fig.savefig(savedir+"{0}_donnert2014figure1{1}.png"
+            .format(halo.name, "_"+snapnr if snapnr else ""), dpi=300)
+        pyplot.close(fig)
         return
-
-    pyplot.tight_layout()
-    pyplot.savefig("out/{0}{1}_donnert2014figure1{2}_cNFW={3:.3f}_bf={4:.4f}{5}{6}.pdf"
-        .format("fit/" if hasattr(c, "fit_counter") else "", c.name,
-                "_fit-{0:02d}".format(c.fit_counter) if hasattr(c, "fit_counter") else "",
-                c.halo["cNFW"], c.halo["bf200"], "_cut" if c.rcut_kpc is not None else "",
-                "_withVerlinde" if verlinde else ""), dpi=300)
-    pyplot.close()
 
 
 def twocluster_parms(cygA, cygNW, sim=None, verlinde=False):
@@ -774,26 +760,6 @@ def toyclustercheck_T(obs, sim, halo="000"):
     pyplot.savefig(sim.outdir+"{0}_sampled_temperature.png".format(obs.name), dpi=150)
     pyplot.close()
 
-
-# ----------------------------------------------------------------------------
-# Plots numerical haloes saved by P-Gadget3
-# ----------------------------------------------------------------------------
-# @concurrent(processes=threads)
-def singlecluster_stability_i(obs, sim, snapnr, verbose=True):
-    if verbose: print "  snapnr = {0}".format(snapnr)
-    donnert2014_figure1(obs, sim, snapnr="{0:03d}".format(snapnr), verlinde=False)
-
-
-# @synchronized
-def singlecluster_stability(sim, obs, verbose=True):
-    if not hasattr(sim, "gadget"):
-        print "ERROR: simulation has no Gadget3Output instance"
-        return
-
-    if verbose: print "Running plot_singlecluster_stability"
-    for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots):
-        sim.set_gadget_snap_single(snapnr, path_to_snaphot)
-        singlecluster_stability_i(obs, sim, snapnr, verbose=verbose)
 
 # ----------------------------------------------------------------------------
 # Plots 2D projection cubes saved by P-Smac2
