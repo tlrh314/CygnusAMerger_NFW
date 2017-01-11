@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import copy
 import argparse
 import numpy
 from matplotlib import pyplot
@@ -17,6 +18,11 @@ style = PlotSettings()
 
 # import warnings
 # warnings.simplefilter('error', UserWarning)
+
+threads=4
+from conc import concurrent
+from conc import synchronized
+
 
 
 def show_observations(cygA, cygNW):
@@ -176,6 +182,29 @@ def test_cnfw(a):
         plot.inferred_temperature(cygA)
 
 
+
+@concurrent(processes=threads)
+def yada(obs, sim, snapnr, path_to_snaphot):
+    sim = copy.deepcopy(sim)
+    print snapnr, id(obs), id(sim), path_to_snaphot
+    sim.set_gadget_snap_single(snapnr, path_to_snaphot)
+    halo = getattr(sim, "snap{0}".format(snapnr), None)
+    if halo is not None:
+        fignum = plot.donnert2014_figure1(obs, add_sim=True, verlinde=False)
+        plot.add_sim_to_donnert2014_figure1(fignum, halo, sim.outdir, snapnr="{0:03d}".format(snapnr))
+    else:
+        print "ERROR"
+
+
+@synchronized
+def singlecluster_stability(sim, obs, verbose=True):
+    if verbose: print "Running plot_singlecluster_stability"
+
+    sim.set_gadget_paths(verbose=a.verbose)
+    for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots):
+        yada(obs, sim, snapnr, path_to_snaphot)
+
+
 def new_argument_parser():
     args = argparse.ArgumentParser(
         description="Simulation Pipeline Parser")
@@ -204,23 +233,26 @@ if __name__ == "__main__":
     a = new_argument_parser().parse_args()
     if a.embed: header = ""
 
-    sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp)
-    if a.embed: header += "Simulation instance in `sim'"
+    sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
+    if a.embed: header += "Simulation instance in `sim'\n"
 
 
     # cygA, cygNW = infer_toycluster_ics(a)
     if a.clustername == "both":
         cygA, cygNW = set_observed_clusters(a)
-        sim.plot_twocluster_stability(cygA, cygNW)
+        # sim.plot_twocluster_stability(cygA, cygNW)
         if a.embed: header += "ObservedCluster instances in `cygA' and `cygNW'\n"
 
     if a.clustername == "cygA" or a.clustername == "cygNW":
         obs = set_observed_cluster(a)
-        sim.plot_singlecluster_stability(obs)
+        import pickle
+        s = pickle.dumps(obs)
+        singlecluster_stability(sim, obs, verbose=a.verbose)
         if a.embed: header += "ObservedCluster instance in `obs'\n"
 
 
-    # plot.donnert2014_figure1(obs, sim, snapnr=None)
+    # fig = plot.donnert2014_figure1(obs)
+    # plot.addsim sim and snapnr
 
     # plot.donnert2014_figure1(obs, verlinde=False)
 

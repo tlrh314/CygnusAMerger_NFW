@@ -20,7 +20,7 @@ from panda import create_panda
 # Class to set simulation paths and the like
 # ----------------------------------------------------------------------------
 class Simulation(object):
-    def __init__(self, base, timestamp, name=None, verbose=True):
+    def __init__(self, base, name, timestamp, set_data=True, verbose=True):
         """ Set the simulation output paths
             @param base     : base path where 'runs' dir is stored, string
             @param timestamp: SimulationID; name of subfolder in 'runs', string
@@ -51,9 +51,10 @@ class Simulation(object):
             print "Created directory {0}".format(self.outdir)
 
         if verbose: print self
-        self.read_ics(verbose)
-        self.set_gadget(verbose)
-        self.read_smac(verbose)
+        if set_data:
+            self.read_ics(verbose)
+            self.set_gadget_paths(verbose)
+            self.read_smac(verbose)
 
     def __str__(self):
         tmp = "Simulation: {0} --> {1}\n".format(self.timestamp, self.name)
@@ -77,7 +78,7 @@ class Simulation(object):
 
         if verbose: print ""
 
-    def set_gadget(self, verbose=False):
+    def set_gadget_paths(self, verbose=False):
         if verbose: print "  Parsing Gadet-3 output"
         if not (os.path.isdir(self.simdir) or os.path.exists(self.simdir)):
             print "    Directory '{0}' does not exist.".format(self.simdir)
@@ -85,11 +86,12 @@ class Simulation(object):
 
         self.gadget = Gadget3Output(self.simdir, verbose=verbose)
         self.dt = self.gadget.parms['TimeBetSnapshot']
+
         if verbose:
             print "  Succesfully loaded snaps"
-            print "  {0}".format(self.gadget)
-            print "    Snapshot paths:"
-            for p in self.gadget.snapshots: print " "*6+p
+            print "  Snapshot paths:"
+            for p in self.gadget.snapshots: print " "*4+p
+            print "\n  {0}".format(self.gadget)
             print
 
     def plot_ics(self, obs):
@@ -97,13 +99,11 @@ class Simulation(object):
             print "ERROR: simulation has no Toycluster instance"
             return
 
-        plot.donnert2014_figure1(obs, self, snapnr=None, verlinde=False)
+        fig = plot.donnert2014_figure1(obs, add_sim=True, verlinde=False)
+        plot.add_sim_to_donnert2014_figure1(fig, self.toy,  self.outdir)
         plot.toycluster_profiles(obs, self)
         plot.toyclustercheck(obs, self)
         plot.toyclustercheck_T(obs, self)
-
-    def plot_singlecluster_stability(self, obs, verbose=True):
-        plot.singlecluster_stability(self, obs, verbose=verbose)
 
     def plot_twocluster_stability(self, cygA, cygNW, verbose=True):
         if not hasattr(self, "gadget"):
@@ -116,9 +116,11 @@ class Simulation(object):
             if verbose: print "  {0}: {1}".format(snapnr, path_to_snaphot)
 
     def set_gadget_snap_single(self, snapnr, path_to_snaphot, verbose=False):
-        h = Cluster(None)
-        h.set_gadget_single_halo(snapnr, path_to_snaphot)
-        setattr(self, "snap{0}".format(snapnr), h)
+        h = Cluster(None, verbose=verbose)
+        h.name = "snap{0}".format(snapnr)
+        h.time = snapnr*self.dt
+        h.set_gadget_single_halo(snapnr, path_to_snaphot, verbose=verbose)
+        setattr(self, h.name, h)
 
     def unset_gadget_snap_single(self, snapnr):
         # 'free' the mem b/c want to parallelise
