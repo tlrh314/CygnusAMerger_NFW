@@ -5,6 +5,9 @@ import sys
 import time
 import argparse
 import logging
+
+from parse import psmac2_fitsfile
+
 try:
     import pyds9
 except ImportError:
@@ -45,15 +48,13 @@ def open_file(d, fname):
             # d.set("scale linear")
             # d.set("scale limits 2e6 2e8")
             # d.set("cmap bb")
-            time.sleep(0.5)
             a = d.get_arr2np()
-            d.set("frame delete")
-            d.set("frame new")
             kB = 8.6173427909e-08  # keV/K
             d.set_np2arr(a*kB)
             d.set("scale linear")
-            d.set("cmap bb")
             d.set("scale limits 0.1 9")
+            d.set("cmap bb")
+            # time.sleep(0.5)
         if "xray" in fname:
             d.set("scale log")
             d.set("scale limits 1e-8 2e-4")
@@ -77,12 +78,21 @@ def open_file(d, fname):
             raise
 
 
-def setup_ds9_connection():
+def setup_ds9_connection(reconnect):
     """ Open a DS9 window. If DS9 already opened spawn a new instance """
 
     # ds9_targets returns None if no ds9 window is opened
     ds9_running = pyds9.ds9_targets()
     if ds9_running:
+        if reconnect and len(ds9_running) == 1:
+            connectionstring = (ds9_running[0]).replace("DS9:ds9 ", "")
+            d = pyds9.DS9(connectionstring)
+            time.sleep(0.5)
+            return d, connectionstring
+        elif reconnect and len(ds9_running) != 1:
+            print "Error: multiple ds9 instances running. Unknown which to connect to."
+            exit(1)
+
         print "We see that ds9 is already running."
         sys.stdout.write("Opening a new ds9 window...")
         sys.stdout.flush()
@@ -119,11 +129,16 @@ def cmd():
     os.system("open /Applications/Firefox.app/ 'http://ds9.si.edu/doc/ref/command.html'")
     del(os)
 
+def print_fitsheader(fits):
+    for line in repr(fits[0].header).split("\n"):
+        print line.strip()
+
 
 def main(args):
     # List of commands: http://ds9.si.edu/doc/ref/command.html
 
-    d, connectionstring = setup_ds9_connection()
+    d, connectionstring = setup_ds9_connection(args.reconnect)
+
     header = "DS9 instance in object `d`:"
     header += " Connectionstring = {0}".format(connectionstring)
 
@@ -131,24 +146,35 @@ def main(args):
         sys.stdout.write("\nRestoring ds9 backup of Lx lss and kT lss ...")
         sys.stdout.flush()
         lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
-        d.set("restore {0}".format(lss))
+        lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
+        lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+        Lx = pyfits.open(lss_Lx)
+        kT = pyfits.open(lss_kT)
+        header += "\nlss Lx instance in object 'Lx'"
+        header += "\nlss kT instance in object 'kT'"
+        header += ""
+        if not args.reconnect: d.set("restore {0}".format(lss))
         print " done"
 
     if args.filename:
         for i, fname in enumerate(args.filename):
             sys.stdout.write("\nOpening file '{0}' ...".format(fname))
             sys.stdout.flush()
-            open_file(d, fname)
+            if not args.reconnect: open_file(d, fname)
             if has_fits :
                 f = "f{0}".format(i)
-                exec(f + "= 'pyfits.open(args.filename)'")
+                exec("{0} = pyfits.open(fname)".format(f))
+                if "fits.fz" in fname:
+                    exec("{0}_header, {0}_data = psmac2_fitsfile(fname)".format(f))
+                    exec("{0}_pix2kcp = float({0}_header['XYSize'])/float({0}_header['XYPix'])".format(f))
                 header += "\npyfits instance in object `{0}`".format(f)
+
             print " done"
 
     IPython.embed(banner1="", header=header)
 
     # Close the ds9 window if it is still open
-    if pyds9.ds9_targets() and "DS9:{0} {1}".format(d.target, d.id) in pyds9.ds9_targets():
+    if pyds9.ds9_targets() and "DS9:ds9 {0}".format(connectionstring) in pyds9.ds9_targets():
         d.set("exit")
 
 
@@ -157,7 +183,7 @@ if __name__ == "__main__":
         "connection, and embed into iPython session")
     parser.add_argument("-f", "--filename", dest="filename", default=None,
                         nargs='*')
-    parser.add_argument("-c", "--chandra", dest="chandra", action="store_true",
-                        default=False)
+    parser.add_argument("-c", "--chandra", dest="chandra", action="store_true")
+    parser.add_argument("-r", "--reconnect", dest="reconnect", action="store_true")
 
     main(parser.parse_args())
