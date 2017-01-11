@@ -595,7 +595,7 @@ class Cluster(Toycluster):
 
     def set_toycluster_halo(self, gas, dm, centroid, verbose=True):
         self.ics = True
-        self.set_header_properties(verbose=verbose)
+        self.set_header_properties()
         self.gas = gas
         self.dm = dm
         self.centroid = centroid
@@ -623,6 +623,25 @@ class Cluster(Toycluster):
             p2(self.dm["y"] - self.boxhalf) +  p2(self.dm["z"] - self.boxhalf))
 
         self.compute_profiles(verbose=verbose)
+
+    def set_gadget_double_halo(self, gas, dm, centroid, verbose=True):
+        self.ics = False
+        self.set_header_properties()
+        self.gas = gas
+        self.dm = dm
+        self.centroid = centroid
+
+        # Shift halo to [0, 0, 0]
+        self.gas["x"] -= self.centroid[0]
+        self.gas["y"] -= self.centroid[1]
+        self.gas["z"] -= self.centroid[2]
+
+        self.gas["r"] = numpy.sqrt(p2(self.gas["x"]) + p2(self.gas["y"]) +  p2(self.gas["z"]))
+        self.dm["r"] = numpy.sqrt(p2(self.dm["x"]) + p2(self.dm["y"]) +  p2(self.dm["z"]))
+
+        self.compute_profiles(verbose=verbose)
+
+        # TODO
 
 # ----------------------------------------------------------------------------
 # Class to hold Gadget-2 simulation snaphots
