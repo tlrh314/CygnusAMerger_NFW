@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy
 import scipy
 from scipy import special

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """ Number density to mass density; gadget <--> cgs density
     Based on Julius' IDL script gadget_density
 

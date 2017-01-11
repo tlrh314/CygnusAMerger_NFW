@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy
 import astropy.units as u
 from matplotlib import pyplot

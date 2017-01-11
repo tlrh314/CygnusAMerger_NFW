@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import scipy
 from scipy import stats
 import numpy

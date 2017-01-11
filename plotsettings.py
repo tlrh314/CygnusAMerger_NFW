@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import matplotlib
 from matplotlib import pyplot
 #matplotlib.use("Qt4Agg", warn=False)

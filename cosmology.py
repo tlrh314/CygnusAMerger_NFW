@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 File: cosmology.py
 
@@ -7,7 +9,7 @@ Copyright for the original (online) calculator 1999-2016 Edward L. Wright.
 If you use this calculator while preparing a paper, please cite Wright (2006, PASP, 118, 1711).
 
 Some additions/alterations were made by TLRH
-Last modified: Tue Nov 08, 2016 03:11 PM
+Last modified: Wed Jan 11, 2017 01:47 pm
 
 """
 #!/usr/bin/env python
