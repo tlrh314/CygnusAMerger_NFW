@@ -19,10 +19,9 @@ style = PlotSettings()
 # import warnings
 # warnings.simplefilter('error', UserWarning)
 
-threads=4
+threads=16
 from conc import concurrent
 from conc import synchronized
-
 
 
 def show_observations(cygA, cygNW):
@@ -182,9 +181,8 @@ def test_cnfw(a):
         plot.inferred_temperature(cygA)
 
 
-
 @concurrent(processes=threads)
-def yada(obs, sim, snapnr, path_to_snaphot):
+def plot_singlecluster_stability(obs, sim, snapnr, path_to_snaphot):
     sim = copy.deepcopy(sim)
     print snapnr, id(obs), id(sim), path_to_snaphot
     sim.set_gadget_snap_single(snapnr, path_to_snaphot)
@@ -195,6 +193,8 @@ def yada(obs, sim, snapnr, path_to_snaphot):
     else:
         print "ERROR"
 
+    del(sim)
+
 
 @synchronized
 def singlecluster_stability(sim, obs, verbose=True):
@@ -202,7 +202,38 @@ def singlecluster_stability(sim, obs, verbose=True):
 
     sim.set_gadget_paths(verbose=a.verbose)
     for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots):
-        yada(obs, sim, snapnr, path_to_snaphot)
+        plot_singlecluster_stability(obs, sim, snapnr, path_to_snaphot)
+
+
+@concurrent(processes=threads)
+def plot_twocluster_stability(cygA, cygNW, sim, snapnr, path_to_snaphot):
+    sim = copy.deepcopy(sim)
+    print snapnr, id(cygA), id(cygNW), id(sim), path_to_snaphot
+    sim.set_gadget_snap_double(snapnr, path_to_snaphot)
+
+    cygAsim = getattr(sim, "cygA{0}".format(snapnr), None)
+    if cygAsim is not None:
+        fignum = plot.donnert2014_figure1(cygA, add_sim=True, verlinde=False)
+        plot.add_sim_to_donnert2014_figure1(fignum, cygAsim, sim.outdir, snapnr="{0:03d}".format(snapnr))
+    else:
+       print "ERROR"
+
+    cygNWsim = getattr(sim, "cygNW{0}".format(snapnr), None)
+    if cygNWsim is not None:
+        fignum = plot.donnert2014_figure1(cygNW, add_sim=True, verlinde=False)
+        plot.add_sim_to_donnert2014_figure1(fignum, cygNWsim, sim.outdir, snapnr="{0:03d}".format(snapnr))
+    else:
+       print "ERROR"
+
+    del(sim)
+
+@synchronized
+def twocluster_stability(sim, cygA, cygNW, verbose=True):
+    if verbose: print "Running plot_singlecluster_stability"
+
+    sim.set_gadget_paths(verbose=a.verbose)
+    for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots):
+        plot_twocluster_stability(cygA, cygNW, sim, snapnr, path_to_snaphot)
 
 
 def new_argument_parser():
@@ -240,13 +271,11 @@ if __name__ == "__main__":
     # cygA, cygNW = infer_toycluster_ics(a)
     if a.clustername == "both":
         cygA, cygNW = set_observed_clusters(a)
-        # sim.plot_twocluster_stability(cygA, cygNW)
+        twocluster_stability(sim, cygA, cygNW, verbose=a.verbose)
         if a.embed: header += "ObservedCluster instances in `cygA' and `cygNW'\n"
 
     if a.clustername == "cygA" or a.clustername == "cygNW":
         obs = set_observed_cluster(a)
-        import pickle
-        s = pickle.dumps(obs)
         singlecluster_stability(sim, obs, verbose=a.verbose)
         if a.embed: header += "ObservedCluster instance in `obs'\n"
 

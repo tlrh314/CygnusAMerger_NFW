@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import glob
 import numpy
 import scipy
 from scipy import signal
@@ -128,8 +129,39 @@ class Simulation(object):
         #  if i%16 == 0: gc.collect()  # TODO: test necessity
         print
 
+    def set_gadget_snap_double(self, snapnr, path_to_snaphot, verbose=False):
+        if verbose: print "    Found two clusters in box --> running find_dm_centroid"
 
-        pass
+        header, gas, dm = parse.toycluster_icfile(path_to_snaphot)
+        gas["rho"] = convert.toycluster_units_to_cgs(gas["rho"])
+        gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(gas["u"]))
+
+        # First find dark matter centroids
+        tmp = Cluster(header, verbose=verbose)
+        tmp.set_header_properties()
+        tmp.dm = dm
+        tmp.parms = parse.read_toycluster_parameterfile(glob.glob(self.icsdir+"*.par")[0])
+
+        if not tmp.find_dm_centroid(single=False, verbose=verbose):
+            print "ERROR: find_dm_centroid failed!"
+            return
+
+        # Assign particles to left or right halo
+        self.com = (tmp.centroid0[0] + tmp.centroid1[0])/2   # midpoint between both haloes
+        left = numpy.where(gas["x"] < self.com)
+        right = numpy.where(gas["x"] > self.com)
+
+        h0 = Cluster(header, verbose=verbose)
+        h0.name = "cygA{0}".format(snapnr)
+        h0.time = snapnr*self.dt
+        h0.set_gadget_double_halo(gas[left], dm[left], tmp.centroid0, verbose=verbose)
+        setattr(self, h0.name, h0)
+
+        h1 = Cluster(header, verbose=verbose)
+        h1.name = "cygNW{0}".format(snapnr)
+        h1.time = snapnr*self.dt
+        h1.set_gadget_double_halo(gas[right], dm[right], tmp.centroid1, verbose=verbose)
+        setattr(self, h1.name, h1)
 
     def read_smac(self, verbose=False):
         if verbose: print "  Parsing P-Smac2 output"
