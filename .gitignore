@@ -170,10 +170,15 @@ ENV/
 # Rope project settings
 .ropeproject
 
-._*
-data
-*.dat
+# line_profiler
+*.lprof
+
+
+# Custom
 out
+data
+*.par
+*.dat
 *.[eo]*
 .DS_Store
-*.par
+._*

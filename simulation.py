@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import numpy
 import scipy
@@ -9,6 +11,7 @@ import plot
 import convert
 from macro import p2, p3, print_progressbar
 from cluster import Toycluster
+from cluster import Cluster
 from cluster import Gadget3Output
 from cluster import PSmac2Output
 from panda import create_panda
@@ -53,7 +56,7 @@ class Simulation(object):
         self.read_smac(verbose)
 
     def __str__(self):
-        tmp = "Simulation: {0}\n".format(self.timestamp)
+        tmp = "Simulation: {0} --> {1}\n".format(self.timestamp, self.name)
         tmp += "  rundir     : {0}\n".format(self.rundir)
         tmp += "  icsdir     : {0}\n".format(self.icsdir)
         tmp += "  simdir     : {0}\n".format(self.simdir)
@@ -61,59 +64,77 @@ class Simulation(object):
         tmp += "  outdir     : {0}\n".format(self.outdir)
         return tmp
 
-    def read_ics(self, both=False, verbose=False):
+    def read_ics(self, verbose=False):
         if verbose: print "  Parsing Toycluster output"
-        self.toy = Toycluster(self.icsdir, both=True if self.name=="both" else False,
-                              verbose=verbose)
-        if verbose: print "  Succesfully loaded ICs"
-        if verbose: print "  {0}".format(self.toy)
+        if self.name != "both":
+            self.toy = Toycluster(self.icsdir, single=True, verbose=verbose)
+            if verbose: print "  Succesfully loaded ICs"
+            if verbose: print "  {0}".format(self.toy)
+        else:
+            self.toy = Toycluster(self.icsdir, single=False, verbose=verbose)
+            if verbose: print "  Succesfully loaded ICs"
+            if verbose: print "  {0}".format(self.toy)
+
+        if verbose: print ""
 
     def set_gadget(self, verbose=False):
+        if verbose: print "  Parsing Gadet-3 output"
         if not (os.path.isdir(self.simdir) or os.path.exists(self.simdir)):
-            print "  Directory '{0}' does not exist.".format(self.simdir)
+            print "    Directory '{0}' does not exist.".format(self.simdir)
             return
 
-        if verbose: print "  Parsing Gadet-3 output"
         self.gadget = Gadget3Output(self.simdir, verbose=verbose)
         self.dt = self.gadget.parms['TimeBetSnapshot']
-        if verbose: print "  Succesfully loaded snaps"
-        if verbose: print "  {0}".format(self.gadget)
-
-    def plot_singlecluster_stability(self, obs):
-        if not hasattr(self, "gadget"):
-            plot.donnert2014_figure1(obs, self, verlinde=False)
-            plot.toycluster_profiles(obs, self)
-            plot.toyclustercheck(obs, self)
-            plot.toyclustercheck_T(obs, self)
-            return
-
-        for path_to_snaphot in self.gadget.snapshots:
-            print path_to_snaphot
-            self.current_snapnr = path_to_snaphot.split("_")[-1]
-
-            self.toy.header, self.toy.gas, self.toy.dm = parse.toycluster_icfile(path_to_snaphot)
-
-            self.toy.gas["rho"] = convert.toycluster_units_to_cgs(self.toy.gas["rho"])
-            self.toy.gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(self.toy.gas["u"]))
-
-            self.toy.set_gas_mass()
-            self.toy.set_gas_pressure()
-            self.toy.M_dm_tot = self.toy.header["ndm"] * self.toy.header["massarr"][1] * 1e10
-            self.toy.M_gas_tot = self.toy.header["ngas"] * self.toy.header["massarr"][0] * 1e10
-            self.toy.set_dm_mass()
-            self.toy.set_dm_density()
-            plot.donnert2014_figure1(obs, self, verlinde=False)
+        if verbose:
+            print "  Succesfully loaded snaps"
+            print "  {0}".format(self.gadget)
+            print "    Snapshot paths:"
+            for p in self.gadget.snapshots: print " "*6+p
             print
 
-    def eat_gadget(self, snapnr, verbose=False):
+    def plot_ics(self, obs):
+        if not hasattr(self, "toy"):
+            print "ERROR: simulation has no Toycluster instance"
+            return
+
+        plot.donnert2014_figure1(obs, self, snapnr=None, verlinde=False)
+        plot.toycluster_profiles(obs, self)
+        plot.toyclustercheck(obs, self)
+        plot.toyclustercheck_T(obs, self)
+
+    def plot_singlecluster_stability(self, obs, verbose=True):
+        plot.singlecluster_stability(self, obs, verbose=verbose)
+
+    def plot_twocluster_stability(self, cygA, cygNW, verbose=True):
+        if not hasattr(self, "gadget"):
+            print "ERROR: simulation has no Gadget3Output instance"
+            return
+
+        # TODO: run parallel, but deco does not work for class methods
+        if verbose: print "Running plot_twocluster_stability"
+        for snapnr, path_to_snaphot in enumerate(self.gadget.snapshots):
+            if verbose: print "  {0}: {1}".format(snapnr, path_to_snaphot)
+
+    def set_gadget_snap_single(self, snapnr, path_to_snaphot, verbose=False):
+        h = Cluster(None)
+        h.set_gadget_single_halo(snapnr, path_to_snaphot)
+        setattr(self, "snap{0}".format(snapnr), h)
+
+    def unset_gadget_snap_single(self, snapnr):
+        # 'free' the mem b/c want to parallelise
+        delattr(self, "snap{0}".format(snapnr))
+        #  if i%16 == 0: gc.collect()  # TODO: test necessity
+        print
+
+
         pass
 
     def read_smac(self, verbose=False):
+        if verbose: print "  Parsing P-Smac2 output"
         if not (os.path.isdir(self.analysisdir) or os.path.exists(self.analysisdir)):
-            print "  Directory '{0}' does not exist.".format(self.analysisdir)
+            print "    Directory '{0}' does not exist.".format(self.analysisdir)
             return
 
-        if verbose: print "  Parsing P-Smac2 output"
         self.psmac = PSmac2Output(self, verbose=verbose)
         if verbose: print "  Succesfully loaded P-Smac2 fitsfiles"
         if verbose: print "  {0}".format(self.psmac)
@@ -192,7 +213,7 @@ class Simulation(object):
                 .format(expected_xpeaks, expected_ypeaks)
             print "  cygA:  (x, y) = {0}".format(cygA)
             print "  cygNW: (x, y) = {0}".format(cygNW)
-            print "  distance      = {0:.2f}\n".format(distance)
+            print "  distance      = {0:.2f} kpc\n".format(distance)
             if do_plot: plot.psmac_xrays_with_dmrho_peakfind(
                 self, snapnr, xsum, ysum, xpeaks, ypeaks, distance)
             return cygA, cygNW, distance

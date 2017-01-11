@@ -6,20 +6,21 @@ import peakutils
 import matplotlib
 from matplotlib import pyplot
 
-from cluster import ObservedCluster
 import main
-import fit
 import convert
+import fit
 import plot
 import parse
-from parse import write_toycluster_parameterfile
+from cluster import ObservedCluster
 from simulation import Simulation
 from macro import *
+from line_profiler_support import profile
 
 from plotsettings import PlotSettings
 style = PlotSettings()
 
 
+@profile
 def loop_snaps(cygA, cygNW, sim):
     if not hasattr(sim.gadget, "snapshots"): return
 
@@ -43,6 +44,7 @@ def loop_snaps(cygA, cygNW, sim):
         # print
 
 
+@profile
 def genplots(cygA, cygNW, sim, i=None):
     avg = { "marker": "o", "ls": "", "c": "b", "ms": 1, "alpha": 1, "elinewidth": 1,
             "capsize": 0}
@@ -102,6 +104,7 @@ def genplots(cygA, cygNW, sim, i=None):
         pyplot.savefig(sim.outdir+"both_rho_ana"+snapnr+".png", dpi=300)
         pyplot.close()
 
+    @profile
     def find_peaks(dim="x"):
         boxsize = sim.toy.header["boxSize"]
         boxhalf = sim.toy.header["boxSize"]/2
@@ -116,7 +119,7 @@ def genplots(cygA, cygNW, sim, i=None):
         # savgol = scipy.signal.savgol_filter(hist, 21, 5)
         hist_smooth = scipy.ndimage.filters.gaussian_filter1d(hist, 5)
         spline = scipy.interpolate.splrep(edges, hist_smooth)  # built-in smoothing breaks
-        xval = numpy.arange(-boxhalf, boxhalf, 0.1)
+        xval = numpy.arange(0, boxsize, 0.1)
         hist_splev = scipy.interpolate.splev(xval, spline, der=0)
         peaks = peakutils.indexes(hist_splev)
 
@@ -151,19 +154,18 @@ def genplots(cygA, cygNW, sim, i=None):
 
     if sim.toy.parms["ImpactParam"] == 0.0:
         pass  # TODO: investigate if this makes profiles less puffy
-        ypeaks[0] = 0.0
-        zpeaks[0] = 0.0
+        # ypeaks[0] = 0.0
+        # zpeaks[0] = 0.0
 
     # It is important to get this right, otherwise we plot puffy profiles while
     # in fact the profiles could be very sharp...
     # Toycluster xpeaks and ypeaks is printed in the runtime output
     print xpeaks, ypeaks, zpeaks
 
-
     # Assign particles to left or right halo
-    com = (xpeaks[0]+xpeaks[1])   # in the middle between both haloes
-    zslice = numpy.where(sim.toy.gas["z"] > -20)
-    zslice2 = numpy.where(sim.toy.gas["z"] < 20)
+    com = (xpeaks[0]+xpeaks[1])/2   # in the middle between both haloes
+    zslice = numpy.where(sim.toy.gas["z"] > 0)
+    zslice2 = numpy.where(sim.toy.gas["z"] < 20000)
     zslice = (numpy.intersect1d(zslice, zslice2),)
     left = numpy.where(sim.toy.gas["x"] < com)
     leftzslice = (numpy.intersect1d(left, zslice),)
@@ -210,7 +212,6 @@ def genplots(cygA, cygNW, sim, i=None):
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Density [g/cm$^3$]")
     pyplot.tight_layout()
-    print pyplot.gca().get_xlim()
     pyplot.savefig(sim.outdir+"cygA_sampled_rho"+snapnr+".png", dpi=300)
     pyplot.close()
 
@@ -231,7 +232,7 @@ def genplots(cygA, cygNW, sim, i=None):
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Density [g/cm$^3$]")
     pyplot.tight_layout()
-    pyplot.savefig(sim.outdir+"cygNW_sampled_rho"+snapnr+".png", dpi=300)
+    pyplot.savefig(sim.outdir+"cygNW_sampled_kT"+snapnr+".png", dpi=300)
     pyplot.close()
 
     pyplot.figure()
@@ -255,6 +256,9 @@ def genplots(cygA, cygNW, sim, i=None):
     pyplot.close()
 
     pyplot.figure()
+    # TODO: add time counter
+    # TODO: plot modulo 10
+    # TODO: make parallel
     pyplot.semilogx(rright, kTright, **gas)
     cygNW.plot_chandra_average(parm="kT", style=avg)
     pyplot.semilogx(sim.toy.profiles["001"]["r"], convert.K_to_keV(
@@ -275,6 +279,7 @@ def genplots(cygA, cygNW, sim, i=None):
     pyplot.close()
 
 
+@profile
 def new_argument_parser():
     args = argparse.ArgumentParser(
         description="Simulation Pipeline Parser")
@@ -296,7 +301,8 @@ def new_argument_parser():
 
     return args
 
-if __name__ == "__main__":
+@profile
+def run_double_clusterstability():
     a = new_argument_parser().parse_args()
 
     a.clustername = "cygA"
@@ -305,13 +311,15 @@ if __name__ == "__main__":
     cygNW = main.set_observed_cluster(a)
     a.clustername = "both"
 
-    sim = Simulation(base="/usr/local/mscproj", name="both", timestamp="20170107T0845")
+    sim = Simulation(base="/usr/local/mscproj", name="both", timestamp="both_debug")
+    # sim = Simulation(base=a.basedir, name="both", timestamp=a.timestamp)
 
     genplots(cygA, cygNW, sim)
     loop_snaps(cygA, cygNW, sim)
 
-
-
     # plot.twocluster_parms(cygA, cygNW)
     # plot.donnert2014_figure1(cygA)
     # plot.donnert2014_figure1(cygNW)
+
+if __name__ == "__main__":
+    run_double_clusterstability()

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import argparse
 import numpy
@@ -8,6 +10,7 @@ import fit
 import plot
 from parse import write_toycluster_parameterfile
 from simulation import Simulation
+from line_profiler_support import profile
 
 from plotsettings import PlotSettings
 style = PlotSettings()
@@ -59,6 +62,7 @@ def write_ics(cygA, cygNW):
                "Mtotal": cygA.halo["M200"]/1e10, "Mass_Ratio": 0,
                "beta_0": cygA.beta, "beta_1": 0,
                "bf_0": cygA.halo["bf200"], "bf_1": 0,
+               "rcut_r200_ratio_0": cygA.RCUT_R200_RATIO, "rcut_r200_ratio_1": 0,
                "name_0": cygA.name, "name_1": "N/A",
                "c_nfw_0": cygA.halo["cNFW"], "rc_0": cygA.rc,
                "c_nfw_1": 0, "rc_1": 0, "filename":
@@ -67,6 +71,7 @@ def write_ics(cygA, cygNW):
                  "Mtotal": cygNW.halo["M200"]/1e10, "Mass_Ratio": 0,
                  "beta_0": cygNW.beta, "beta_1": 0,
                  "bf_0": cygNW.halo["bf200"], "bf_1": 0,
+                 "rcut_r200_ratio_0": cygNW.RCUT_R200_RATIO, "rcut_r200_ratio_1": 0,
                  "name_0": cygNW.name, "name_1": "N/A",
                  "c_nfw_0": cygNW.halo["cNFW"], "rc_0": cygNW.rc,
                  "c_nfw_1": 0, "rc_1": 0, "filename":
@@ -76,6 +81,8 @@ def write_ics(cygA, cygNW):
                "Mass_Ratio": cygNW.halo["M200"]/cygA.halo["M200"],
                "beta_0": cygA.beta, "beta_1": cygNW.beta,
                "bf_0": cygA.halo["bf200"], "bf_1": cygNW.halo["bf200"],
+               "rcut_r200_ratio_0": cygA.RCUT_R200_RATIO,
+               "rcut_r200_ratio_1": cygNW.RCUT_R200_RATIO,
                "name_0": cygA.name, "name_1": cygNW.name,
                "c_nfw_0": cygA.halo["cNFW"], "rc_0": cygA.rc,
                "c_nfw_1": cygNW.halo["cNFW"], "rc_1": cygNW.rc,
@@ -102,11 +109,12 @@ def infer_toycluster_ics(a):
     return cygA, cygNW
 
 
+@profile
 def set_observed_cluster(a):
     if a.clustername == "cygA":
         if a.do_cut:
             cNFW = 10.8084913766
-            0.0448823494125
+            bf = 0.0448823494125
             RCUT_R200_RATIO = 0.749826451566
         else:
             cNFW = 12.1616022474
@@ -128,24 +136,14 @@ def set_observed_cluster(a):
 
     return obs
 
-
-def check_toycluster_rho_and_temperature(a):
-    if not a.clustername and (a.clustername != "cygA" or a.clustername != "cygNW"):
-        print "Please specify clustername. Also for single cluster. Returning."
-        return
-
-    obs = set_observed_cluster(a)
-    r500, M500 = fit.find_r500(obs)
-    print "r500    =", r500
-    print "M500tot =", M500
-
-    sim = Simulation(a.basedir, a.timestamp, a.clustername)
-    if hasattr(sim.toy, "RCUT_R200_RATIO"):
-        RCUT_R200_RATIO = None # sim.toy.RCUT_R200_RATIO
-
-    sim.plot_singlecluster_stability(obs)
-
-    return obs, sim
+@profile
+def set_observed_clusters(a):
+    a.clustername = "cygA"
+    cygA = set_observed_cluster(a)
+    a.clustername = "cygNW"
+    cygNW = set_observed_cluster(a)
+    a.clustername = "both"
+    return cygA, cygNW
 
 
 def check_twocluster_ics(a):
@@ -182,7 +180,7 @@ def new_argument_parser():
     args = argparse.ArgumentParser(
         description="Simulation Pipeline Parser")
     args.add_argument("-t", "--timestamp", dest="timestamp",
-        help="String of the Simulation ID", default="20161124T0148")
+        help="String of the Simulation ID", default="both_debug")
     args.add_argument("-b", "--basedir", dest="basedir",
         help="Path to the base directory", default="/usr/local/mscproj")
     args.add_argument("-c", "--clustername", dest="clustername",
@@ -193,6 +191,8 @@ def new_argument_parser():
         help="Toggle verbose. Verbose is True by default", default=True)
     args.add_argument("-d", "--debug", dest="debug", action="store_true",
         help="Toggle debug. Debug is False by default", default=False)
+    args.add_argument("-e", "--embed", dest="embed", action="store_true",
+        help="Toggle iPython embedding. Embed is False by default", default=False)
     # group = args.add_mutually_exclusive_group(required=True)
     # group.add_argument("-t", "--timestamp", dest="timestamp", nargs=1,
     #    help="string of the Simulation ID")
@@ -202,12 +202,30 @@ def new_argument_parser():
 
 if __name__ == "__main__":
     a = new_argument_parser().parse_args()
+    if a.embed: header = ""
+
+    sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp)
+    if a.embed: header += "Simulation instance in `sim'"
+
 
     # cygA, cygNW = infer_toycluster_ics(a)
+    if a.clustername == "both":
+        cygA, cygNW = set_observed_clusters(a)
+        sim.plot_twocluster_stability(cygA, cygNW)
+        if a.embed: header += "ObservedCluster instances in `cygA' and `cygNW'\n"
 
-    # obs = set_observed_cluster(a)
+    if a.clustername == "cygA" or a.clustername == "cygNW":
+        obs = set_observed_cluster(a)
+        sim.plot_singlecluster_stability(obs)
+        if a.embed: header += "ObservedCluster instance in `obs'\n"
+
+
+    # plot.donnert2014_figure1(obs, sim, snapnr=None)
+
     # plot.donnert2014_figure1(obs, verlinde=False)
 
-    obs, sim = check_toycluster_rho_and_temperature(a)
+    # plot_smac_snapshots(a)
 
-    # plot_smac_snapshots(a)  # TODO: have correct cNFW, bf
+    if a.embed:
+        import IPython
+        IPython.embed(banner1="", header=header)

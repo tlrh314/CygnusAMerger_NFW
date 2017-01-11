@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from collections import OrderedDict
 import numpy
 import astropy
@@ -243,7 +245,9 @@ def toycluster_icfile(filename, verbose=False):
             @param block: list of ascii values
             @return:      name of block, string """
         name = ""
-        for char in block:
+        for i, char in enumerate(block):
+            if i == 4:
+                break
             if 65 <= char <= 90:
                 name += chr(char)
             else:
@@ -283,14 +287,16 @@ def toycluster_icfile(filename, verbose=False):
         if blocklength != blocklength_end:
             print "ERROR: blocklengths differ"
 
+        if verbose:
+            print "\n      Header"
+            for k, v in header.iteritems(): print " "*8+"{0:<15}: {1}".format(k, v)
+            print
+
     def set_pos_or_vel(f, name):
         """ float32; first gas (x,y,z) then dm (x,y,z) """
         name = "" if name == "POS" else "v"
         if verbose: print "    Parsing block as position"
         block = eat_block(f, dtype="float32")
-        if name != "v":
-            # Shift halo back to origin (TODO: Toycluster single cluster only!)
-            block -= header["boxSize"]/2
         block = block.reshape((header["ntot"], 3))
         gaspart = block[0:header["ngas"]]
         dmpart = block[header["ngas"]:header["ntot"]]
@@ -301,9 +307,6 @@ def toycluster_icfile(filename, verbose=False):
         dm[name+"x"] = dmpart[:,0]
         dm[name+"y"] = dmpart[:,1]
         dm[name+"z"] = dmpart[:,2]
-        if name != "v":  # set radius
-            gas["r"] = numpy.sqrt(p2(gas["x"])+p2(gas["y"])+p2(gas["z"]))
-            dm["r"] = numpy.sqrt(p2(dm["x"])+p2(dm["y"])+p2(dm["z"]))
 
     def set_id(f, name=None):
         """ uint32, first gas then dm """
@@ -353,8 +356,6 @@ def toycluster_icfile(filename, verbose=False):
             if blockname: routines.get(blockname, void_block)(f, blockname)
 
     if verbose:
-        print "\nHeader"
-        for k, v in header.iteritems(): print "{0:<15}: {1}".format(k, v)
         print "\nGas"
         print gas
         print "\nDM"

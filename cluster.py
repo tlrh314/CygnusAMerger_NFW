@@ -1,8 +1,12 @@
+# -*- coding: utf-8 -*-
+
 import scipy
 import re
 import glob
 import numpy
 import astropy
+import peakutils
+import copy
 from matplotlib import pyplot
 
 from cosmology import CosmologyCalculator
@@ -381,8 +385,8 @@ class ObservedCluster(object):
 # Class to hold Toycluster sampled clusters
 # ----------------------------------------------------------------------------
 class Toycluster(object):
-    """ Parse and store Toycluster sampled cluster """
-    def __init__(self, icdir, both=False, verbose=True):
+    """ Parse and store Toycluster single cluster """
+    def __init__(self, icdir, single=False, verbose=True):
         """ Class to hold Toycluster simulation output
         @param icdir: path to the directory with Toycluster output, string
         @return     : instance of Toycluster class"""
@@ -391,6 +395,7 @@ class Toycluster(object):
         for filename in glob.glob(icdir+"profiles_*.txt"):
             halonumber = re.search("(?!(.+)(profiles_))(\d{3})", filename).group()
             self.profiles[halonumber] = parse.toycluster_profiles(filename)
+
         self.header, self.gas, self.dm = parse.toycluster_icfile(icdir+"IC_single_0")
         self.parms = parse.read_toycluster_parameterfile(glob.glob(icdir+"*.par")[0])
         self.makefile_options = parse.read_toycluster_makefile(glob.glob(icdir+"Makefile_Toycluster")[0])
@@ -398,25 +403,57 @@ class Toycluster(object):
             if "-DRCUT_R200_RATIO=" in v:
                 self.RCUT_R200_RATIO = float(v.split("-DRCUT_R200_RATIO=")[1])
 
-        self.r_sample = self.header["boxSize"]/2
+        self.set_header_properties()
 
-        self.gas["rho"] = convert.toycluster_units_to_cgs(self.gas["rho"])
+        # rhom only Toycluster
         self.gas["rhom"] = convert.toycluster_units_to_cgs(self.gas["rhom"])
+        self.gas["rho"] = convert.toycluster_units_to_cgs(self.gas["rho"])
         self.gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(self.gas["u"]))
-        if not both:
-            self.set_gas_mass()
-            self.set_gas_pressure()
-            self.M_dm_tot = self.header["ndm"] * self.header["massarr"][1] * 1e10
-            self.M_gas_tot = self.header["ngas"] * self.header["massarr"][0] * 1e10
-            self.set_dm_mass()
-            self.set_dm_density()
+
+        if single:
+            # 0 < Pos < boxSize. Set radius given that the center is at boxhalf
+            self.gas["r"] = numpy.sqrt(p2(self.gas["x"] - self.boxhalf) +
+                p2(self.gas["y"] - self.boxhalf) +  p2(self.gas["z"] - self.boxhalf))
+            self.dm["r"] = numpy.sqrt(p2(self.dm["x"] - self.boxhalf) +
+                p2(self.dm["y"] - self.boxhalf) + p2(self.dm["z"] - self.boxhalf))
+
+            self.compute_profiles()
         else:
-            print "TODO: implement eating two clusters in box"
+            if verbose: print "    Found two clusters in box --> running find_dm_centroid"
+
+            # First find dark matter centroids
+            if not self.find_dm_centroid(single=single, verbose=verbose):
+                print "ERROR: find_dm_centroid failed!"
+                return
+
+            # Assign particles to left or right halo
+            self.com = (self.centroid0[0] + self.centroid1[0])/2   # midpoint between both haloes
+            left = numpy.where(self.gas["x"] < self.com)
+            right = numpy.where(self.gas["x"] > self.com)
+
+            # Create Cluster instances to hold the per-halo particles
+            self.halo0 = Cluster(self.header)
+            self.halo1 = Cluster(self.header)
+            self.halo0.set_toycluster_halo(self.gas[left], self.dm[left], self.centroid0)
+            self.halo1.set_toycluster_halo(self.gas[right], self.dm[right], self.centroid1)
 
     def __str__(self):
         tmp = "Toycluster ICfile header:\n"
-        for k, v in self.header.iteritems(): tmp += "    {0:<25}: {1}\n".format(k, v)
+        for k, v in self.header.iteritems(): tmp += "    {0:<17}: {1}\n".format(k, v)
         return tmp
+
+    def set_header_properties(self):
+        self.boxsize = self.header["boxSize"]
+        self.boxhalf = self.header["boxSize"]/2
+
+        self.M_dm_tot = self.header["ndm"] * self.header["massarr"][1] * 1e10
+        self.M_gas_tot = self.header["ngas"] * self.header["massarr"][0] * 1e10
+
+    def compute_profiles(self):
+        self.set_gas_mass()
+        self.set_gas_pressure()
+        self.set_dm_mass()
+        self.set_dm_density()
 
     def set_gas_mass(self, NGB=295):
         """ Set the gas mass from the SPH density, see Price (2012, eq. 11)
@@ -432,7 +469,8 @@ class Toycluster(object):
     def set_dm_mass(self, verbose=True):
         """ Count particles <r (= number density). Obtain DM mass from it """
 
-        if verbose: print "    Counting nr. of particles with radius < r to obtain M(<r)"
+        if verbose:
+            print "    Counting nr. of particles with radius < r to obtain M(<r)"
 
         radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e5), 1001))
         dr = radii[1:] - radii[:-1]
@@ -468,6 +506,124 @@ class Toycluster(object):
         self.gas["P"] = convert.rho_to_ne(self.gas["rho"]) *\
             convert.keV_to_erg(self.gas["kT"])
 
+    def find_dm_peak(self, expected, dim="x"):
+        if dim != "x" and dim != "y" and dim != "z":
+            print "ERROR: please use 'x', 'y', or 'z' as dimension in find_dm_peak"
+            return None
+        nbins = int(numpy.sqrt(self.header["ndm"]))
+        hist, edges = numpy.histogram(self.dm[dim], bins=nbins, normed=True)
+        edges = (edges[:-1] + edges[1:])/2
+
+        # savgol = scipy.signal.savgol_filter(hist, 21, 5)
+        hist_smooth = scipy.ndimage.filters.gaussian_filter1d(hist, 5)
+        spline = scipy.interpolate.splrep(edges, hist_smooth)
+        xval = numpy.arange(0, self.boxsize, 0.1)
+        hist_splev = scipy.interpolate.splev(xval, spline, der=0)
+        peaks = peakutils.indexes(hist_splev)
+
+        if len(peaks) != expected:
+            print "ERROR: more than one {0}peak found".format(dim)
+            return None
+
+        # pyplot.figure()
+        # pyplot.plot(edges, hist, **dm)
+        # pyplot.plot(xval, hist_splev)
+        # pyplot.ylim(0, 1.1*numpy.max(hist))
+        # pyplot.xlabel(dim)
+        # pyplot.ylabel("Normed Counts")
+        # for peak in xval[peaks]: pyplot.axvline(peak)
+        # pyplot.tight_layout()
+        # pyplot.savefig(sim.outdir+"dm_peak_{0}".format(dim)+snapnr+".png", dpi=300)
+        # pyplot.close()
+
+        return xval[peaks]
+
+    def find_dm_centroid(self, single=True, verbose=True):
+        """ TODO: It is important to get halo centroid right, otherwise we plot puffy
+        profiles while the sampled profiles could be sharper ...
+        Toycluster does print the xpeaks and ypeaks at runtime (so for ICs we can
+        verify this method) """
+        if single:
+            exp_x = 1
+            exp_y = 1
+            exp_z = 1
+        else:  # two clusters
+            if self.parms["ImpactParam"] == 0.0:
+                exp_x = 2
+                exp_y = 1
+                exp_z = 1
+                # TODO: investigate if this makes profiles less puffy
+                # ypeaks[0] = 0.0
+                # zpeaks[0] = 0.0
+            else:
+                """ TODO: The histogram does not have enough resolution to find two ypeaks
+                if the impactparam is not 0 (e.g. 50 kpc). We could split the haloes based
+                on x-position and then look for the y peaks in self.dm["y"] """
+                pass
+                # TODO: implement for impactparam
+                # exp_x = 2
+                # exp_y = 2
+                # exp_z = 1
+
+        xpeaks = self.find_dm_peak(exp_x, "x")
+        ypeaks = self.find_dm_peak(exp_y, "y")
+        zpeaks = self.find_dm_peak(exp_z, "z")
+
+        if type(xpeaks) != numpy.ndarray or type(ypeaks) != numpy.ndarray \
+                or type(zpeaks) != numpy.ndarray : return False
+
+        halo0 = xpeaks[0], ypeaks[0], zpeaks[0]
+        halo1 = xpeaks[1 if exp_x == 2 else 0], ypeaks[1 if exp_y == 2 else 0], zpeaks[0]
+
+        distance = numpy.sqrt(p2(halo0[0] - halo1[0]) + p2(halo0[1] - halo1[1]) +
+                              p2(halo0[2] - halo1[2]))
+        if single: halo1 = None
+        self.centroid0, self.centroid1, self.distance = halo0, halo1, distance
+        if verbose:
+            print "    Success: found {0} xpeaks, {1} ypeak, and {2} zpeak!"\
+                .format(exp_x, exp_y, exp_z)
+            print "      halo0:  (x, y, z) = {0}".format(halo0)
+            print "      halo1:  (x, y, z) = {0}".format(halo1)
+            print "      distance          = {0:.2f} kpc\n".format(distance)
+        return True  # success status
+
+
+class Cluster(Toycluster):
+    def __init__(self, header, verbose=True):
+        self.header = header
+        if verbose: "  Created Cluster instance"
+
+    def set_toycluster_halo(self, gas, dm, centroid):
+        self.ics = True
+        self.set_header_properties()
+        self.gas = gas
+        self.dm = dm
+        self.centroid = centroid
+
+        # Shift halo to [0, 0, 0]
+        self.gas["x"] -= self.centroid[0]
+        self.gas["y"] -= self.centroid[1]
+        self.gas["z"] -= self.centroid[2]
+
+        self.gas["r"] = numpy.sqrt(p2(self.gas["x"]) + p2(self.gas["y"]) +  p2(self.gas["z"]))
+        self.dm["r"] = numpy.sqrt(p2(self.dm["x"]) + p2(self.dm["y"]) +  p2(self.dm["z"]))
+
+        self.compute_profiles()
+
+    def set_gadget_single_halo(self, snapnr, path_to_snaphot):
+        self.ics = False
+        self.header, self.gas, self.dm = parse.toycluster_icfile(path_to_snaphot)
+        self.set_header_properties()
+
+        self.gas["rho"] = convert.toycluster_units_to_cgs(self.gas["rho"])
+        self.gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(self.gas["u"]))
+        self.gas["r"] = numpy.sqrt(p2(self.gas["x"] - self.boxhalf) +
+            p2(self.gas["y"] - self.boxhalf) +  p2(self.gas["z"] - self.boxhalf))
+        self.dm["r"] = numpy.sqrt(p2(self.dm["x"] - self.boxhalf) +
+            p2(self.dm["y"] - self.boxhalf) +  p2(self.dm["z"] - self.boxhalf))
+
+        self.compute_profiles()
+
 # ----------------------------------------------------------------------------
 # Class to hold Gadget-2 simulation snaphots
 # ----------------------------------------------------------------------------
@@ -500,7 +656,7 @@ class Gadget3Output(object):  # TODO parse individual snapshots, split box in ha
 
     def __str__(self):
         tmp = "Gadget-3 parameters:\n"
-        for k, v in self.parms.iteritems(): tmp += "    {0:<25}: {1}\n".format(k, v)
+        for k, v in self.parms.iteritems(): tmp += "    {0:<39}: {1}\n".format(k, v)
         return tmp
 
     def set_snapshot_paths(self, simdir):
