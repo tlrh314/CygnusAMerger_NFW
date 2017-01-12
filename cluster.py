@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
-import scipy
+import os
 import re
 import glob
+import copy
+
 import numpy
+import scipy
 import astropy
 import peakutils
-import copy
+import dill
 
 from cosmology import CosmologyCalculator
 import parse
@@ -15,8 +18,6 @@ import profiles
 import fit
 from macro import *
 
-# ensure that lambda function inside ObservedCluster is pickleable for deco parallelisation
-import dill
 
 
 # ----------------------------------------------------------------------------
@@ -85,7 +86,7 @@ class ObservedCluster(object):
                             verbose=verbose, debug=debug)
 
         # Set callable gas/dm density/mass profiles, and total mass profile
-        self.set_inferred_profiles()
+        # self.set_inferred_profiles()
 
         # T(r) from hydrostatic equilibrium by plugging in rho_gas, M(<r)
         self.set_inferred_temperature(verbose=verbose)
@@ -184,21 +185,24 @@ class ObservedCluster(object):
             self.rcut_nfw_kpc = None
             self.rcut_nfw_cm = None
 
-    def set_inferred_profiles(self):
-        # We need callable gas profile, and a callable total mass profile
-        rho0_gas = self.rho0
-        rho0_dm = self.halo["rho0_dm"]
+    def rho_gas(self, r):
+        return profiles.gas_density_betamodel(r, self.rho0, self.beta,
+            self.rc*convert.kpc2cm, rcut=self.rcut_cm)
 
-        self.rho_gas = lambda r: profiles.gas_density_betamodel(r, rho0_gas,
-            self.beta, self.rc*convert.kpc2cm, rcut=self.rcut_cm)
-        self.rho_dm = lambda r: profiles.dm_density_nfw(r, rho0_dm,
-            self.halo["rs"]*convert.kpc2cm, rcut=self.rcut_nfw_cm)
-        self.M_gas = lambda r: profiles.gas_mass_betamodel(r, rho0_gas,
-            self.beta, self.rc*convert.kpc2cm, rcut=self.rcut_cm)
-        self.M_dm = lambda r: profiles.dm_mass_nfw(r, rho0_dm,
+    def rho_dm(self, r):
+        return profiles.dm_density_nfw(r, self.halo["rho0_dm"],
             self.halo["rs"]*convert.kpc2cm, rcut=self.rcut_nfw_cm)
 
-        self.M_tot = lambda r: (self.M_gas(r) + self.M_dm(r))
+    def M_gas(self, r):
+        return profiles.gas_mass_betamodel(r, self.rho0,
+            self.beta, self.rc*convert.kpc2cm, rcut=self.rcut_cm)
+
+    def M_dm(self, r):
+        return profiles.dm_mass_nfw(r, self.halo["rho0_dm"],
+        self.halo["rs"]*convert.kpc2cm, rcut=self.rcut_nfw_cm)
+
+    def M_tot(self, r):
+        return (self.M_gas(r) + self.M_dm(r))
 
     def set_inferred_temperature(self, verbose=False):
         """ Assume NFW for DM. Get temperature from hydrostatic equation by
@@ -333,18 +337,18 @@ class ObservedCluster(object):
         style["color"] = "b"
         ax.plot(self.HE_radii*convert.cm2kpc, self.HE_M_below_r*convert.g2msun, **style)
 
+    def M_verlinde(self, r):
+        return profiles.verlinde_apparent_DM_mass(r, self.rho0, self.beta,
+                                                  self.rc*convert.kpc2cm)
+
+    def M_tot_verlinde(self, r):
+        return (self.M_gas(r) + self.M_verlinde(r))
+
     def plot_verlinde(self, ax1, ax2, ax3, style=dict()):
         style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
         style["label"] = "Verlinde"
         style["color"] = "r"
 
-        rho_gas = lambda r: profiles.gas_density_betamodel(r*convert.kpc, self.rho0,
-            self.beta, self.rc*convert.kpc2cm)
-        M_gas = lambda r: profiles.gas_mass_betamodel(r*convert.kpc, self.rho0,
-            self.beta, self.rc*convert.kpc2cm)
-        M_verlinde = lambda r: profiles.verlinde_apparent_DM_mass(
-            r*convert.kpc, self.rho0, self.beta, self.rc*convert.kpc2cm)
-        M_tot = lambda r: (M_gas(r) + M_verlinde(r))
 
         radii = self.ana_radii  # if not fit else self.avg["r"]
         N = len(radii)
@@ -356,11 +360,11 @@ class ObservedCluster(object):
         for i, r in enumerate(self.ana_radii*convert.kpc2cm):
             if not r: continue  # to skip masked values
 
-            mass[i] = M_verlinde(r)
+            mass[i] = self.M_verlinde(r)
             temperature[i] = profiles.hydrostatic_temperature(
-                r, infinity, rho_gas, M_tot)
+                r, infinity, self.rho_gas, self.M_tot_verlinde)
             pressure[i] = profiles.hydrostatic_gas_pressure(
-                r, infinity, rho_gas, M_tot)
+                r, infinity, self.rho_gas, self.M_tot_verlinde)
 
         ax1.plot(radii, mass*convert.g2msun, **style)
         ax2.plot(radii, convert.K_to_keV(temperature), **style)
@@ -635,6 +639,9 @@ class Cluster(Toycluster):
         self.gas["x"] -= self.centroid[0]
         self.gas["y"] -= self.centroid[1]
         self.gas["z"] -= self.centroid[2]
+        self.dm["x"] -= self.centroid[0]
+        self.dm["y"] -= self.centroid[1]
+        self.dm["z"] -= self.centroid[2]
 
         self.gas["r"] = numpy.sqrt(p2(self.gas["x"]) + p2(self.gas["y"]) +  p2(self.gas["z"]))
         self.dm["r"] = numpy.sqrt(p2(self.dm["x"]) + p2(self.dm["y"]) +  p2(self.dm["z"]))
@@ -679,7 +686,7 @@ class Gadget3Output(object):  # TODO parse individual snapshots, split box in ha
         return tmp
 
     def set_snapshot_paths(self, simdir):
-        self.snapshots = glob.glob(simdir+"snapshot_*")
+        self.snapshots = sorted(glob.glob(simdir+"snapshot_*"), key=os.path.getmtime)
 
 
 # ----------------------------------------------------------------------------
@@ -714,6 +721,13 @@ class PSmac2Output(object):
             "xray-surface-brightness": "xray",
             "velocity": "vel"
         }
+        attr_renamed = {
+            "rho": "rhogas", "DMrho": "rhodm",
+            "Tspec": "tspec",
+            "Tem": "tem",
+            "xray": "xray",
+            "vel": "vel"
+        }
 
         smaccubes = glob.glob(sim.analysisdir+"*.fits.fz")
         for path in smaccubes:
@@ -721,8 +735,15 @@ class PSmac2Output(object):
                 if cubename in path:
                     break
             else:
-                print "ERROR: unknown fits filename '{0}'".format(path)
-                continue
+                for cubename, attr in attr_renamed.iteritems():
+                    if cubename in path:
+                        break
+                else:
+                    print "ERROR: unknown fits filename '{0}'".format(path)
+                    continue
+            print path
+            attr = attr+(path.split("_")[-1]).split(".fits.fz")[0]
+            print attr
             header, data = parse.psmac2_fitsfile(path)
             setattr(self, attr+"_header", header)
             setattr(self, attr, data)

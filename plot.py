@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import time
+import copy
 
 import numpy
 import astropy.units as u
@@ -9,11 +9,14 @@ import matplotlib
 from matplotlib import pyplot
 from matplotlib import gridspec
 from matplotlib.ticker import MaxNLocator
+from line_profiler_support import profile
+from deco import concurrent, synchronized
+threads=16
 
 import fit
 import profiles
 import convert
-from line_profiler_support import profile
+
 
 # ----------------------------------------------------------------------------
 # Plots for Chandra observations
@@ -35,7 +38,8 @@ def quiescent_parm(c, parm="rho"):
         return
 
     pyplot.figure(figsize=(12, 9))
-    c.plot_chandra_average(parm=parm, style=avg)
+    ax = pyplot.gca()
+    c.plot_chandra_average(ax, parm=parm, style=avg)
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel(parmnames[parm])
     pyplot.xscale("log")
@@ -68,11 +72,12 @@ def sector_parm(c, parm="kT"):
         print "ERRROR: parm '{0}' is not available".format(parm)
         return
 
-    pyplot.figure(figsize=(12, 9))
-    c.plot_chandra_average(parm=parm, style=avg)
-    c.plot_chandra_sector(parm=parm, merger=True, style=merger)
-    c.plot_chandra_sector(parm=parm, hot=True, style=hot)
-    c.plot_chandra_sector(parm=parm, cold=True, style=cold)
+    fig = pyplot.figure(figsize=(12, 9))
+    ax = pyplot.gca()
+    c.plot_chandra_average(ax, parm=parm, style=avg)
+    c.plot_chandra_sector(ax, parm=parm, merger=True, style=merger)
+    c.plot_chandra_sector(ax, parm=parm, hot=True, style=hot)
+    c.plot_chandra_sector(ax, parm=parm, cold=True, style=cold)
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel(parmnames[parm])
     pyplot.xscale("log")  # Linear better shows merger-affected radii
@@ -121,8 +126,8 @@ def bestfit_betamodel(c):
     # Plot Chandra observation and betamodel with mles
     pyplot.sca(ax)
 
-    c.plot_chandra_average(parm="rho", style=avg)
-    c.plot_bestfit_betamodel(style=fit)
+    c.plot_chandra_average(ax, parm="rho", style=avg)
+    c.plot_bestfit_betamodel(ax, style=fit)
     pyplot.ylabel("Density [1/cm$^3$]")
     pyplot.xscale("log")
     pyplot.yscale("log")
@@ -131,7 +136,7 @@ def bestfit_betamodel(c):
 
     # Plot residuals
     pyplot.sca(ax_r)
-    c.plot_bestfit_residuals()
+    c.plot_bestfit_residuals(ax_r)
     pyplot.axhline(y=0, lw=3, ls="dashed", c="k")
     pyplot.ylabel("Residuals [\%]")
     pyplot.xlabel("Radius [kpc]")
@@ -165,9 +170,10 @@ def inferred_nfw_profile(c):
     dm = { "color": "k", "lw": 1, "linestyle": "solid" }
 
     pyplot.figure(figsize=(12,9))
-    c.plot_chandra_average(parm="rho", style=avg)
-    c.plot_bestfit_betamodel(style=fit)
-    c.plot_inferred_nfw_profile(style=dm)
+    ax = pyplot.gca()
+    c.plot_chandra_average(ax, parm="rho", style=avg)
+    c.plot_bestfit_betamodel(ax, style=fit)
+    c.plot_inferred_nfw_profile(ax, style=dm)
 
     pyplot.fill_between(numpy.arange(2000, 1e4, 0.01), 1e-32, 9e-24,
         facecolor="grey", edgecolor="grey", alpha=0.2)
@@ -196,8 +202,9 @@ def inferred_mass(c):
     dm = { "color": "k", "lw": 1, "linestyle": "solid", "label": "DM" }
 
     pyplot.figure(figsize=(12, 9))
-    c.plot_bestfit_betamodel_mass(style=gas)
-    c.plot_inferred_nfw_mass(style=dm)
+    ax = pyplot.gca()
+    c.plot_bestfit_betamodel_mass(ax, style=gas)
+    c.plot_inferred_nfw_mass(ax, style=dm)
 
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Mass [Msun]")
@@ -225,8 +232,8 @@ def inferred_temperature(c):
 
     for ax in [ax0, ax1]:
         pyplot.sca(ax)
-        c.plot_chandra_average(parm="kT", style=avg)
-        c.plot_inferred_temperature(style=tot)
+        c.plot_chandra_average(ax, parm="kT", style=avg)
+        c.plot_inferred_temperature(ax, style=tot)
         ax.set_xlabel("Radius [kpc]")
         ax.set_ylabel("kT [keV]")
         ax.set_ylim(0.1, 12)
@@ -255,8 +262,9 @@ def inferred_pressure(c):
     tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
 
     pyplot.figure(figsize=(12, 9))
-    c.plot_chandra_average(parm="P", style=avg)
-    c.plot_inferred_pressure(style=tot)
+    ax = pyplot.gca()
+    c.plot_chandra_average(ax, parm="P", style=avg)
+    c.plot_inferred_pressure(ax, style=tot)
 
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Pressure [erg/cm$^3$]")
@@ -307,12 +315,12 @@ def smith_hydrostatic_mass(c, debug=False):
         ax1 = pyplot.subplot(gs1[1], sharex=ax3)
         ax0 = pyplot.subplot(gs1[0], sharex=ax3)
 
-        pyplot.sca(ax0); c.plot_chandra_average(parm="n", style=avg)
+        pyplot.sca(ax0); c.plot_chandra_average(ax0, parm="n", style=avg)
         ax0.loglog(c.HE_radii*convert.cm2kpc, c.HE_ne, **ana)
         ax0.set_ylabel("n$_e$(r) [1/cm$^3$]")
         ax1.semilogx(c.HE_radii*convert.cm2kpc, c.HE_dne_dr, **ana)
         ax1.set_ylabel("dn$_e$ / dr")
-        pyplot.sca(ax2); c.plot_chandra_average(parm="T", style=avg)
+        pyplot.sca(ax2); c.plot_chandra_average(ax2, parm="T", style=avg)
         ax2.loglog(c.HE_radii*convert.cm2kpc, c.HE_T, **ana)
         ax2.set_yticks([3e7, 5e7, 7e7, 9e7])
         ax2.set_ylabel("T(r) [K]")
@@ -355,7 +363,8 @@ def smith_hydrostatic_mass(c, debug=False):
         print "Smith (2002)", mle, err
 
         pyplot.figure(figsize=(12, 9))
-        c.plot_chandra_average(parm="kT", style=avg)
+        ax = pyplot.gca()
+        c.plot_chandra_average(ax, parm="kT", style=avg)
         kT = profiles.smith_centrally_decreasing_temperature(
             c.avg["r"], mle[0], mle[1], mle[2])
         # Fit of the Smith temperature structure breaks for latest Tobs
@@ -378,8 +387,6 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
         @param c     : ObservedCluster
         @param sim   : Simulation
         @param snapnr: TODO, string"""
-
-    time.sleep(10)
 
     avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 2 }
     gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
@@ -437,27 +444,75 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
         pyplot.close(fig)
 
 
-def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None):
-        gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
-                "markeredgecolor": "none",  "label": ""}
-        dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
-                "markeredgecolor": "none", "label": ""}
-
+def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=True):
         fig = pyplot.figure(fignum)
         ax0, ax1, ax2, ax3 = fig.get_axes()
 
         if hasattr(halo, "time"):
             fig.suptitle("T = {0:04.2f} Gyr".format(halo.time))
 
-        ax0.plot(halo.gas["r"], halo.gas["rho"], **gas)
-        ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
+        if binned:
+            nbins = 100
+            radii = numpy.power(10, numpy.linspace(numpy.log10(10), numpy.log10(5e3), nbins+1))
+            print radii[-1]
+            dr = radii[1:] - radii[:-1]
+            radii = radii[:-1]
 
-        ax1.plot(halo.gas["r"], halo.gas["mass"], **gas)
-        ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
+            density = numpy.zeros(nbins)
+            mass = numpy.zeros(nbins)
+            temperature_min = numpy.zeros(nbins)
+            temperature_max = numpy.zeros(nbins)
+            temperature_mean = numpy.zeros(nbins)
+            temperature_median = numpy.zeros(nbins)
+            temperature_std = numpy.zeros(nbins)
+            pressure = numpy.zeros(nbins)
+            halo.gas.sort("r")
+            for i, (r, dr) in enumerate(zip(radii, dr)):
+                upper = numpy.where(halo.gas["r"] > r)
+                lower = numpy.where(halo.gas["r"] < r+dr)
+                in_bin = numpy.intersect1d(upper, lower)
+                if in_bin.size:
+                    density[i] = numpy.median(halo.gas["rho"][in_bin])
+                    mass[i] = numpy.median(halo.gas["mass"][in_bin])
+                    temperature_min[i] = numpy.min(halo.gas["kT"][in_bin])
+                    temperature_max[i] = numpy.max(halo.gas["kT"][in_bin])
+                    temperature_mean[i] = numpy.mean(halo.gas["kT"][in_bin])
+                    temperature_median[i] = numpy.median(halo.gas["kT"][in_bin])
+                    temperature_std[i] = numpy.std(halo.gas["kT"][in_bin])
+                    pressure[i] = numpy.median(halo.gas["P"][in_bin])
 
-        ax2.plot(halo.gas["r"], halo.gas["kT"], **gas)
+            gas = { "linestyle": "solid", "color": "green" }
+            dm = { "linestyle": "solid", "color": "green" }
 
-        ax3.plot(halo.gas["r"], halo.gas["P"], **gas)
+            ax0.plot(radii, density, **gas)
+            ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
+
+            ax1.plot(radii, mass, **gas)
+            ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
+
+            ax2.plot(radii, temperature_min, **gas)
+            ax2.plot(radii, temperature_max, **gas)
+            # ax2.plot(radii, temperature_mean, **gas)
+            ax2.plot(radii, temperature_median, **gas)
+
+            ax3.plot(radii, pressure, **gas)
+
+
+        else:
+            gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
+                    "markeredgecolor": "none",  "label": ""}
+            dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
+                    "markeredgecolor": "none", "label": ""}
+            ax0.plot(halo.gas["r"], halo.gas["rho"], **gas)
+            ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
+
+            ax1.plot(halo.gas["r"], halo.gas["mass"], **gas)
+            ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
+            # TODO: sampled DM profile misses, rho and mass
+
+            ax2.plot(halo.gas["r"], halo.gas["kT"], **gas)
+
+            ax3.plot(halo.gas["r"], halo.gas["P"], **gas)
 
         inner = numpy.where(halo.gas["r"] < 100)
         hsml = 2*numpy.median(halo.gas["hsml"][inner])
@@ -476,7 +531,7 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None):
         fig.savefig(savedir+"{0}_donnert2014figure1{1}.png"
             .format(halo.name, "_"+snapnr if snapnr else ""), dpi=300)
         pyplot.close(fig)
-        return
+        return halo
 
 
 def twocluster_parms(cygA, cygNW, sim=None, verlinde=False):
@@ -512,45 +567,45 @@ def twocluster_parms(cygA, cygNW, sim=None, verlinde=False):
     # Also do some plotting
     pyplot.sca(ax0)
     print "Plotting cygA density"
-    cygA.plot_chandra_average(parm="rho", style=avg)
-    cygA.plot_bestfit_betamodel(style=gas, rho=True)
-    cygA.plot_inferred_nfw_profile(style=dm, rho=True)
+    cygA.plot_chandra_average(ax0, parm="rho", style=avg)
+    cygA.plot_bestfit_betamodel(ax0, style=gas, rho=True)
+    cygA.plot_inferred_nfw_profile(ax0, style=dm, rho=True)
     pyplot.sca(ax1)
     print "Plotting cygNW density"
-    cygNW.plot_chandra_average(parm="rho", style=avg)
-    cygNW.plot_bestfit_betamodel(style=gas, rho=True)
-    cygNW.plot_inferred_nfw_profile(style=dm, rho=True)
+    cygNW.plot_chandra_average(ax1, parm="rho", style=avg)
+    cygNW.plot_bestfit_betamodel(ax1, style=gas, rho=True)
+    cygNW.plot_inferred_nfw_profile(ax1, style=dm, rho=True)
 
     pyplot.sca(ax2)
     print "Plotting cygA mass"
-    cygA.plot_bestfit_betamodel_mass(style=gas)
-    cygA.plot_inferred_nfw_mass(style=dm)
-    cygA.plot_inferred_total_gravitating_mass(style=tot)
-    cygA.plot_hydrostatic_mass(style=tot)
+    cygA.plot_bestfit_betamodel_mass(ax2, style=gas)
+    cygA.plot_inferred_nfw_mass(ax2, style=dm)
+    cygA.plot_inferred_total_gravitating_mass(ax2, style=tot)
+    cygA.plot_hydrostatic_mass(ax2, style=tot)
     pyplot.sca(ax3)
     print "Plotting cygNW mass"
-    cygNW.plot_bestfit_betamodel_mass(style=gas)
-    cygNW.plot_inferred_nfw_mass(style=dm)
-    cygNW.plot_inferred_total_gravitating_mass(style=tot)
-    cygNW.plot_hydrostatic_mass(style=tot)
+    cygNW.plot_bestfit_betamodel_mass(ax3, style=gas)
+    cygNW.plot_inferred_nfw_mass(ax3, style=dm)
+    cygNW.plot_inferred_total_gravitating_mass(ax3, style=tot)
+    cygNW.plot_hydrostatic_mass(ax3, style=tot)
 
     pyplot.sca(ax4)
     print "Plotting cygA temperature"
-    cygA.plot_chandra_average(parm="kT", style=avg)
-    cygA.plot_inferred_temperature(style=tot)
+    cygA.plot_chandra_average(ax4, parm="kT", style=avg)
+    cygA.plot_inferred_temperature(ax4, style=tot)
     pyplot.sca(ax5)
     print "Plotting cygNW temperature"
-    cygNW.plot_chandra_average(parm="kT", style=avg)
-    cygNW.plot_inferred_temperature(style=tot)
+    cygNW.plot_chandra_average(ax5, parm="kT", style=avg)
+    cygNW.plot_inferred_temperature(ax5, style=tot)
 
     pyplot.sca(ax6)
     print "Plotting cygA pressure"
-    cygA.plot_chandra_average(parm="P", style=avg)
-    cygA.plot_inferred_pressure(style=tot)
+    cygA.plot_chandra_average(ax6, parm="P", style=avg)
+    cygA.plot_inferred_pressure(ax6, style=tot)
     pyplot.sca(ax7)
     print "Plotting cygNW pressure"
-    cygNW.plot_chandra_average(parm="P", style=avg)
-    cygNW.plot_inferred_pressure(style=tot)
+    cygNW.plot_chandra_average(ax7, parm="P", style=avg)
+    cygNW.plot_inferred_pressure(ax7, style=tot)
 
     # Add Verlinde profiles
     if verlinde: cygA.plot_verlinde(ax2, ax4, ax6, style=tot)
@@ -620,8 +675,9 @@ def toycluster_profiles(obs, sim, halo="000"):
     dm_a = { "color": "k", "lw": 1, "linestyle": "solid", "label": "" }
 
     pyplot.figure(figsize=(12,9))
+    ax = pyplot.gca()
 
-    obs.plot_chandra_average(parm="rho", style=avg)
+    obs.plot_chandra_average(ax, parm="rho", style=avg)
     rho_gas = convert.toycluster_units_to_cgs(sim.toy.profiles[halo]["rho_gas"])
     rho_dm = convert.toycluster_units_to_cgs(sim.toy.profiles[halo]["rho_dm"])
     pyplot.plot(sim.toy.profiles[halo]["r"], rho_gas, **gas_a)
@@ -662,12 +718,13 @@ def toyclustercheck(obs, sim, halo="000"):
     radii = numpy.arange(1, 1e4, 1)
 
     pyplot.figure(figsize=(12,9))
+    ax = pyplot.gca()
     pyplot.plot(sim.toy.gas["r"], sim.toy.gas["rho"], **gas)
     pyplot.plot(sim.toy.dm_radii, sim.toy.rho_dm_below_r, **dm)
-    obs.plot_chandra_average(parm="rho", style=avg)
-    obs.plot_bestfit_betamodel(style=dashed)  # cut (TODO: change obs.rcut_kpc?)
-    # obs.plot_bestfit_betamodel(style=dotted)  # uncut
-    obs.plot_inferred_nfw_profile(style=dotted)
+    obs.plot_chandra_average(ax, parm="rho", style=avg)
+    obs.plot_bestfit_betamodel(ax, style=dashed)  # cut (TODO: change obs.rcut_kpc?)
+    # obs.plot_bestfit_betamodel(ax, style=dotted)  # uncut
+    obs.plot_inferred_nfw_profile(ax, style=dotted)
     # rho_dm_cut = profiles.dm_density_nfw(radii, obs.halo["rho0_dm"],
     #     obs.halo["rs"], sim.toy.r_sample)
     # pyplot.plot(radii, rho_dm_cut, **solid)
@@ -762,9 +819,71 @@ def toyclustercheck_T(obs, sim, halo="000"):
 
 
 # ----------------------------------------------------------------------------
+# Plots of P-Gadget3 simulation snapshots
+# ----------------------------------------------------------------------------
+@concurrent(processes=threads)
+def plot_singlecluster_stability(obs, sim, snapnr, path_to_snaphot):
+    sim = copy.deepcopy(sim)
+    print snapnr, id(obs), id(sim), path_to_snaphot
+    sim.set_gadget_snap_single(snapnr, path_to_snaphot)
+    halo = getattr(sim, "snap{0}".format(snapnr), None)
+    if halo is not None:
+        halo.name = obs.name
+        fignum = donnert2014_figure1(obs, add_sim=True, verlinde=False)
+        add_sim_to_donnert2014_figure1(fignum, halo, sim.outdir, snapnr="{0:03d}".format(snapnr))
+    else:
+        print "ERROR"
+
+    del(sim)
+
+
+@synchronized
+def singlecluster_stability(sim, obs, verbose=True):
+    if verbose: print "Running plot_singlecluster_stability"
+
+    sim.set_gadget_paths(verbose=verbose)
+    for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots):
+        snapnr = int(path_to_snaphot[-3:])  # glob ==> unordered list
+        plot_singlecluster_stability(obs, sim, snapnr, path_to_snaphot)
+
+
+@concurrent(processes=threads)
+def plot_twocluster_stability(cygA, cygNW, sim, snapnr, path_to_snaphot):
+    sim = copy.deepcopy(sim)
+    print snapnr, id(cygA), id(cygNW), id(sim), path_to_snaphot
+    sim.set_gadget_snap_double(snapnr, path_to_snaphot)
+
+    cygAsim = getattr(sim, "cygA{0}".format(snapnr), None)
+    if cygAsim is not None:
+        cygAsim.name = "cygA"
+        fignum = donnert2014_figure1(cygA, add_sim=True, verlinde=False)
+        add_sim_to_donnert2014_figure1(fignum, cygAsim, sim.outdir, snapnr="{0:03d}".format(snapnr))
+    else:
+       print "ERROR"
+
+    cygNWsim = getattr(sim, "cygNW{0}".format(snapnr), None)
+    if cygNWsim is not None:
+        cygNWsim.name = "cygNW"
+        fignum = donnert2014_figure1(cygNW, add_sim=True, verlinde=False)
+        add_sim_to_donnert2014_figure1(fignum, cygNWsim, sim.outdir, snapnr="{0:03d}".format(snapnr))
+    else:
+       print "ERROR"
+
+    del(sim)
+
+@synchronized
+def twocluster_stability(sim, cygA, cygNW, verbose=True):
+    if verbose: print "Running plot_singlecluster_stability"
+
+    sim.set_gadget_paths(verbose=verbose)
+    for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots):
+        snapnr = int(path_to_snaphot[-3:])
+        plot_twocluster_stability(cygA, cygNW, sim, snapnr, path_to_snaphot)
+
+
+# ----------------------------------------------------------------------------
 # Plots 2D projection cubes saved by P-Smac2
 # ----------------------------------------------------------------------------
-
 def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, distance):
     """ We find the peaks of the haloes by summing the dark matter density
         in the line-of-sight integrated P-Smac2 output. """
@@ -846,7 +965,8 @@ def simulated_quiescent_parm(c, sim, snapnr, parm="kT"):
     r, val, fval = sim.create_quiescent_profile(snapnr, parm=parmmapping[parm])
 
     pyplot.figure(figsize=(12, 9))
-    c.plot_chandra_average(parm=parm, style=avg)
+    ax = pyplot.gca()
+    c.plot_chandra_average(ax, parm=parm, style=avg)
     pyplot.errorbar(r, val, yerr=[fval, fval])
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel(parmnames[parm])
@@ -893,7 +1013,8 @@ def twocluster_quiescent_parm(cygA, cygNW, sim, snapnr, parm="kT"):
 
         avg["c"] = "g" if c.name == "cygA" else "b"
         pyplot.figure(figsize=(12, 9))
-        c.plot_chandra_average(parm=parm, style=avg)
+        ax = pyplot.gca()
+        c.plot_chandra_average(ax, parm=parm, style=avg)
         pyplot.errorbar(r, val, yerr=[fval, fval])
         pyplot.xlabel("Radius [kpc]")
         pyplot.ylabel(parmnames[parm])
@@ -905,4 +1026,3 @@ def twocluster_quiescent_parm(cygA, cygNW, sim, snapnr, parm="kT"):
         pyplot.tight_layout()
         pyplot.savefig(sim.outdir+"{0}_{1}_{2:03d}.png".format(parm, c.name, snapnr))
         pyplot.close()
-

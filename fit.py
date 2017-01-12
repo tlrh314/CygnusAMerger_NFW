@@ -267,7 +267,6 @@ def smith_centrally_decreasing_temperature(c):
 def temperature_wrapper(c, cNFW, bf, RCUT_R200_RATIO=None):
     print "Trying cNFW = {0}, bf = {1}, RCUT_R200_RATIO = {2}".format(cNFW, bf, RCUT_R200_RATIO)
     c.infer_NFW_mass(cNFW=cNFW, bf=bf, RCUT_R200_RATIO=RCUT_R200_RATIO)
-    c.set_inferred_profiles()
 
     # Use c.avg["r"] because chi^2 fitting with observed profile
     radii = c.avg["r"]; N = len(radii); temperature = numpy.zeros(N)
@@ -301,7 +300,7 @@ def total_gravitating_mass_freecbf(c, do_cut=True, verbose=False):
         bounds = ((0,0),(20,0.25)) if not do_cut else ((0,0,0),(20,0.25,2))
 
     c.fit_counter = 0
-    ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1, parm2:
+    ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1, parm2=None:
         temperature_wrapper(c, parm0, parm1, parm2 if do_cut else None),
         c.avg["r"], c.avg["kT"], p0=p0, sigma=c.avg["fkT"],
         method="trf", bounds=bounds)
