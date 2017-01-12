@@ -311,8 +311,7 @@ def run_double_clusterstability():
     cygNW = main.set_observed_cluster(a)
     a.clustername = "both"
 
-    sim = Simulation(base="/usr/local/mscproj", name="both", timestamp="both_debug")
-    # sim = Simulation(base=a.basedir, name="both", timestamp=a.timestamp)
+    sim = Simulation(base=a.basedir, name="both", timestamp=a.timestamp)
 
     genplots(cygA, cygNW, sim)
     loop_snaps(cygA, cygNW, sim)
