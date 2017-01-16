@@ -132,7 +132,7 @@ class Simulation(object):
     def set_gadget_snap_double(self, snapnr, path_to_snaphot, verbose=False):
         if verbose: print "    Found two clusters in box --> running find_dm_centroid"
 
-        header, gas, dm = parse.toycluster_icfile(path_to_snaphot)
+        header, gas, dm = parse.toycluster_icfile(path_to_snaphot, verbose=verbose)
         gas["rho"] = convert.toycluster_units_to_cgs(gas["rho"])
         gas["kT"] = convert.K_to_keV(convert.gadget_u_to_t(gas["u"]))
 
@@ -179,7 +179,7 @@ class Simulation(object):
         else:
             print "Warning: Simulation instance attributes 'nsnaps', 'xlen', 'ylen', 'pixelscale' not set"
 
-    def find_cluster_centroids_psmac_dmrho(self, snapnr=0, do_plot=False):
+    def find_cluster_centroids_psmac_dmrho(self, snapnr=0, EA2="", do_plot=False):
         print "Checking snapshot {0}".format(snapnr)
 
         if self.name and self.name != "both":  # Only one cluster in simulation box
@@ -190,19 +190,21 @@ class Simulation(object):
         #     expected_xpeaks = 2
         #     expected_ypeaks = 1
         #     thres, min_dist = 0.15, 10
-        else:  # two clusters, yes impact parameter
+        else:  # two clusters, yes impact parameter, or yes rotated /w EA1
             expected_xpeaks = 2
-            expected_ypeaks = 1  # TODO: implement for impactparam
-            thres, min_dist = 0.15, 10
+            expected_ypeaks = 2
+            thres, min_dist = 0.35, 30
 
         """ Peakutils sometimes finds noise (i.e. 1 pixel with a slightly higher
         density, where slightly is no more than 0.1%). To kill of these tiny noise
         fluctuations the summed dark matter density is squared, then normalised
         to the maximum, and finally smoothed with a Savitzky-Golay filter. """
-        xsum = p2(numpy.sum(self.psmac.rhodm[snapnr], axis=0))
+        rhodm = getattr(self.psmac, "rhodm{0}".format(EA2), None)
+        if rhodm is None: return
+        xsum = p2(numpy.sum(rhodm[snapnr], axis=0))
         xsum /= numpy.max(xsum)
         xsum = scipy.signal.savgol_filter(xsum, 15, 3)
-        ysum = p2(numpy.sum(self.psmac.rhodm[snapnr], axis=1))
+        ysum = p2(numpy.sum(rhodm[snapnr], axis=1))
         ysum /= numpy.max(ysum)
         ysum = scipy.signal.savgol_filter(ysum, 15, 3)
         xpeaks = peakutils.indexes(xsum, thres=thres, min_dist=min_dist)
@@ -213,8 +215,8 @@ class Simulation(object):
             print "xpeaks = {0}\nypeaks = {1}".format(xpeaks, ypeaks)
             print "Snapshot number = {0}\n".format(snapnr)
             if do_plot: plot.psmac_xrays_with_dmrho_peakfind(
-                self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
-            return
+                self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan, EA2=EA2)
+            return xpeaks, ypeaks, numpy.nan
 
         try:  # Further optimize peakfinding by interpolating
             xpeaks = peakutils.interpolate(range(0, self.xlen), xsum, ind=xpeaks)
@@ -230,16 +232,15 @@ class Simulation(object):
             print "Success: found 1 xpeak, and 1 ypeak!"
             print "  {0}:  (x, y) = {1}".format(self.name, center)
             if do_plot: plot.psmac_xrays_with_dmrho_peakfind(
-                self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan)
+                self, snapnr, xsum, ysum, xpeaks, ypeaks, numpy.nan, EA2=EA2)
             return center
         else:
-            if True:  # self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
-                cygA = xpeaks[0], ypeaks[0]
-                cygNW = xpeaks[1], ypeaks[0]
-            else:  # two clusters, yes impact parameter.
-                #TODO: check which ypeak belongs to which cluster
-                cygA = xpeaks[0], ypeaks[0]
-                cygNW = xpeaks[1], ypeaks[1]
+            #if True:  # self.toy.parms["ImpactParam"] < 0.1:  # two clusters, no impact parameter
+            #    cygA = xpeaks[0], ypeaks[0]
+            #    cygNW = xpeaks[1], ypeaks[0]
+            #else:  # two clusters, yes impact parameter.
+            cygA = xpeaks[0], ypeaks[0]
+            cygNW = xpeaks[1], ypeaks[1]
 
             distance = numpy.sqrt(p2(cygA[0]-cygNW[0])+p2(cygA[1]-cygNW[1]))
             distance *= self.pixelscale
@@ -249,7 +250,7 @@ class Simulation(object):
             print "  cygNW: (x, y) = {0}".format(cygNW)
             print "  distance      = {0:.2f} kpc\n".format(distance)
             if do_plot: plot.psmac_xrays_with_dmrho_peakfind(
-                self, snapnr, xsum, ysum, xpeaks, ypeaks, distance)
+                self, snapnr, xsum, ysum, xpeaks, ypeaks, distance, EA2=EA2)
             return cygA, cygNW, distance
 
     def create_quiescent_profile(self, snapnr, parm="tspec", do_plot=True):

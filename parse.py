@@ -197,6 +197,48 @@ def toycluster_profiles(filename):
         return ascii.read(s, header_start=0, data_start=1)
 
 
+def set_header(f, verbose=False):
+    if verbose: print "    Parsing block as header"
+    blocklength = numpy.fromfile(f, dtype=numpy.uint32, count=1)
+
+    header = dict()
+
+    header["npart"] = numpy.fromfile(f, dtype=numpy.uint32, count=6)
+    header["ngas"] = header["npart"][0]
+    header["ndm"] = header["npart"][1]
+    header["ntot"] = numpy.sum(header["npart"])
+    header["massarr"] = numpy.fromfile(f, dtype=numpy.float64, count=6)
+    header["time"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
+    header["redshift"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
+    # unused in public version of GADGET-2
+    header["flag_sfr"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]
+    header["flag_feedback"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]  # unused
+    header["npartTotal"] = numpy.fromfile(f, dtype=numpy.int32, count=6)
+    header["flag_cooling"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]
+    header["numFiles"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]
+    header["boxSize"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
+    header["omega0"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
+    header["omegalambda"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
+    header["hubbleParam"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
+    header["flag_age"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]  # unused
+    header["flag_metals"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]  # unused
+    header["numpart_total_hw"] = numpy.fromfile(f, dtype=numpy.int32, count=6)  # unused
+
+    header["bytesleft"] = 256-6*4 - 6*8 - 8 - 8 - 2*4-6*4 - 4 - 4 - 8 - 8 - 8 - 8 - 4 - 4 - 6*4
+    header["la"] = numpy.fromfile(f, dtype=numpy.uint16, count=header["bytesleft"]/2)
+
+    blocklength_end = numpy.fromfile(f, dtype="uint32", count=1)
+    if blocklength != blocklength_end:
+        print "ERROR: blocklengths differ"
+
+    if verbose:
+        print "\n      Header"
+        for k, v in header.iteritems(): print " "*8+"{0:<15}: {1}".format(k, v)
+        print
+
+    return header
+
+
 def toycluster_icfile(filename, verbose=False):
     """ Eat Toycluster/Gadget-2/Gadget-3 output
 
@@ -255,43 +297,6 @@ def toycluster_icfile(filename, verbose=False):
         if verbose and len(name) is not 0: print "    Block name:", name
         return name
 
-    def set_header(f, name=None):
-        if verbose: print "    Parsing block as header"
-        blocklength = numpy.fromfile(f, dtype=numpy.uint32, count=1)
-
-        header["npart"] = numpy.fromfile(f, dtype=numpy.uint32, count=6)
-        header["ngas"] = header["npart"][0]
-        header["ndm"] = header["npart"][1]
-        header["ntot"] = numpy.sum(header["npart"])
-        header["massarr"] = numpy.fromfile(f, dtype=numpy.float64, count=6)
-        header["time"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
-        header["redshift"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
-        # unused in public version of GADGET-2
-        header["flag_sfr"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]
-        header["flag_feedback"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]  # unused
-        header["npartTotal"] = numpy.fromfile(f, dtype=numpy.int32, count=6)
-        header["flag_cooling"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]
-        header["numFiles"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]
-        header["boxSize"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
-        header["omega0"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
-        header["omegalambda"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
-        header["hubbleParam"] = numpy.fromfile(f, dtype=numpy.float64, count=1)[0]
-        header["flag_age"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]  # unused
-        header["flag_metals"] = numpy.fromfile(f, dtype=numpy.int32, count=1)[0]  # unused
-        header["numpart_total_hw"] = numpy.fromfile(f, dtype=numpy.int32, count=6)  # unused
-
-        header["bytesleft"] = 256-6*4 - 6*8 - 8 - 8 - 2*4-6*4 - 4 - 4 - 8 - 8 - 8 - 8 - 4 - 4 - 6*4
-        header["la"] = numpy.fromfile(f, dtype=numpy.uint16, count=header["bytesleft"]/2)
-
-        blocklength_end = numpy.fromfile(f, dtype="uint32", count=1)
-        if blocklength != blocklength_end:
-            print "ERROR: blocklengths differ"
-
-        if verbose:
-            print "\n      Header"
-            for k, v in header.iteritems(): print " "*8+"{0:<15}: {1}".format(k, v)
-            print
-
     def set_pos_or_vel(f, name):
         """ float32; first gas (x,y,z) then dm (x,y,z) """
         name = "" if name == "POS" else "v"
@@ -331,8 +336,16 @@ def toycluster_icfile(filename, verbose=False):
 
     def void_block(f, name):
         """ read but not save block """
-        if verbose: print "    Parsing block as gas-only float32"
-        eat_block(f, dtype="float32")
+        if verbose: print "    Voiding block as gas-only float32"
+        length = numpy.fromfile(f, dtype=numpy.uint32, count=1)
+        if not length: return None  # EOF reached
+        if verbose: print "    Blocklength:", length[0]
+        f.seek(length[0], 1)  # 1 means relative to current position
+        end_length = numpy.fromfile(f, dtype=numpy.uint32, count=1)
+
+        if end_length != length:
+            print "  ERROR: blocklengths differ"
+            return None
         if verbose: print "    WARNING: block '{0}' is not saved!".format(name)
 
     header = dict()
@@ -340,7 +353,7 @@ def toycluster_icfile(filename, verbose=False):
     dm = astropy.table.Table()
     # Map name of block to a function pointer that handles parsing the data
     routines = { "HEAD": set_header, "POS": set_pos_or_vel, "VEL": set_pos_or_vel,
-                 "ID": set_id, "RHO": set_gas_float32, "RHOM": set_gas_float32,
+                 "ID": set_id, "RHO": set_gas_float32, "RHOM":  set_gas_float32,
                  "HSML": set_gas_float32,  "U": set_gas_float32, "BFLD": set_magnetic_field,
                  "DIVB": void_block, "ACVC": void_block, "AMDC": void_block,
                  "MACH": void_block, "SHSP": void_block, "SHCP": void_block,
@@ -353,7 +366,10 @@ def toycluster_icfile(filename, verbose=False):
             block = eat_block(f)  # data is preceded by byte /w name of block
             if block is None: break  # EOF reached, or error reading block
             blockname = name_block(block)
-            if blockname: routines.get(blockname, void_block)(f, blockname)
+            if blockname and blockname == "HEAD":
+                header = set_header(f, verbose=verbose)
+            elif blockname:
+                routines.get(blockname, void_block)(f, blockname)
 
     if verbose:
         print "\nGas"
@@ -362,6 +378,41 @@ def toycluster_icfile(filename, verbose=False):
         print dm
 
     return header, gas, dm
+
+
+def eat_f77(snap, blockname, verbose=False):
+     with open(snap, "rb") as f:
+         while True:
+             # Eat name
+             length = numpy.fromfile(f, dtype=numpy.uint32, count=1)
+             if not length: break
+             content = numpy.fromfile(f, dtype="int8", count=length)
+             end_length = numpy.fromfile(f, dtype=numpy.uint32, count=1)
+
+             if end_length != length:
+                 print "  ERROR: blocklengths differ"
+                 break
+
+             name = "".join(chr(c) for c in content[:4] if 65 <= c <= 90)
+             if verbose: print "Eating", name
+
+             if blockname.lower() == "head":
+                 return set_header(f, verbose=verbose)
+
+             length = numpy.fromfile(f, dtype=numpy.uint32, count=1)
+             if not length: break
+             if name.strip().lower() != blockname.lower():
+                 f.seek(length[0], 1)
+             else:
+                 content = numpy.fromfile(f, dtype="float32", count=length/4)
+
+                 return content
+             end_length = numpy.fromfile(f, dtype=numpy.uint32, count=1)
+
+             if end_length != length:
+                 print "  ERROR: blocklengths differ"
+                 break
+     return None
 # ----------------------------------------------------------------------------
 
 

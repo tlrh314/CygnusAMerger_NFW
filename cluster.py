@@ -74,7 +74,7 @@ class ObservedCluster(object):
             self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
             self.avg = self.mask_bins(self.avg, first=0, last=2)
 
-        self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e5), 200))
+        self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(5e4), 64))
 
         self.set_bestfit_betamodel(verbose=verbose)
 
@@ -476,7 +476,7 @@ class Toycluster(object):
         if verbose:
             print "    Counting nr. of particles with radius < r to obtain M(<r)"
 
-        radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e5), 1001))
+        radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e5), 65))
         dr = radii[1:] - radii[:-1]
         self.dm_radii = radii[:-1]
         N = len(self.dm_radii)
@@ -608,6 +608,9 @@ class Cluster(Toycluster):
         self.gas["x"] -= self.centroid[0]
         self.gas["y"] -= self.centroid[1]
         self.gas["z"] -= self.centroid[2]
+        self.dm["x"] -= self.centroid[0]
+        self.dm["y"] -= self.centroid[1]
+        self.dm["z"] -= self.centroid[2]
 
         self.gas["r"] = numpy.sqrt(p2(self.gas["x"]) + p2(self.gas["y"]) +  p2(self.gas["z"]))
         self.dm["r"] = numpy.sqrt(p2(self.dm["x"]) + p2(self.dm["y"]) +  p2(self.dm["z"]))
@@ -722,7 +725,7 @@ class PSmac2Output(object):
             "velocity": "vel"
         }
         attr_renamed = {
-            "rho": "rhogas", "DMrho": "rhodm",
+            "rhogas": "rhogas", "DMrho": "rhodm",
             "Tspec": "tspec",
             "Tem": "tem",
             "xray": "xray",

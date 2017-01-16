@@ -11,11 +11,13 @@ from matplotlib import gridspec
 from matplotlib.ticker import MaxNLocator
 from line_profiler_support import profile
 from deco import concurrent, synchronized
-threads=16
+threads=2
 
 import fit
 import profiles
 import convert
+from macro import print_progressbar
+from timer import Timer
 
 
 # ----------------------------------------------------------------------------
@@ -445,93 +447,114 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
 
 
 def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=True):
-        fig = pyplot.figure(fignum)
-        ax0, ax1, ax2, ax3 = fig.get_axes()
+    """ - lower stepsize to include all particles when binning
+        - increase nbins to increase resolution of sampled particles
+        - for publication-ready figure increase dpi to cranck up resolution
+        - for runtime ~21 seconds for 5e7 particles """
+    fig = pyplot.figure(fignum)
+    ax0, ax1, ax2, ax3 = fig.get_axes()
 
-        if hasattr(halo, "time"):
-            fig.suptitle("T = {0:04.2f} Gyr".format(halo.time))
+    if hasattr(halo, "time"):
+        fig.suptitle("T = {0:04.2f} Gyr".format(halo.time))
 
-        if binned:
-            nbins = 100
-            radii = numpy.power(10, numpy.linspace(numpy.log10(10), numpy.log10(5e3), nbins+1))
-            print radii[-1]
-            dr = radii[1:] - radii[:-1]
-            radii = radii[:-1]
+    if binned:
+        nbins = 64
+        radii = numpy.power(10, numpy.linspace(numpy.log10(5), numpy.log10(5e3), nbins))
 
-            density = numpy.zeros(nbins)
-            mass = numpy.zeros(nbins)
-            temperature_min = numpy.zeros(nbins)
-            temperature_max = numpy.zeros(nbins)
-            temperature_mean = numpy.zeros(nbins)
-            temperature_median = numpy.zeros(nbins)
-            temperature_std = numpy.zeros(nbins)
-            pressure = numpy.zeros(nbins)
-            halo.gas.sort("r")
-            for i, (r, dr) in enumerate(zip(radii, dr)):
-                upper = numpy.where(halo.gas["r"] > r)
-                lower = numpy.where(halo.gas["r"] < r+dr)
-                in_bin = numpy.intersect1d(upper, lower)
-                if in_bin.size:
-                    density[i] = numpy.median(halo.gas["rho"][in_bin])
-                    mass[i] = numpy.median(halo.gas["mass"][in_bin])
-                    temperature_min[i] = numpy.min(halo.gas["kT"][in_bin])
-                    temperature_max[i] = numpy.max(halo.gas["kT"][in_bin])
-                    temperature_mean[i] = numpy.mean(halo.gas["kT"][in_bin])
-                    temperature_median[i] = numpy.median(halo.gas["kT"][in_bin])
-                    temperature_std[i] = numpy.std(halo.gas["kT"][in_bin])
-                    pressure[i] = numpy.median(halo.gas["P"][in_bin])
+        # Expensive to sort, but less expensive than numpy.intersect1d(
+        # numpy.where(r < halo.gas["r"]), numpy.where(halo.gas["r"] < r+dr))
+        print "Sorting gas on radius"
+        halo.gas.sort("r")  # most expensive step, ~11s for 5e7 particles (53% runtime)
+        bin_edge = numpy.zeros(nbins+1, dtype=numpy.int)
 
-            gas = { "linestyle": "solid", "color": "green" }
-            dm = { "linestyle": "solid", "color": "green" }
+        i, bin_number, stepsize = 0, 0, 100  # neglible runtime
+        desired_radius = radii[bin_number]
+        for r in halo.gas["r"][::stepsize]:
+            if r > desired_radius:
+                bin_edge[bin_number] = i
+                bin_number += 1
+                if bin_number == nbins:
+                    break
+                desired_radius = radii[bin_number]
+            i += stepsize
 
-            ax0.plot(radii, density, **gas)
-            ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
+        density = numpy.zeros(nbins)
+        mass = numpy.zeros(nbins)
+        temperature_min = numpy.zeros(nbins)
+        temperature_max = numpy.zeros(nbins)
+        temperature_mean = numpy.zeros(nbins)
+        temperature_median = numpy.zeros(nbins)
+        temperature_std = numpy.zeros(nbins)
+        pressure = numpy.zeros(nbins)
 
-            ax1.plot(radii, mass, **gas)
-            ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
+        for i in xrange(nbins):
+            density[i] = numpy.median(halo.gas["rho"][bin_edge[i]:bin_edge[i]+1])
+            mass[i] = numpy.median(halo.gas["mass"][bin_edge[i]:bin_edge[i]+1])
+            temperature_min[i] = numpy.min(halo.gas["kT"][bin_edge[i]:bin_edge[i]+1])
+            temperature_max[i] = numpy.max(halo.gas["kT"][bin_edge[i]:bin_edge[i]+1])
+            temperature_mean[i] = numpy.mean(halo.gas["kT"][bin_edge[i]:bin_edge[i]+1])
+            temperature_median[i] = numpy.median(halo.gas["kT"][bin_edge[i]:bin_edge[i]+1])
+            temperature_std[i] = numpy.std(halo.gas["kT"][bin_edge[i]:bin_edge[i]+1])
+            pressure[i] = numpy.median(halo.gas["P"][bin_edge[i]:bin_edge[i]+1])
 
-            ax2.plot(radii, temperature_min, **gas)
-            ax2.plot(radii, temperature_max, **gas)
-            # ax2.plot(radii, temperature_mean, **gas)
-            ax2.plot(radii, temperature_median, **gas)
+        gas = { "linestyle": "solid", "color": "green", "linewidth": "2" }
+        dm = { "linestyle": "solid", "color": "green", "linewidth": "2" }
 
-            ax3.plot(radii, pressure, **gas)
+        # Do not plot noisy inner bins
+        idx = numpy.where(halo.dm_radii > 5)
+        dm_radii = halo.dm_radii[idx]
+        dm_mass = halo.M_dm_below_r[idx]
+        dm_density = halo.rho_dm_below_r[idx]
 
+        ax0.plot(radii, density, **gas)
+        ax0.plot(dm_radii, dm_density, **dm)
 
-        else:
-            gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
-                    "markeredgecolor": "none",  "label": ""}
-            dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
-                    "markeredgecolor": "none", "label": ""}
-            ax0.plot(halo.gas["r"], halo.gas["rho"], **gas)
-            ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
+        ax1.plot(radii, mass, **gas)
+        ax1.plot(dm_radii, dm_mass, **dm)
 
-            ax1.plot(halo.gas["r"], halo.gas["mass"], **gas)
-            ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
-            # TODO: sampled DM profile misses, rho and mass
+        ax2.plot(radii, temperature_min, **gas)
+        ax2.plot(radii, temperature_max, **gas)
+        # ax2.plot(radii, temperature_mean, **gas)
+        ax2.plot(radii, temperature_median, **gas)
 
-            ax2.plot(halo.gas["r"], halo.gas["kT"], **gas)
+        ax3.plot(radii, pressure, **gas)
 
-            ax3.plot(halo.gas["r"], halo.gas["P"], **gas)
+    else:
+        gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
+                "markeredgecolor": "none",  "label": ""}
+        dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
+                "markeredgecolor": "none", "label": ""}
+        ax0.plot(halo.gas["r"], halo.gas["rho"], **gas)
+        ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
 
-        inner = numpy.where(halo.gas["r"] < 100)
-        hsml = 2*numpy.median(halo.gas["hsml"][inner])
-        for ax in fig.axes:
-            # The y coordinates are axes while the x coordinates are data
-            trans = matplotlib.transforms.blended_transform_factory(
-                ax.transData, ax.transAxes)
-            ax.fill_between(numpy.arange(2000, 1e4, 0.01), 0, 1,
-                facecolor="grey", edgecolor="grey", alpha=0.2,
-                transform=trans)
-            ax.axvline(x=hsml, c="g", ls=":")
-            ax.text(hsml, 0.05, r"$2 h_{sml}$", ha="left", color="g",
-                transform=trans, fontsize=22)
+        ax1.plot(halo.gas["r"], halo.gas["mass"], **gas)
+        ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
+        # TODO: sampled DM profile misses, rho and mass
 
-        fig.tight_layout(rect=[0, 0.00, 1, 0.98])  # rect b/c suptitle/tight_layout bug
-        fig.savefig(savedir+"{0}_donnert2014figure1{1}.png"
-            .format(halo.name, "_"+snapnr if snapnr else ""), dpi=300)
-        pyplot.close(fig)
-        return halo
+        ax2.plot(halo.gas["r"], halo.gas["kT"], **gas)
+
+        ax3.plot(halo.gas["r"], halo.gas["P"], **gas)
+
+    inner = numpy.where(halo.gas["r"] < 100)
+    hsml = 2*numpy.median(halo.gas["hsml"][inner])
+    for ax in fig.axes:
+        # The y coordinates are axes while the x coordinates are data
+        trans = matplotlib.transforms.blended_transform_factory(
+            ax.transData, ax.transAxes)
+        ax.fill_between(numpy.arange(2000, 1e4, 0.01), 0, 1,
+            facecolor="grey", edgecolor="grey", alpha=0.2,
+            transform=trans)
+        ax.axvline(x=hsml, c="g", ls=":")
+        ax.text(hsml, 0.05, r"$2 h_{sml}$", ha="left", color="g",
+            transform=trans, fontsize=22)
+
+    # ~2s, 10% runtime
+    fig.tight_layout(rect=[0, 0.00, 1, 0.98])  # rect b/c suptitle/tight_layout bug
+    # ~5.5s, 25% runtime
+    fig.savefig(savedir+"{0}_donnert2014figure1{1}.png"
+        .format(halo.name, "_"+snapnr if snapnr else ""), dpi=150)
+    pyplot.close(fig)
+    return halo
 
 
 def twocluster_parms(cygA, cygNW, sim=None, verlinde=False):
@@ -884,7 +907,7 @@ def twocluster_stability(sim, cygA, cygNW, verbose=True):
 # ----------------------------------------------------------------------------
 # Plots 2D projection cubes saved by P-Smac2
 # ----------------------------------------------------------------------------
-def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, distance):
+def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, distance, EA2=""):
     """ We find the peaks of the haloes by summing the dark matter density
         in the line-of-sight integrated P-Smac2 output. """
 
@@ -927,12 +950,16 @@ def psmac_xrays_with_dmrho_peakfind(sim, snapnr, xsum, ysum, xpeaks, ypeaks, dis
 
     if not numpy.isnan(distance):
         axd.plot(xpeaks[0], ypeaks[0], "ro", markersize=10)
-        axd.plot(xpeaks[1], ypeaks[0], "ro", markersize=10)
-    axd.imshow(numpy.log10(sim.psmac.xray[snapnr].clip(min=2e-8, max=0.02)),
+        axd.plot(xpeaks[1], ypeaks[1], "ro", markersize=10)
+    xrays = getattr(sim.psmac, "xray{0}".format(EA2), None)
+    if xrays is None:
+        print "error sim.psmac has no attr xray{0}".format(EA2)
+        return
+    axd.imshow(numpy.log10(xrays[snapnr].clip(min=2e-8, max=0.02)),
                origin="lower", cmap="spectral")
     axd.text(0.5, 0.95, "X-ray Surface Brightness", ha="center", va="top",
             color="white", transform=axd.transAxes)
-    pyplot.savefig(sim.outdir+"xray_peakfind_{0:03d}.png".format(snapnr))
+    pyplot.savefig(sim.outdir+"xray_peakfind_{0:02d}_{1:03d}.png".format(int(EA2), snapnr))
     pyplot.close()
 
 

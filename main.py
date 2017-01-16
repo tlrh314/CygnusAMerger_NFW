@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import os
+import copy
 import argparse
 import numpy
+import scipy
+import peakutils
 from matplotlib import pyplot
 from line_profiler_support import profile
 
@@ -17,6 +20,9 @@ style = PlotSettings()
 
 # import warnings
 # warnings.simplefilter('error', UserWarning)
+
+from deco import concurrent, synchronized
+threads=2
 
 
 def show_observations(cygA, cygNW):
@@ -176,6 +182,137 @@ def test_cnfw(a):
         plot.inferred_temperature(cygA)
 
 
+def find_dm_peak(header, dm, expected, dim=0):
+    if dim != 0 and dim != 1 and dim != 2:
+        print "ERROR: please use integer '0', '1', or '2' as dimension in find_dm_peak"
+        return None
+    nbins = int(numpy.sqrt(header["ndm"]))
+    hist, edges = numpy.histogram(dm[:,dim], bins=nbins, normed=True)
+    edges = (edges[:-1] + edges[1:])/2
+
+    # savgol = scipy.signal.savgol_filter(hist, 21, 5)
+    hist_smooth = scipy.ndimage.filters.gaussian_filter1d(hist, 5)
+    spline = scipy.interpolate.splrep(edges, hist_smooth)
+    xval = numpy.arange(0, header["boxSize"], 0.1)
+    hist_splev = scipy.interpolate.splev(xval, spline, der=0)
+    peaks = peakutils.indexes(hist_splev)
+
+    # pyplot.figure()
+    # pyplot.plot(edges, hist)
+    # pyplot.plot(xval, hist_splev)
+    # pyplot.ylim(0, 1.1*numpy.max(hist))
+    # pyplot.xlabel({ 0: "x", 1: "y", 2: "z"}.get(dim))
+    # pyplot.ylabel("Normed Counts")
+    # for peak in xval[peaks]: pyplot.axvline(peak)
+    # pyplot.tight_layout()
+    # pyplot.show()
+    # pyplot.savefig(sim.outdir+"dm_peak_{0}".format(dim)+snapnr+".png", dpi=300)
+    # pyplot.close()
+
+    if len(peaks) != expected:
+        print "ERROR: more than one {0}peak found".format(dim)
+        return None
+
+    return xval[peaks]
+
+
+def find_dm_centroid(header, dm, single=False, verbose=True):
+    if single:
+        exp_x = 1
+        exp_y = 1
+        exp_z = 1
+    else:  # two clusters w/o rotation (at same line)
+        exp_x = 2
+        exp_y = 1
+        exp_z = 1
+    xpeaks = find_dm_peak(header, dm, exp_x, 0)
+    ypeaks = find_dm_peak(header, dm, exp_y, 1)
+    zpeaks = find_dm_peak(header, dm, exp_z, 2)
+
+    if type(xpeaks) != numpy.ndarray or type(ypeaks) != numpy.ndarray \
+            or type(zpeaks) != numpy.ndarray : return None
+
+    halo0 = xpeaks[0], ypeaks[0], zpeaks[0]
+    halo1 = xpeaks[1 if exp_x == 2 else 0], ypeaks[1 if exp_y == 2 else 0], zpeaks[0]
+
+    distance = numpy.sqrt((halo0[0] - halo1[0])**2 + (halo0[1] - halo1[1])**2 +
+                          (halo0[2] - halo1[2])**2)
+    if single: halo1 = None
+    if verbose:
+        print "    Success: found {0} xpeaks, {1} ypeak, and {2} zpeak!"\
+            .format(exp_x, exp_y, exp_z)
+        print "      halo0:  (x, y, z) = {0}".format(halo0)
+        print "      halo1:  (x, y, z) = {0}".format(halo1)
+        print "      distance          = {0:.2f} kpc\n".format(distance)
+    return distance
+
+
+@concurrent(processes=threads)
+def compute_distance(sim, snapnr, path_to_snaphot, verbose=True):
+    print "Checking", snapnr
+    # sim.set_gadget_snap_double(snapnr, path_to_snaphot, verbose=verbose)
+    # cygAsim = getattr(sim, "cygA{0}".format(snapnr), None)
+    # cygNWsim = getattr(sim, "cygNW{0}".format(snapnr), None)
+
+    header = parse.eat_f77(path_to_snaphot, "HEAD", verbose=False)
+    pos = parse.eat_f77(path_to_snaphot, "POS", verbose=False)
+
+    pos = pos.reshape((header["ntot"], 3))
+    gas = pos[0:header["ngas"]]
+    dm = pos[header["ngas"]:header["ntot"]]
+
+    distance = find_dm_centroid(header, dm, verbose=verbose)
+    return distance
+
+    # median based has offset in finding com, and slight offset in centroids
+    com = numpy.median(dm[:,0]), numpy.median(dm[:,1]), numpy.median(dm[:,2])
+    left = numpy.where(dm[:,0] < com[0])
+    right = numpy.where(dm[:,0] > com[0])
+
+    halo = dm[left]
+    depth = 7.5
+    zslice = numpy.where( (halo[:,2] > com[2] - depth) & (halo[:,2] < com[2] + depth) )
+    pyplot.figure()
+    pyplot.scatter(halo[:,0][zslice], halo[:,1][zslice], c="r", lw=0, s=1)
+    c0 = numpy.median(halo[:,0]), numpy.median(halo[:,1]), numpy.median(halo[:,2])
+    pyplot.axvline(c0[0], c="r")
+    pyplot.axhline(c0[1], c="r")
+
+    halo = dm[right]
+    zslice = numpy.where( (halo[:,2] > com[2] - depth) & (halo[:,2] < com[2] + depth) )
+    pyplot.scatter(halo[:,0][zslice], halo[:,1][zslice], c="g", lw=0, s=1)
+    c1 = numpy.median(halo[:,0]), numpy.median(halo[:,1]), numpy.median(halo[:,2])
+    pyplot.axvline(c1[0], c="g")
+    pyplot.axhline(c1[1], c="g")
+    pyplot.gca().set_aspect("equal")
+    pyplot.xlim(0, header["boxSize"])
+    pyplot.ylim(0, header["boxSize"])
+    pyplot.xlabel("x [kpc]")
+    pyplot.ylabel("y [kpc]")
+
+    pyplot.savefig(sim.outdir+"peakfind_{0:03d}".format(snapnr))
+
+    distance = numpy.sqrt((c0[0] - c1[0])**2 + (c0[1] - c1[1])**2 + (c0[2] - c1[2])**2)
+
+    return distance
+
+
+@synchronized
+def find_and_plot_700_kpc(sim, verbose=False):
+    if verbose: print "Running find_and_plot_700_kpc"
+
+    sim.set_gadget_paths(verbose=verbose)
+    sim = copy.deepcopy(sim)
+
+    distances = numpy.zeros(len(sim.gadget.snapshots))
+
+    for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots):
+        snapnr = int(path_to_snaphot[-3:])
+        distances[snapnr] = compute_distance(sim, snapnr, path_to_snaphot, verbose=verbose).get()
+
+    print distances
+
+
 def new_argument_parser():
     args = argparse.ArgumentParser(
         description="Simulation Pipeline Parser")
@@ -195,6 +332,10 @@ def new_argument_parser():
         help="Toggle iPython embedding. Embed is False by default", default=False)
     args.add_argument("--gen1D", dest="gen1D", action="store_true",
         help="Generate 1D radial profiles plots for all snapshots", default=False)
+    args.add_argument("--checkIC", dest="check_ics", action="store_true",
+        help="Generate 1D radial profiles plots for ICs", default=False)
+    args.add_argument("--best700", dest="find_700", action="store_true",
+        help="Find bestfit 700 kpc snapshot", default=False)
     # group = args.add_mutually_exclusive_group(required=True)
     # group.add_argument("-t", "--timestamp", dest="timestamp", nargs=1,
     #    help="string of the Simulation ID")
@@ -208,6 +349,10 @@ if __name__ == "__main__":
 
     sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
     if a.embed: header += "Simulation instance in `sim'\n"
+
+    if a.find_700:
+        find_and_plot_700_kpc(sim)
+        import sys; sys.exit(0)
 
 
     # cygA, cygNW = infer_toycluster_ics(a)
@@ -235,6 +380,16 @@ if __name__ == "__main__":
             plot.singlecluster_stability(sim, obs, verbose=a.verbose)
         if a.embed: header += "ObservedCluster instance in `obs'\n"
 
+    if a.check_ics:
+        sim.read_ics(verbose=True)
+
+        sim.toy.halo0.name = "cygA"
+        fignum = plot.donnert2014_figure1(cygA, add_sim=True, verlinde=False)
+        plot.add_sim_to_donnert2014_figure1(fignum, sim.toy.halo0, sim.outdir)
+
+        sim.toy.halo1.name = "cygNW"
+        fignum = plot.donnert2014_figure1(cygNW, add_sim=True, verlinde=False)
+        plot.add_sim_to_donnert2014_figure1(fignum, sim.toy.halo1, sim.outdir)
 
     # fig = plot.donnert2014_figure1(obs)
     # plot.addsim sim and snapnr
