@@ -44,7 +44,7 @@ def open_file(d, fname):
         d.set("smooth no")
         d.set("file {}".format(fname))
 
-        if "temperature" in fname:
+        if "Tspec" in fname:
             # d.set("scale linear")
             # d.set("scale limits 2e6 2e8")
             # d.set("cmap bb")
@@ -59,11 +59,11 @@ def open_file(d, fname):
             d.set("scale log")
             d.set("scale limits 1e-8 2e-4")
             d.set("cmap sls")
-        if "density" in fname:
+        if "rho" in fname:
             d.set("scale log")
             d.set("scale limits 2e-16 0.02")
             d.set("cmap sls")
-        if "velocity" in fname:
+        if "vel" in fname:
             d.set("scale log")
             d.set("scale limits 1.1e7 2.2e8")
             d.set("cmap bb")
@@ -166,7 +166,7 @@ def main(args):
                 exec("{0} = pyfits.open(fname)".format(f))
                 if "fits.fz" in fname:
                     exec("{0}_header, {0}_data = psmac2_fitsfile(fname)".format(f))
-                    exec("{0}_pix2kcp = float({0}_header['XYSize'])/float({0}_header['XYPix'])".format(f))
+                    exec("{0}_pix2kpc = float({0}_header['XYSize'])/float({0}_header['XYPix'])".format(f))
                 header += "\npyfits instance in object `{0}`".format(f)
 
             print " done"

@@ -9,6 +9,7 @@ import matplotlib
 from matplotlib import pyplot
 from matplotlib import gridspec
 from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from line_profiler_support import profile
 from deco import concurrent, synchronized
 threads=2
@@ -467,7 +468,7 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Tr
         halo.gas.sort("r")  # most expensive step, ~11s for 5e7 particles (53% runtime)
         bin_edge = numpy.zeros(nbins+1, dtype=numpy.int)
 
-        i, bin_number, stepsize = 0, 0, 100  # neglible runtime
+        i, bin_number, stepsize = 0, 0, 1  # neglible runtime
         desired_radius = radii[bin_number]
         for r in halo.gas["r"][::stepsize]:
             if r > desired_radius:
@@ -899,7 +900,7 @@ def twocluster_stability(sim, cygA, cygNW, verbose=True):
     if verbose: print "Running plot_singlecluster_stability"
 
     sim.set_gadget_paths(verbose=verbose)
-    for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots):
+    for snapnr, path_to_snaphot in enumerate(sim.gadget.snapshots[0:1]):
         snapnr = int(path_to_snaphot[-3:])
         plot_twocluster_stability(cygA, cygNW, sim, snapnr, path_to_snaphot)
 
@@ -1053,3 +1054,50 @@ def twocluster_quiescent_parm(cygA, cygNW, sim, snapnr, parm="kT"):
         pyplot.tight_layout()
         pyplot.savefig(sim.outdir+"{0}_{1}_{2:03d}.png".format(parm, c.name, snapnr))
         pyplot.close()
+
+
+@concurrent(processes=threads)
+def plot_smac_temperature(i, snap, xlen, ylen, pixelscale, dt, outdir):
+    print i
+
+    pyplot.style.use(["dark_background"])
+
+    fig, ax = pyplot.subplots(figsize=(16, 16))
+    # https://stackoverflow.com/questions/32462881
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0)
+    im = ax.imshow(convert.K_to_keV(snap), origin="lower", cmap="afmhot",
+                   vmin=2.5, vmax=15)
+    fig.colorbar(im, cax=cax, orientation="vertical")
+
+    fig.suptitle("T = {0:04.2f} Gyr".format(i*10*dt), color="white", size=26, y=0.9)
+
+    ax.set_xlim(0, xlen)
+    ax.set_ylim(0, ylen)
+    # ax.set_xlabel("x")
+    # ax.set_ylabel("y")
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    scale = xlen*pixelscale
+    scale = "[{0:.1f} Mpc]^2".format(float(scale)/1000)
+    pad = 16
+    ax.text(2*pad, pad, scale, color="white",  size=18,
+            horizontalalignment="left", verticalalignment="bottom")
+
+    ax.set_aspect("equal")
+    fig.tight_layout()
+    fig.savefig(outdir+"tspec_{0:03d}.png".format(i), dpi=300)
+    pyplot.close(fig)
+
+
+@synchronized
+def make_temperature_video(sim):
+    sim.set_gadget_paths()
+    sim.read_smac()
+    sim.nsnaps, sim.xlen, sim.ylen = sim.psmac.xray0.shape
+    sim.pixelscale = float(sim.psmac.xray0_header["XYSize"])/int(sim.xlen)
+
+    for i, snap in enumerate(sim.psmac.tspec0):
+        plot_smac_temperature(i, snap, sim.xlen, sim.ylen, sim.pixelscale, sim.dt, sim.outdir)
+

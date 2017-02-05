@@ -276,7 +276,7 @@ class Simulation(object):
             from matplotlib import pyplot
             fig = pyplot.figure(figsize=(12, 12))
         if self.name and self.name != "both":  # Only one cluster in simulation box
-            xc, yc = self.find_cluster_centroids_psmac_dmrho(snapnr=snapnr)
+            xc, yc = self.find_cluster_centroids_psmac_dmrho(snapnr=snapnr, EA2="")
             for i, r in enumerate(radii):
                 print_progressbar(i, N)
                 quiescent_mask = create_panda(self.xlen, self.ylen, xc, yc, r, 45, -45)
@@ -296,7 +296,7 @@ class Simulation(object):
             return radii*self.pixelscale, unitfix(quiescent_temperature),\
                 unitfix(quiescent_temperature_std)
         else:
-            cygA, cygNW, distance = self.find_cluster_centroids_psmac_dmrho(snapnr=snapnr)
+            cygA, cygNW, distance = self.find_cluster_centroids_psmac_dmrho(snapnr=snapnr, EA2=0)
             results = dict()
             for (xc, yc), name in zip([cygA, cygNW], ["cygA", "cygNW"]):
                 for i, r in enumerate(radii):

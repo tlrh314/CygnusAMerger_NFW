@@ -342,9 +342,9 @@ if __name__ == "__main__":
     cygNW = ( 299.7055, 40.884849 )
 
     # Data directory and radio/xray observation fits files
-    obsdir = "../runs/ChandraObservation/"
-    radio = obsdir+"StruisMosaics/radio/radio5GHz.fits"
-    mosaic = obsdir+"StruisMosaics/mosaic_msec/cygnus_tot_flux.fits"
+    radio = "../runs/RadioObservation/radio5GHz.fits"
+    mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
+    lss = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
     confiles = glob.glob(obsdir+"StruisMosaics/xray_contours_*.con")
     ledlow = t = Vizier.get_catalogs("J/AJ/130/47")[0]  # table1
 

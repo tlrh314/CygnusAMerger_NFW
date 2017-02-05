@@ -745,7 +745,11 @@ class PSmac2Output(object):
                     print "ERROR: unknown fits filename '{0}'".format(path)
                     continue
             print path
-            attr = attr+(path.split("_")[-1]).split(".fits.fz")[0]
+            if "best" in path:
+                EA2 = (path.split("_")[-2]).split(".fits.fz")[0]
+                attr = attr+EA2+"best"
+            else:
+                attr = attr+(path.split("_")[-1]).split(".fits.fz")[0]
             print attr
             header, data = parse.psmac2_fitsfile(path)
             setattr(self, attr+"_header", header)

@@ -212,7 +212,10 @@ def find_r500(c, debug=False):
     # Set bestfit betamodel parameters
     ne0, rho0, beta, rc = c.ne0, c.rho0, c.beta, c.rc
     rc *= convert.kpc2cm
-    rcut = c.rcut * convert.kpc2cm if hasattr(c, "rcut") and c.rcut is not None else None
+    rcut_cm = c.rcut_cm if hasattr(c, "rcut_cm") and c.rcut_cm is not None else None
+    rcut_nfw_cm = c.rcut_nfw_cm if hasattr(c, "rcut_nfw_cm") and c.rcut_nfw_cm is not None else None
+    print rcut_cm
+    print rcut_nfw_cm
 
     # Set inferred NFW parameters
     rho0_dm, rs = c.halo["rho0_dm"], c.halo["rs"]
@@ -228,8 +231,8 @@ def find_r500(c, debug=False):
         # bisection
         r500 = (lower+upper)/2.
 
-        M500 = profiles.dm_mass_nfw(r500, rho0_dm, rs) + \
-            profiles.gas_mass_betamodel(r500, rho0, beta, rc, rcut)
+        M500 = profiles.dm_mass_nfw(r500, rho0_dm, rs, rcut_nfw_cm) + \
+            profiles.gas_mass_betamodel(r500, rho0, beta, rc, rcut_cm)
 
         """ Now rho_average(r200)/rhocrit should equal 200.
                 If not? Try different r200"""

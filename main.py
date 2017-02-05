@@ -302,7 +302,7 @@ def find_and_plot_700_kpc(sim, verbose=False):
     if verbose: print "Running find_and_plot_700_kpc"
 
     sim.set_gadget_paths(verbose=verbose)
-    sim = copy.deepcopy(sim)
+    # sim = copy.deepcopy(sim)
 
     distances = numpy.zeros(len(sim.gadget.snapshots))
 
@@ -348,6 +348,10 @@ if __name__ == "__main__":
     if a.embed: header = ""
 
     sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
+
+    plot.make_temperature_video(sim)
+    import sys; sys.exit(0)
+
     if a.embed: header += "Simulation instance in `sim'\n"
 
     if a.find_700:
