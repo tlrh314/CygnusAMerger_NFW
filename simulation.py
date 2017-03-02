@@ -193,13 +193,13 @@ class Simulation(object):
         else:  # two clusters, yes impact parameter, or yes rotated /w EA1
             expected_xpeaks = 2
             expected_ypeaks = 2
-            thres, min_dist = 0.35, 30
+            thres, min_dist = 0.35, 100
 
         """ Peakutils sometimes finds noise (i.e. 1 pixel with a slightly higher
         density, where slightly is no more than 0.1%). To kill of these tiny noise
         fluctuations the summed dark matter density is squared, then normalised
         to the maximum, and finally smoothed with a Savitzky-Golay filter. """
-        rhodm = getattr(self.psmac, "rhodm{0}".format(EA2), None)
+        rhodm = getattr(self.psmac, "rhodm{0}best".format(EA2), None)
         if rhodm is None: return
         xsum = p2(numpy.sum(rhodm[snapnr], axis=0))
         xsum /= numpy.max(xsum)

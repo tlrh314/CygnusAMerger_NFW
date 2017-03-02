@@ -247,7 +247,7 @@ def find_dm_centroid(header, dm, single=False, verbose=True):
     return distance
 
 
-@concurrent(processes=threads)
+#@concurrent(processes=threads)
 def compute_distance(sim, snapnr, path_to_snaphot, verbose=True):
     print "Checking", snapnr
     # sim.set_gadget_snap_double(snapnr, path_to_snaphot, verbose=verbose)
@@ -349,8 +349,8 @@ if __name__ == "__main__":
 
     sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
 
-    plot.make_temperature_video(sim)
-    import sys; sys.exit(0)
+    # plot.make_temperature_video(sim)
+    # import sys; sys.exit(0)
 
     if a.embed: header += "Simulation instance in `sim'\n"
 

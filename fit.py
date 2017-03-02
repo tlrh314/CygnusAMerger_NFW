@@ -178,28 +178,6 @@ def total_gravitating_mass(c, cNFW=None, bf=0.17, RCUT_R200_RATIO=None,
     halo["rho0_dm"] = rho0_dm
     halo["ne0_dm"] = convert.rho_to_ne(rho0_dm)
 
-    if verbose:
-        print "  Assuming fixed baryon fraction constrains DM properties:"
-        print "    r200                   = {0:3.1f}".format(halo["r200"])
-        if rcut is not None:
-            print "    rcut                   = {0:3.1f}".format(halo["rcut"])
-        else:
-            print "    rcut                   = {0}".format(halo["rcut"])
-        print "    rho_avg(r200)/rho_crit = {0:.1f}". format(halo["rho200_over_rhocrit"])
-        print "    bf200                  = {0:1.4f}".format(halo["bf200"])
-        print "    rho0                   = {0:1.4e}".format(halo["rho0"])
-        print "    ne0                    = {0:1.4e}".format(halo["ne0"])
-        print "    rc                     = {0:.3f}". format(halo["rc"])
-        print "    beta                   = {0:.3f}". format(halo["beta"])
-        print "    Mgas200                = {0:1.4e}".format(halo["Mgas200"])
-        print "    Mdm200                 = {0:1.4e}".format(halo["Mdm200"])
-        print "    M200                   = {0:1.4e}".format(halo["M200"])
-        print "    cNFW                   = {0:1.4f}".format(halo["cNFW"])
-        print "    rs                     = {0:3.1f}".format(halo["rs"])
-        print "    rho0_dm                = {0:1.4e}".format(halo["rho0_dm"])
-        print "    ne0_dm                 = {0:1.4e}".format(halo["ne0_dm"])
-        print
-
     return halo
 
 
@@ -214,8 +192,6 @@ def find_r500(c, debug=False):
     rc *= convert.kpc2cm
     rcut_cm = c.rcut_cm if hasattr(c, "rcut_cm") and c.rcut_cm is not None else None
     rcut_nfw_cm = c.rcut_nfw_cm if hasattr(c, "rcut_nfw_cm") and c.rcut_nfw_cm is not None else None
-    print rcut_cm
-    print rcut_nfw_cm
 
     # Set inferred NFW parameters
     rho0_dm, rs = c.halo["rho0_dm"], c.halo["rs"]

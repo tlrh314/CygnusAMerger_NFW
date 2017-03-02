@@ -3,6 +3,8 @@
 import copy
 
 import numpy
+import scipy
+import astropy
 import astropy.units as u
 import astropy.constants as const
 import matplotlib
@@ -17,7 +19,7 @@ threads=2
 import fit
 import profiles
 import convert
-from macro import print_progressbar
+from macro import print_progressbar, p2
 from timer import Timer
 
 
@@ -115,7 +117,7 @@ def bestfit_betamodel(c):
     """ Plot best-fit betamodel with residuals """
 
     # Define kwargs for pyplot to set up style of the plot
-    avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
+    avg = { "marker": "o", "ls": "", "c": "b" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
             "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
     fit = { "color": "k", "lw": 4, "linestyle": "solid" }
@@ -131,7 +133,7 @@ def bestfit_betamodel(c):
 
     c.plot_chandra_average(ax, parm="rho", style=avg)
     c.plot_bestfit_betamodel(ax, style=fit)
-    pyplot.ylabel("Density [1/cm$^3$]")
+    pyplot.ylabel("Density [g/cm$^3$]")
     pyplot.xscale("log")
     pyplot.yscale("log")
     pyplot.ylim(numpy.min(c.avg["rho"])/1.5, numpy.max(c.avg["rho"])*1.3)
@@ -425,11 +427,19 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
     # Add Verlinde profiles
     if verlinde: c.plot_verlinde(ax1, ax2, ax3, style=tot)
 
-    for ax in [ax0, ax1, ax2, ax3]:
+    for ax, loc in zip([ax0, ax1, ax2, ax3], [3, 2, 3, 3]):
+        ax.axvline(c.halo["r200"], c="k")
+        # The y coordinates are axes while the x coordinates are data
+        trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
+        ax.text(c.halo["r200"]+150, 0.98, r"$r_{200}$", ha="left", va="top",
+                fontsize=22, transform=trans)
+        ax.axvline(c.halo["r500"], c="k")
+        ax.text(c.halo["r500"]-150, 0.98, r"$r_{500}$", ha="right", va="top",
+                fontsize=22, transform=trans)
         ax.set_xlabel("Radius [kpc]")
         ax.set_xscale("log")
         ax.set_xlim(0, 5000)
-        ax.legend(fontsize=12)
+        ax.legend(fontsize=12, loc=loc)
     ax0.set_ylabel("Density [g/cm$^3$]")
     ax1.set_ylabel("Mass [MSun]")
     ax2.set_ylabel("Temperature [keV]")
@@ -447,7 +457,7 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
         pyplot.close(fig)
 
 
-def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=True):
+def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=False):
     """ - lower stepsize to include all particles when binning
         - increase nbins to increase resolution of sampled particles
         - for publication-ready figure increase dpi to cranck up resolution
@@ -458,8 +468,10 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Tr
     if hasattr(halo, "time"):
         fig.suptitle("T = {0:04.2f} Gyr".format(halo.time))
 
+    # binned option gives rather ugly plots...
+    # Donnert 2017 randomly selects 5k particles: looks sexy
     if binned:
-        nbins = 64
+        nbins = 128
         radii = numpy.power(10, numpy.linspace(numpy.log10(5), numpy.log10(5e3), nbins))
 
         # Expensive to sort, but less expensive than numpy.intersect1d(
@@ -523,30 +535,39 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Tr
     else:
         gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
                 "markeredgecolor": "none",  "label": ""}
-        dm = { "marker": "o", "ls": "", "c": "g", "ms": 2, "alpha": 1,
-                "markeredgecolor": "none", "label": ""}
-        ax0.plot(halo.gas["r"], halo.gas["rho"], **gas)
+        dm = { "c": "g", "lw": 2, "drawstyle": "steps-post", "label": ""}
+
+        mask = numpy.random.randint(0, len(halo.gas["r"]), size=10000)
+        mask2 = numpy.where(halo.gas["r"] < 100)
+        mask = numpy.union1d(numpy.unique(mask), mask2[0])
+        if halo.name == "cygNW":
+            mask2 = numpy.where(halo.gas["r"] > 2e3)
+            mask = numpy.setdiff1d(mask, mask2[0])
+
+
+        ax0.plot(halo.gas["r"][mask], halo.gas["rho"][mask], **gas)
         ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
 
-        ax1.plot(halo.gas["r"], halo.gas["mass"], **gas)
+        ax1.plot(halo.gas["r"][mask], halo.gas["mass"][mask], **gas)
         ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
         # TODO: sampled DM profile misses, rho and mass
 
-        ax2.plot(halo.gas["r"], halo.gas["kT"], **gas)
+        ax2.plot(halo.gas["r"][mask], halo.gas["kT"][mask], **gas)
 
-        ax3.plot(halo.gas["r"], halo.gas["P"], **gas)
+        ax3.plot(halo.gas["r"][mask], halo.gas["P"][mask], **gas)
 
-    inner = numpy.where(halo.gas["r"] < 100)
+    inner = numpy.where(halo.gas["r"] < 50)
     hsml = 2*numpy.median(halo.gas["hsml"][inner])
+    # hist, edges = numpy.histogram(halo.gas["hsml"], bins=1000)
+    # hsml = edges[numpy.argmax(hist)]
     for ax in fig.axes:
         # The y coordinates are axes while the x coordinates are data
-        trans = matplotlib.transforms.blended_transform_factory(
-            ax.transData, ax.transAxes)
+        trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
         ax.fill_between(numpy.arange(2000, 1e4, 0.01), 0, 1,
             facecolor="grey", edgecolor="grey", alpha=0.2,
             transform=trans)
         ax.axvline(x=hsml, c="g", ls=":")
-        ax.text(hsml, 0.05, r"$2 h_{sml}$", ha="left", color="g",
+        ax.text(hsml+6, 0.05, r"$2 h_{sml}$", ha="left", color="g",
             transform=trans, fontsize=22)
 
     # ~2s, 10% runtime
@@ -678,6 +699,45 @@ def twocluster_parms(cygA, cygNW, sim=None, verlinde=False):
     print "... done saving"
     pyplot.close()
     matplotlib.rc("font", **{"size": 28})
+
+
+def dark_component(c):
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
+            "elinewidth": 1, "fillstyle": "full" }
+    gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
+    dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
+    tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
+
+
+    fig, ax1 = pyplot.subplots(1, 1, figsize=(12, 9))
+
+    c.plot_bestfit_betamodel_mass(ax1, style=gas)
+    c.plot_inferred_nfw_mass(ax1, style=dm)
+    c.plot_inferred_total_gravitating_mass(ax1, style=tot)
+    c.plot_hydrostatic_mass(ax1, style=tot)
+    #ax1.loglog(radii, convert.g2msun*masstot_check, **tot)
+
+    c.avg.mask = [False for i in range(len(c.avg.columns))]
+    r = c.avg["r"]
+    rho = convert.density_cgs_to_msunkpc(c.avg["rho"])
+    frho = convert.density_cgs_to_msunkpc(c.avg["frho"])
+
+    spline = scipy.interpolate.UnivariateSpline(r, 4*numpy.pi*p2(r)*rho, k=5, s=10)
+    fspline = scipy.interpolate.UnivariateSpline(r, 4*numpy.pi*p2(r)*frho, k=5, s=10)
+
+    N = len(c.avg)
+    mass, fmass = numpy.zeros(N), numpy.zeros(N)
+    for i in range(N):
+        mass[i] = spline.integral(0, r[i])
+        fmass[i] = fspline.integral(0, r[i])
+    pyplot.errorbar(r, mass, yerr=fmass, **avg)
+    pyplot.fill_between(r, mass-fmass, mass+fmass, color="b", alpha=0.2)
+    pyplot.xscale("log")
+    pyplot.yscale("log")
+    pyplot.xlim(4e-1, 5500)
+    pyplot.ylim(1e5, 5e16)
+    pyplot.xlabel("R [kpc]")
+    pyplot.ylabel("M($<$R) [M$_\odot$]")
 # ----------------------------------------------------------------------------
 
 
@@ -1056,7 +1116,7 @@ def twocluster_quiescent_parm(cygA, cygNW, sim, snapnr, parm="kT"):
         pyplot.close()
 
 
-@concurrent(processes=threads)
+#@concurrent(processes=threads)
 def plot_smac_temperature(i, snap, xlen, ylen, pixelscale, dt, outdir):
     print i
 
@@ -1080,7 +1140,7 @@ def plot_smac_temperature(i, snap, xlen, ylen, pixelscale, dt, outdir):
     ax.set_yticks([])
 
     scale = xlen*pixelscale
-    scale = "[{0:.1f} Mpc]^2".format(float(scale)/1000)
+    scale = "[{0:.1f} Mpc]\^2".format(float(scale)/1000)
     pad = 16
     ax.text(2*pad, pad, scale, color="white",  size=18,
             horizontalalignment="left", verticalalignment="bottom")
@@ -1091,7 +1151,7 @@ def plot_smac_temperature(i, snap, xlen, ylen, pixelscale, dt, outdir):
     pyplot.close(fig)
 
 
-@synchronized
+#@synchronized
 def make_temperature_video(sim):
     sim.set_gadget_paths()
     sim.read_smac()
@@ -1101,3 +1161,54 @@ def make_temperature_video(sim):
     for i, snap in enumerate(sim.psmac.tspec0):
         plot_smac_temperature(i, snap, sim.xlen, sim.ylen, sim.pixelscale, sim.dt, sim.outdir)
 
+
+def gen_bestfit_2d_tspec():
+    sim = Simulation(base="/media/SURFlisa", timestamp="20170115T0906", name="both",
+                     set_data=False)
+    sim.set_gadget_paths()
+    sim.read_smac()
+    sim.nsnaps, sim.xlen, sim.ylen = sim.psmac.xray0.shape
+    sim.pixelscale = float(sim.psmac.xray0_header["XYSize"])/int(sim.xlen)
+
+    for i, EA2, xmin, ymin in zip([92, 91, 89, 84, 70, 16], [0, 15, 30, 45, 60, 75],
+                                 [720, 723, 730, 741, 757, 778], [720, 724, 729, 746, 765, 789]):
+        EA0, EA1, EA2 = 90, 51, EA2
+        pyplot.style.use(["dark_background"])
+
+        fig, ax = pyplot.subplots(figsize=(16, 16))
+        # https://stackoverflow.com/questions/32462881
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0)
+        im = ax.imshow(convert.K_to_keV(getattr(sim.psmac,
+            "tspec{0}best".format(EA2))[0]), origin="lower", cmap="afmhot",
+            vmin=2.5, vmax=15)
+        fig.colorbar(im, cax=cax, orientation="vertical")
+
+        fig.suptitle("T = {0:04.2f} Gyr".format(i*dt), color="white", size=26, y=0.9)
+
+        ax.set_xlim(xmin, xmin+480)
+        ax.set_ylim(ymin, ymin+480)
+        # ax.set_xlabel("x")
+        # ax.set_ylabel("y")
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        scale = (1200 - 720)*sim.pixelscale
+        scale = "[{0:.1f} Mpc]$^2$".format(float(scale)/1000)
+        pad = 3.75
+        ax.text(xmin + 2*pad, ymin+pad, scale, color="white",  size=18,
+                horizontalalignment="left", verticalalignment="bottom")
+
+        angles = r"\begin{tabular}{p{1.25cm}ll}"
+        angles += r" EA0 & = & {0:03d} \\".format(EA0)
+        angles += " EA1 & = & {0:03d} \\\\".format(EA1)
+        angles += " EA2 & = & {0:03d} \\\\".format(EA2)
+        angles += (" \end{tabular}")
+
+        ax.text(xmin+480-2*pad, ymin+pad, angles, color="white",  size=18,
+                horizontalalignment="right", verticalalignment="bottom")
+
+        ax.set_aspect("equal")
+        fig.tight_layout()
+
+        fig.savefig(sim.outdir+"tspec_best_{0:02d}_withcolorbar.png".format(EA2), dpi=300)

@@ -8,6 +8,7 @@ import copy
 import numpy
 import scipy
 import astropy
+import matplotlib
 import peakutils
 import dill
 
@@ -84,6 +85,7 @@ class ObservedCluster(object):
         # M(<r) under assumption DM follows NFW
         self.infer_NFW_mass(cNFW=cNFW, bf=bf, RCUT_R200_RATIO=RCUT_R200_RATIO,
                             verbose=verbose, debug=debug)
+        if verbose: self.print_halo_properties()
 
         # Set callable gas/dm density/mass profiles, and total mass profile
         # self.set_inferred_profiles()
@@ -169,21 +171,55 @@ class ObservedCluster(object):
         self.halo = fit.total_gravitating_mass(self, cNFW=cNFW, bf=bf,
             RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=verbose, debug=debug)
 
-        R200_TO_RMAX_RATIO = 3.75
-        Boxsize = numpy.floor(2*R200_TO_RMAX_RATIO * self.halo["r200"]);
-        self.r_sample_dm = Boxsize/2
+        # if halo != Halo[0] in Toycluster then the cutoff is different
+        if self.name == "cygA":
+            R200_TO_RMAX_RATIO = 3.75
+            Boxsize = numpy.floor(2*R200_TO_RMAX_RATIO * self.halo["r200"]);
+            self.r_sample_dm = Boxsize/2
+        elif self.name == "cygNW":
+            self.r_sample_dm = 1.5 * self.halo["r200"]
 
         self.rcut_kpc = self.halo["rcut"]
         if self.halo["rcut"] is not None:
             self.rcut_cm = self.halo["rcut"]*convert.kpc2cm
             self.rcut_nfw_kpc = self.r_sample_dm
             self.rcut_nfw_cm = self.r_sample_dm*convert.kpc2cm
-            # TODO: if halo != Halo[0] in Toycluster then the cutoff is different
-            # self.rcut_nfw = 1.5*self.halo["r200"]
         else:
             self.rcut_cm = None
             self.rcut_nfw_kpc = None
             self.rcut_nfw_cm = None
+
+        self.halo["r500"], self.halo["M500"] = fit.find_r500(self)
+
+    def print_halo_properties(self):
+        if self.RCUT_R200_RATIO is None:
+            rcut = None
+        else:
+            rcut = self.halo["r200"] * self.RCUT_R200_RATIO
+
+        halo = self.halo
+        print "  Assuming fixed baryon fraction constrains DM properties:"
+        print "    r200                   = {0:3.1f}".format(halo["r200"])
+        print "    r500                   = {0:3.1f}".format(halo["r500"])
+        if rcut is not None:
+            print "    rcut                   = {0:3.1f}".format(halo["rcut"])
+        else:
+            print "    rcut                   = {0}".format(halo["rcut"])
+        print "    rho_avg(r200)/rho_crit = {0:.1f}". format(halo["rho200_over_rhocrit"])
+        print "    bf200                  = {0:1.4f}".format(halo["bf200"])
+        print "    rho0                   = {0:1.4e}".format(halo["rho0"])
+        print "    ne0                    = {0:1.4e}".format(halo["ne0"])
+        print "    rc                     = {0:.3f}". format(halo["rc"])
+        print "    beta                   = {0:.3f}". format(halo["beta"])
+        print "    Mgas200                = {0:1.4e}".format(halo["Mgas200"])
+        print "    Mdm200                 = {0:1.4e}".format(halo["Mdm200"])
+        print "    M200                   = {0:1.4e}".format(halo["M200"])
+        print "    M500                   = {0:1.4e}".format(halo["M500"])
+        print "    cNFW                   = {0:1.4f}".format(halo["cNFW"])
+        print "    rs                     = {0:3.1f}".format(halo["rs"])
+        print "    rho0_dm                = {0:1.4e}".format(halo["rho0_dm"])
+        print "    ne0_dm                 = {0:1.4e}".format(halo["ne0_dm"])
+        print
 
     def rho_gas(self, r):
         return profiles.gas_density_betamodel(r, self.rho0, self.beta,
@@ -279,14 +315,19 @@ class ObservedCluster(object):
             label += " beta & = & {0:.3f} \\\\".format(self.beta)
             label += " rc & = & {0:.2f} kpc \\\\".format(self.rc)
             label += (" \hline \end{tabular}")
+            style["label"] = label
         ax.plot(self.ana_radii, fit, **style)
 
         ymin = profiles.gas_density_betamodel(
             self.rc, self.rho0 if rho else self.ne0, self.beta, self.rc)
         ax.vlines(x=self.rc, ymin=ymin, ymax=1e-10 if rho else 9.15,
                   **{ k: style[k] for k in style.keys() if k != "label" })
-        ax.text(self.rc-25 if self.name == "cygNW" else self.rc-1,
-                3e-23 if rho else 4.06, r"$r_c$", ha="right", fontsize=22)
+
+
+        # The y coordinates are axes while the x coordinates are data
+        trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
+        ax.text(self.rc-6 if self.name == "cygA" else self.rc-60, 0.98, r"$r_c$",
+                ha="left", va="top", fontsize=22, transform=trans)
 
     def plot_bestfit_residuals(self, ax, rho=False):
         fit = profiles.gas_density_betamodel(self.avg["r"],
@@ -317,7 +358,11 @@ class ObservedCluster(object):
         ymin = profiles.dm_density_nfw(rs, density, rs)
         ax.vlines(x=rs, ymin=ymin, ymax=1e-10 if rho else 9.15,
                   **{ k: style[k] for k in style.keys() if k != "label" })
-        ax.text(rs-25, 3e-23 if rho else 4.06, r"$r_s$", ha="right", fontsize=22)
+
+        # The y coordinates are axes while the x coordinates are data
+        trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
+        ax.text(rs-25, 0.98, r"$r_s$", ha="right", va="top",
+                transform=trans, fontsize=22)
 
     def plot_bestfit_betamodel_mass(self, ax, style=dict()):
         mass = convert.g2msun*self.M_gas(self.ana_radii*convert.kpc2cm)
@@ -476,7 +521,7 @@ class Toycluster(object):
         if verbose:
             print "    Counting nr. of particles with radius < r to obtain M(<r)"
 
-        radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e5), 65))
+        radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(1e5), 257))
         dr = radii[1:] - radii[:-1]
         self.dm_radii = radii[:-1]
         N = len(self.dm_radii)
@@ -733,6 +778,9 @@ class PSmac2Output(object):
         }
 
         smaccubes = glob.glob(sim.analysisdir+"*.fits.fz")
+        smaccubes = glob.glob(sim.analysisdir+"*xray_0.fits.fz")
+        [ smaccubes.append(s) for s in glob.glob(sim.analysisdir+"*best.fits.fz") ]
+        # smaccubes.append(glob.glob(sim.analysisdir+"*Tspec_rot-ea0.fits.fz")[0])
         for path in smaccubes:
             for cubename, attr in attributes.iteritems():
                 if cubename in path:

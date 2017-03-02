@@ -239,7 +239,7 @@ def set_header(f, verbose=False):
     return header
 
 
-def toycluster_icfile(filename, verbose=False):
+def toycluster_icfile(filename, block="all", verbose=False):
     """ Eat Toycluster/Gadget-2/Gadget-3 output
 
         Inspired by https://stackoverflow.com/questions/23377274
