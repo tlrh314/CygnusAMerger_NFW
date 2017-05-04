@@ -7,6 +7,7 @@ import copy
 
 import numpy
 import scipy
+from scipy.ndimage.filters import gaussian_filter1d
 import astropy
 import matplotlib
 import peakutils
@@ -81,6 +82,7 @@ class ObservedCluster(object):
 
         # M_HE(<r) from ne_obs and T_obs alone
         self.infer_hydrostatic_mass()
+        self.hydrostatic_mass_with_error()
 
         # M(<r) under assumption DM follows NFW
         self.infer_NFW_mass(cNFW=cNFW, bf=bf, RCUT_R200_RATIO=RCUT_R200_RATIO,
@@ -165,6 +167,86 @@ class ObservedCluster(object):
 
         self.HE_M_below_r = profiles.smith_hydrostatic_mass(
             self.HE_radii, self.HE_ne, self.HE_dne_dr, self.HE_T, self.HE_dT_dr)
+
+    def hydrostatic_mass_with_error(self):
+        r = numpy.ma.compressed(self.avg_for_plotting["r"]*convert.kpc2cm)
+        T = numpy.ma.compressed(self.avg_for_plotting["T"])
+        T_plus = numpy.ma.compressed(self.avg_for_plotting["T"]+self.avg_for_plotting["fT"])
+        T_min = numpy.ma.compressed(self.avg_for_plotting["T"]-self.avg_for_plotting["fT"])
+
+        # Fit a smoothed cubic spline to the data. Spline then gives dkT/dr
+        T_smooth = gaussian_filter1d(T, 25 if self.name == "cygA" else 7)
+        T_smooth_plus = gaussian_filter1d(T_plus, 25 if self.name == "cygA" else 7)
+        T_smooth_min = gaussian_filter1d(T_min, 25 if self.name == "cygA" else 7)
+        T_spline = scipy.interpolate.splrep(r, T_smooth)
+        T_spline_plus = scipy.interpolate.splrep(r, T_smooth_plus)
+        T_spline_min = scipy.interpolate.splrep(r, T_smooth_min)
+
+        n = profiles.gas_density_betamodel(r, self.ne0, self.beta, self.rc*convert.kpc2cm)
+        dn_dr = profiles.d_gas_density_betamodel_dr(r, self.ne0, self.beta, self.rc*convert.kpc2cm)
+
+        n_plus = numpy.zeros(len(n))
+        dn_plus = numpy.zeros(len(n))
+        n_min = numpy.zeros(len(n))
+        dn_min = numpy.zeros(len(n))
+        for i, ri in enumerate(r):
+            n_err_plus = n[i]
+            n_err_min = n[i]
+            dn_err_plus = 0
+            dn_err_min = 0
+            for ne0 in [self.ne0, self.ne0-self.fne0, self.ne0+self.fne0]:
+                for beta in [self.beta, self.beta-self.fbeta, self.beta+self.fbeta]:
+                    for rc in [self.rc, self.rc-self.frc, self.rc+self.frc]:
+                        rc *= convert.kpc2cm
+
+                        ni = profiles.gas_density_betamodel(ri, ne0, beta, rc)
+                        dn_dri = profiles.d_gas_density_betamodel_dr(ri, ne0, beta, rc)
+
+                        if ni > n_err_plus:
+                            n_err_plus = ni
+                            dn_err_plus = dn_dri
+                        if ni < n_err_min:
+                            n_err_min = ni
+                            dn_err_min = dn_dri
+            n_plus[i] = n_err_plus
+            dn_plus[i] = dn_err_plus
+            n_min[i] = n_err_min
+            dn_min[i] = dn_err_min
+
+        # Evaluate spline, der=0 for fit to the data and der=1 for first derivative.
+        T = scipy.interpolate.splev(r, T_spline, der=0)
+        T_plus = scipy.interpolate.splev(r, T_spline_plus, der=0)
+        T_min = scipy.interpolate.splev(r, T_spline_min, der=0)
+        dT_dr = scipy.interpolate.splev(r, T_spline, der=1)
+        dT_plus = scipy.interpolate.splev(r, T_spline_plus, der=1)
+        dT_min = scipy.interpolate.splev(r, T_spline_min, der=1)
+
+
+        M_below_r = profiles.smith_hydrostatic_mass(r, n, dn_dr, T, dT_dr)
+        M_below_r_plus = numpy.zeros(len(n))
+        M_below_r_min = numpy.zeros(len(n))
+        for i, ri in enumerate(r):
+            M_low = M_below_r[i]
+            M_high = M_below_r[i]
+            for ni, dni in zip([n, n_plus, n_min], [dn_dr, dn_plus, dn_min]):
+                for Ti, dTi in zip([T, T_plus, T_min], [dT_dr, dT_plus, dT_min]):
+                    M = profiles.smith_hydrostatic_mass(ri, ni[i], dni[i], Ti[i], dTi[i])
+                    if M < M_low:
+                        M_low = M
+                    if M > M_high:
+                        M_high = M
+            M_below_r_plus[i] = M_high
+            M_below_r_min[i] = M_low
+
+        self.avg_for_plotting["M_HE"] = numpy.zeros_like(self.avg_for_plotting["r"])
+        self.avg_for_plotting["M_HE_plus"] = numpy.zeros_like(self.avg_for_plotting["r"])
+        self.avg_for_plotting["M_HE_min"] = numpy.zeros_like(self.avg_for_plotting["r"])
+        numpy.place(self.avg_for_plotting["M_HE"], ~self.avg_for_plotting["r"].mask,
+            M_below_r*convert.g2msun)
+        numpy.place(self.avg_for_plotting["M_HE_plus"], ~self.avg_for_plotting["r"].mask,
+            M_below_r_plus*convert.g2msun)
+        numpy.place(self.avg_for_plotting["M_HE_min"], ~self.avg_for_plotting["r"].mask,
+                M_below_r_min*convert.g2msun)
 
     def infer_NFW_mass(self, cNFW=None, bf=0.17, RCUT_R200_RATIO=None,
                        verbose=False, debug=False):
@@ -268,6 +350,29 @@ class ObservedCluster(object):
         self.hydrostatic = convert.K_to_keV(hydrostatic)
         self.hydrostatic_pressure = hydrostatic_pressure
 
+    def set_compton_y(self, verbose=False):
+        print "Setting compton-y"
+        print "Does not work yet"
+        return
+
+        radii = self.ana_radii  # self.avg["r"]
+        N = len(radii)
+        comptony = numpy.zeros(N)
+
+        # R_sample = numpy.sqrt(3)/2*numpy.floor(2*self.halo["r200"])
+        infinity = 1e25
+        for i, r in enumerate(radii * convert.kpc2cm):
+            if not r: continue  # to skip masked values
+
+            comptony[i] = profiles.compton_y(
+                r, infinity, self.rho_gas, self.M_tot)
+
+            if verbose and (i == (N-1) or i%10 == 0):
+                print_progressbar(i, N)
+        print "\n"
+
+        self.comptony = comptony
+
     def plot_chandra_average(self, ax, parm="kT", style=dict()):
         """ plot of observed average profile of parm """
         # compressed, to avoid "UserWarning: Warning: converting a masked element to nan"
@@ -309,9 +414,9 @@ class ObservedCluster(object):
             label = r"\begin{tabular}{p{2.5cm}ll}"
             # label += " model & = & free beta \\\\"
             if rho:
-                label += r" rho0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.rho0)
+                label += r" rho0 & = & {0:.2e} g$/$cm$^{{3}}$ \\".format(self.rho0)
             else:
-                label += r" ne0 & = & {0:.2e} g$\cdot$cm$^{{-3}}$ \\".format(self.ne0)
+                label += r" ne0 & = & {0:.2e} g$/$cm$^{{3}}$ \\".format(self.ne0)
             label += " beta & = & {0:.3f} \\\\".format(self.beta)
             label += " rc & = & {0:.2f} kpc \\\\".format(self.rc)
             label += (" \hline \end{tabular}")
@@ -381,6 +486,23 @@ class ObservedCluster(object):
         style["label"] = "HE"
         style["color"] = "b"
         ax.plot(self.HE_radii*convert.cm2kpc, self.HE_M_below_r*convert.g2msun, **style)
+
+    def plot_hydrostatic_mass_err(self, ax, style=dict()):
+        style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
+        style["label"] = "HE"
+        style["color"] = "b"
+        # style = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
+        #         "elinewidth": 0.5, "label": "HE" }
+
+        mask = self.avg_for_plotting.mask
+        if self.name == "cygA":
+             self.avg_for_plotting[10::2].mask = [True for i
+                in range(len(self.avg_for_plotting.columns))]
+
+        ax.errorbar(self.avg_for_plotting["r"], self.avg_for_plotting["M_HE"],
+            xerr=self.avg_for_plotting["fr"]/2, yerr=[self.avg_for_plotting["M_HE_min"],
+                self.avg_for_plotting["M_HE_plus"]], **style)
+        self.avg_for_plotting.mask = mask
 
     def M_verlinde(self, r):
         return profiles.verlinde_apparent_DM_mass(r, self.rho0, self.beta,

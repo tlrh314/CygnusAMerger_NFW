@@ -69,6 +69,7 @@ def gadget_u_to_t(uint):
     kB = const.k_B.to(u.erg/u.K).value
     m_p = const.m_p.to(u.g).value
     factor = (gamma-1)*umu*m_p/kB
+    # P-smac2 uses T = uint * factor * p2(units.velocity), where internal velocity unit is 1e5
     return uint * factor * 1e10  # 1e10 because internal energy is per unit mass
 
 def rho_to_ne(rho, z=None):

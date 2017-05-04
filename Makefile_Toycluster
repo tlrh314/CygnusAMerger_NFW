@@ -9,8 +9,6 @@ SHELL = /bin/bash
 OPT     += -DGIVEPARAMS            # more merger parameters in .par file
 #OPT     += -DSPH_CUBIC_SPLINE      # for use with Gadget2
 #OPT     += -DNFWC_DUFFY08          # alternate fit to concentr. param
-OPT     += -DBETA=0.55             # slope between rc and rcut. keep >0.5
-OPT     += -DRCUT_R200_RATIO=1.6    # values >1 make cluster unstable, use with care
 #OPT     += -DDOUBLE_BETA_COOL_CORES
 #OPT     += -DNO_RCUT_IN_T          # set Rcut very large in U calculation
 

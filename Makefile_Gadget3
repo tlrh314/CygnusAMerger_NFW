@@ -839,7 +839,7 @@ endif
 
 ifeq ($(SYSTYPE),"MBP")
 OPT     += -DNOCALLSOFSYSTEM
-CC       = mpicc -cc=icc # sets the C-compiler
+CC       = mpicc # sets the C-compiler
 OPTIMIZE = $(GADGETCFLAGS) -fopenmp -fast
 GSL_INCL = -I/usr/local/Cellar/gsl/1.16/include
 GSL_LIBS = -L/usr/local/Cellar/gsl/1.16/lib

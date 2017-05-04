@@ -262,6 +262,30 @@ def hydrostatic_temperature(r, Rmax, rho_gas, M_tot):
     return fac*temperature[0]
 
 
+def compton_y(r, Rmax, rho_gas, M_tot):
+    """ SZ 1980 adopted by Donnert (2014; eq. 16)
+
+        CAUTION: constants used in this function are in cgs. Make sure that the
+        rho_gas, M_tot and r are all in cgs units!!
+
+        @param Rmax   : maximum value in integration, float, [cm]
+        @param rho_gas: callable gas density profile, function pointer
+        @param M_tot  : callable total mass profile, function pointer
+        @return       : compton-y parameter """
+
+    print "Does not work yet"
+    return
+
+    m_e = const.m_e.to(u.g).value
+    kB = const.k_B.to(u.erg/u.K).value
+    sT = const.sigma_T.cgs.value
+    c = const.c.cgs.value
+    fac = sT * kB * 4 * numpy.pi / m_e / p2(c)
+
+    y = scipy.integrate.quad(lambda t: fac*p2(t)*convert.rho_to_ne(rho_gas(t))*hydrostatic_temperature(t, Rmax, rho_gas, M_tot), 0, Rmax)
+    return y[0]
+
+
 def hydrostatic_gas_pressure(r, Rmax, rho_gas, M_tot):
     """ Gas pressure from hydrostatic equation (Donnert 2014, eq. 8)
         @param Rmax   : maximum value in integration, float, [cm]

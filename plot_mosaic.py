@@ -13,6 +13,9 @@ import sphviewer
 from astroquery.vizier import Vizier
 Vizier.ROW_LIMIT = None
 
+from plotsettings import PlotSettings
+style = PlotSettings()
+
 
 def plot_zoomin_of_core(mosaic, radio, cygA):
     """ Zoomin of the AGN feedback core region where FR-II interacts with gas
@@ -345,12 +348,12 @@ if __name__ == "__main__":
     radio = "../runs/RadioObservation/radio5GHz.fits"
     mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
     lss = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
-    confiles = glob.glob(obsdir+"StruisMosaics/xray_contours_*.con")
+    # confiles = glob.glob(obsdir+"StruisMosaics/xray_contours_*.con")
     ledlow = t = Vizier.get_catalogs("J/AJ/130/47")[0]  # table1
 
     # plot_zoomin_of_core(mosaic, radio, cygA)
     # plot_mosaic_with_wedges(mosaic, cygA)
-    # plot_mosaic_with_ruler(mosaic, cygA, cygNW)
-    for ngb in range(2, 32, 2):
-        plot_mosaic_with_ledlow(mosaic, ledlow, ngb=ngb)
-        plot_ledlow_with_chandra(mosaic, ledlow, confiles, ngb=ngb)
+    plot_mosaic_with_ruler(mosaic, cygA, cygNW)
+    # for ngb in range(2, 32, 2):
+    #     plot_mosaic_with_ledlow(mosaic, ledlow, ngb=ngb)
+    #     plot_ledlow_with_chandra(mosaic, ledlow, confiles, ngb=ngb)

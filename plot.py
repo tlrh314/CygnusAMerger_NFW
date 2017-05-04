@@ -4,9 +4,11 @@ import copy
 
 import numpy
 import scipy
+from scipy import ndimage
 import astropy
 import astropy.units as u
 import astropy.constants as const
+from astropy.io import fits
 import matplotlib
 from matplotlib import pyplot
 from matplotlib import gridspec
@@ -393,7 +395,7 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
         @param sim   : Simulation
         @param snapnr: TODO, string"""
 
-    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 2 }
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 1 }
     gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
     dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
     tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
@@ -409,7 +411,8 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
     c.plot_bestfit_betamodel_mass(ax1, style=gas)
     c.plot_inferred_nfw_mass(ax1, style=dm)
     c.plot_inferred_total_gravitating_mass(ax1, style=tot)
-    c.plot_hydrostatic_mass(ax1, style=tot)
+    c.plot_hydrostatic_mass_err(ax1, style=avg)
+    # c.plot_hydrostatic_mass(ax1, style=tot)
     #ax1.loglog(radii, convert.g2msun*masstot_check, **tot)
     ax1.set_yscale("log")
     ax1.set_ylim(1e5, 1e16)
@@ -1212,3 +1215,859 @@ def gen_bestfit_2d_tspec():
         fig.tight_layout()
 
         fig.savefig(sim.outdir+"tspec_best_{0:02d}_withcolorbar.png".format(EA2), dpi=300)
+
+
+def Lx_chandra_vs_sim():
+    # Open observation lss [counts/s/arcsec^2]
+    obs = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
+    mosaic = fits.open(obs)
+
+    # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
+    mosaic_smooth = scipy.ndimage.filters.gaussian_filter(mosaic[0].data, 9)
+
+    # Find the centroid of CygA to align simulation and observation later on
+    maxcounts_obs = mosaic[0].data.max()
+    maxcounts_obs_index = mosaic[0].data.argmax()  # of flattened array
+    ylen_obs_pix, xlen_obs_pix = mosaic[0].data.shape
+    xcenter_obs = maxcounts_obs_index % xlen_obs_pix
+    ycenter_obs = maxcounts_obs_index / xlen_obs_pix
+
+    # Find the dimensions of the Chandra image in pix, arcsec and kpc
+    xlen_obs_pix = mosaic[0].header["NAXIS1"]  # same as using mosaic_smooth.shape
+    ylen_obs_pix = mosaic[0].header["NAXIS2"]
+    pix2arcsec_obs = mosaic[0].header["CDELT2"]*3600  # Chandra size of pixel 0.492". Value in header is in degrees.
+    xlen_obs_arcsec = xlen_obs_pix * pix2arcsec_obs
+    ylen_obs_arcsec = ylen_obs_pix * pix2arcsec_obs
+    from cosmology import CosmologyCalculator
+    cc = CosmologyCalculator(0.0562)
+    arcsec2kpc = cc.kpc_DA
+    pix2kpc_obs = pix2arcsec_obs * arcsec2kpc
+    xlen_obs_kpc = xlen_obs_arcsec * arcsec2kpc
+    ylen_obs_kpc = ylen_obs_arcsec * arcsec2kpc
+
+    print "Chandra Observation [lss_fill_flux]"
+    print "  Shape ({0},   {1})   pixels".format(xlen_obs_pix, ylen_obs_pix)
+    print "  Shape ({0:.1f}, {1:.1f}) arcsec".format(xlen_obs_arcsec, ylen_obs_arcsec)
+    print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_obs_kpc, ylen_obs_kpc)
+    print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_obs, ycenter_obs, maxcounts_obs)
+
+    # Open Temperature
+    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+    mosaic_kT = fits.open(lss_kT)
+
+
+    ############################################
+    # Convert Chandra countrate to cgs
+    # PIMMS predicts a flux ( 0.500- 7.000keV) of 1.528E-11 ergs/cm/cm/s
+    # pimms =  1.528E-11
+    # data = mosaic[0].data  # counts / second
+    # data *= pimms  # erg/cm/cm/s
+    # goal  # [erg/cm^2/s/Hz]
+
+    # cnts2erg_per_cm2 = 1.528e-11   # WebPIMMS
+    # erg2erg_per_cm2 = 1./4/pi/ (1e3*cc.DL_Mpc*convert.kpc2cm)
+    ############################################
+
+    fig = pyplot.figure()
+
+    # Display the smoothed lss Chandra observation
+    # fig, ((ax0, ax1),(ax2, ax3)) = pyplot.subplots(2, 2, figsize=(12, 9))
+    # gs1 = matplotlib.gridspec.GridSpec(2, 2)
+    # gs1.update(wspace=0)
+    # ax0 = pyplot.subplot(gs1[0])
+    # ax1 = pyplot.subplot(gs1[1])
+    # ax2 = pyplot.subplot(gs1[2])
+    # ax3 = pyplot.subplot(gs1[3])
+
+    # distance_factor = 4*numpy.pi*(cc.DL_Mpc*1000*convert.kpc2cm)**2
+    # Lx = mosaic_smooth * convert.keV_to_erg(mosaic_kT[0].data) * distance_factor
+    # im = ax0.imshow(Lx,
+    #                 vmin=7.0e-10*convert.keV_to_erg(5.9)*distance_factor,
+    #                 vmax=1.0e-6*convert.keV_to_erg(5.9)*distance_factor,
+    #                 norm=matplotlib.colors.LogNorm(),
+    #                 origin="lower", cmap="spectral")
+
+    # # Indicate the CygA centroid
+    # ax0.axhline(ycenter_obs, c="w")
+    # ax0.axvline(xcenter_obs, c="w")
+
+    # # Add a colorbar
+    # im.axes.set_xticks([], [])
+    # im.axes.set_yticks([], [])
+    # divider = make_axes_locatable(ax0)
+    # cax = divider.append_axes("bottom", size="5%", pad=0)
+    # ticks = matplotlib.ticker.LogLocator(subs=range(10))
+    # pyplot.colorbar(im, cax=cax, ticks=ticks, orientation="horizontal")
+
+    mosaic_kT_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_kT[0].data, 15)
+    Lx = mosaic_smooth * convert.keV_to_erg(mosaic_kT_smooth)
+    ax = pyplot.gca()
+    im = ax.imshow(Lx, vmin=7.0e-10*convert.keV_to_erg(5.9),
+                   vmax=1.0e-6*convert.keV_to_erg(5.9),
+                   norm=matplotlib.colors.LogNorm(),
+                   origin="lower", cmap="spectral")
+
+    # im = ax.imshow(mosaic_kT_smooth, origin="lower", cmap="afmhot",
+    #    vmin=3.5, vmax=12)
+
+
+    scale = "[{0:.1f} x {1:.1f} kpc]".format(xlen_obs_kpc, ylen_obs_kpc)
+    pad = 32
+    ax.text(xlen_obs_pix-pad, pad, scale, color="white",  size=16,
+            horizontalalignment="right", verticalalignment="bottom")
+
+    ax.spines["top"].set_color("white")
+    ax.spines["right"].set_color("white")
+    ax.spines["bottom"].set_color("white")
+    ax.spines["left"].set_color("white")
+    ax.xaxis.label.set_color("white")
+    ax.tick_params(axis="both", colors="white", length=4, width=0.5)
+
+    im.axes.set_xticks(numpy.linspace(0, 2048, 17, dtype=int))
+    im.axes.set_xticklabels([])
+    im.axes.set_yticks(numpy.linspace(0, 2048, 17, dtype=int))
+    im.axes.set_yticklabels([])
+
+    ticks = matplotlib.ticker.LogLocator(subs=range(10))
+    cax = pyplot.colorbar(im, ax=ax, shrink=0.45, pad=0.03, ticks=ticks,
+        aspect=12, orientation="horizontal")
+    cax.ax.tick_params(axis="x", length=1.5, width=0.5, which="major")
+    cax.ax.tick_params(axis="x", length=4, width=0.5, which="minor")
+    cax.ax.xaxis.set_ticks_position("both")
+
+    # cax.ax.tick_params(axis="x", length=4, width=0.5, which="major")
+    # cax.ax.tick_params(axis="x", length=1.5, width=4, which="minor")
+
+    xlabel = r"Temperature $\left[ {\rm keV} \right]$"
+    xlabel = r"X-ray Flux $\left[ \frac{\rm erg}{\rm cm^2 \, s} \right]$"
+    cax.ax.set_xlabel(xlabel)
+
+    pyplot.tight_layout()
+    pyplot.savefig("out/lss_flux_15.pdf", dpi=600)
+    # pyplot.savefig("out/lss_kT_15.pdf", dpi=600)
+
+
+    return
+
+    # Display temperature
+    im = ax2.imshow(mosaic_kT_smooth, origin="lower", cmap="afmhot",
+        vmin=2.5, vmax=15)
+    im.axes.set_xticks([], [])
+    im.axes.set_yticks([], [])
+    divider = make_axes_locatable(ax2)
+    cax = divider.append_axes("bottom", size="5%", pad=0)
+    pyplot.colorbar(im, cax=cax, orientation="horizontal")
+
+
+    # Open simulation Lx Smac Cube [erg/cm^2/s/Hz]
+    import parse
+    sim = "/Users/timohalbesma/Desktop/20170115T0905_xray_45_best.fits.fz"
+    header, data = parse.psmac2_fitsfile(sim)
+
+    # Find the centroid of "CygA" to align simulation and observation later on
+    maxcounts_sim = data.max()
+    maxcounts_sim_index = data.argmax()  # of flattened array
+    ylen_sim_pix, xlen_sim_pix = data[0].shape
+    ylen_sim_kpc = xlen_sim_kpc = float(header["XYSize"])
+    xcenter_sim = maxcounts_sim_index % xlen_sim_pix
+    ycenter_sim = maxcounts_sim_index / xlen_sim_pix
+    pix2kpc_sim = float(header["XYSize"])/int(header["XYPix"])
+
+    print "Smac Cube"
+    print "  Shape ({0},   {1})   pixels".format(xlen_sim_pix, ylen_sim_pix)
+    print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_sim_kpc, ylen_sim_kpc)
+    print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_sim, ycenter_sim, maxcounts_sim)
+
+    # Cut relevant part from the simulation
+    desired_xlen_sim_kpc = xlen_obs_kpc
+    desired_ylen_sim_kpc = ylen_obs_kpc
+    desired_xlen_sim_pix = int(desired_xlen_sim_kpc / pix2kpc_sim + 0.5)
+    desired_ylen_sim_pix = int(desired_ylen_sim_kpc / pix2kpc_sim + 0.5)
+    xoffset = int((xcenter_sim * pix2kpc_sim - xcenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
+    yoffset = int((ycenter_sim * pix2kpc_sim - ycenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
+
+    equal_boxsize_kpc_smaccube = data[0][yoffset:yoffset+desired_ylen_sim_pix,
+                                         xoffset: xoffset+desired_xlen_sim_pix]
+
+    # Convolve with 2D Gaussian, radius converted to kpc in simulation
+    # from a 9 pixel radius in the Chandra observation
+    smooth_obs_kpc = 9 * pix2kpc_obs * arcsec2kpc
+    smooth_sim_kpc = smooth_obs_kpc / pix2kpc_sim
+    smaccube_smooth = scipy.ndimage.filters.gaussian_filter(equal_boxsize_kpc_smaccube, smooth_sim_kpc)
+
+    # central value of CygNW observation / central value of simulated CygNW in 0th snapshot
+    # magic = 5.82e-9 / 1.77e-5   # for 20170115T0905_xray_45_best.fits
+    # magic = 5.82e-9 / 2.788e-5   # for 20170115T0905_xray_0_best.fits
+    # smaccube_smooth *= magic
+
+    # Display the cut-out, zoomed-in, correctly smoothed Smac Cube
+    im = ax1.imshow(smaccube_smooth, vmin=7.0e-10, vmax=1.0e-6,
+                    norm=matplotlib.colors.LogNorm(),
+                    origin="lower", cmap="spectral",
+                    extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+
+    # Note that the extent morphs the simulation to observed range!
+    ax1.axhline(ycenter_obs, c="w")
+    ax1.axvline(xcenter_obs, c="w")
+
+    im.axes.set_xticks([], [])
+    im.axes.set_yticks([], [])
+    divider = make_axes_locatable(ax1)
+    cax = divider.append_axes("bottom", size="5%", pad=0)
+
+    ticks = matplotlib.ticker.LogLocator(subs=range(10))
+    pyplot.colorbar(im, cax=cax, ticks=ticks, orientation="horizontal")
+
+    # Create residuals plot
+    zoomx = float(ylen_obs_pix) / smaccube_smooth.shape[0]
+    zoomy = float(xlen_obs_pix) / smaccube_smooth.shape[1]
+    shape_matched = scipy.ndimage.zoom(smaccube_smooth,  [zoomx, zoomy], order=3)
+
+    im = ax3.imshow(100*(mosaic_smooth-shape_matched)/shape_matched,
+                    vmin=-25, vmax=200, origin="lower", cmap="cubehelix",
+                    extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+
+    im.axes.set_xticks([], [])
+    im.axes.set_yticks([], [])
+    divider = make_axes_locatable(ax3)
+    cax = divider.append_axes("bottom", size="5%", pad=0)
+
+    pyplot.colorbar(im, cax=cax, orientation="horizontal")
+
+    pyplot.suptitle("X-ray Surface Brightness")
+    ax0.set_title("Chandra Observation [1.03 MSec]")
+    ax1.set_title("Simulation, inclination = 45 deg")
+    ax2.set_title("")
+    ax3.set_title("Residuals [percentage]")
+    # pyplot.switch_backend("Agg")
+    # pyplot.savefig("out/Lx_45_with_residuals.pdf", dpi=300)
+
+    # print "Total luminosity = ",
+    # print data[0].sum() * (float(header["XYSize"])*convert.kpc2cm)**2 / int(header["XYPix"])**2
+
+
+def build_hank():
+    # Open observation lss [counts/s/arcsec^2]
+    obs = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
+    mosaic = fits.open(obs)
+
+    # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
+    mosaic_smooth = scipy.ndimage.filters.gaussian_filter(mosaic[0].data, 9)
+
+    # Find the centroid of CygA to align simulation and observation later on
+    maxcounts_obs = mosaic[0].data.max()
+    maxcounts_obs_index = mosaic[0].data.argmax()  # of flattened array
+    ylen_obs_pix, xlen_obs_pix = mosaic[0].data.shape
+    xcenter_obs = maxcounts_obs_index % xlen_obs_pix
+    ycenter_obs = maxcounts_obs_index / xlen_obs_pix
+
+    # Find the dimensions of the Chandra image in pix, arcsec and kpc
+    xlen_obs_pix = mosaic[0].header["NAXIS1"]  # same as using mosaic_smooth.shape
+    ylen_obs_pix = mosaic[0].header["NAXIS2"]
+    pix2arcsec_obs = mosaic[0].header["CDELT2"]*3600  # Chandra size of pixel 0.492". Value in header is in degrees.
+    xlen_obs_arcsec = xlen_obs_pix * pix2arcsec_obs
+    ylen_obs_arcsec = ylen_obs_pix * pix2arcsec_obs
+    from cosmology import CosmologyCalculator
+    cc = CosmologyCalculator(0.0562)
+    arcsec2kpc = cc.kpc_DA
+    pix2kpc_obs = pix2arcsec_obs * arcsec2kpc
+    xlen_obs_kpc = xlen_obs_arcsec * arcsec2kpc
+    ylen_obs_kpc = ylen_obs_arcsec * arcsec2kpc
+
+    print "Chandra Observation [lss_fill_flux]"
+    print "  Shape ({0},   {1})   pixels".format(xlen_obs_pix, ylen_obs_pix)
+    print "  Shape ({0:.1f}, {1:.1f}) arcsec".format(xlen_obs_arcsec, ylen_obs_arcsec)
+    print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_obs_kpc, ylen_obs_kpc)
+    print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_obs, ycenter_obs, maxcounts_obs)
+
+    fig = pyplot.figure(figsize=(6.0625, 9.5625))
+    axCLx = pyplot.subplot2grid((9,6), (0,0), colspan=3, rowspan=3)
+    axCkT = pyplot.subplot2grid((9,6), (0,3), colspan=3, rowspan=3)
+    axes = []
+    for y in range(6):
+        for x in range(6):
+            ax = pyplot.subplot2grid((9,6), (3+y,x))
+            ax.set_xticks([], []); ax.set_yticks([], [])
+            axes.append(ax)
+
+    # Display Lx
+    im = axCLx.imshow(mosaic_smooth, vmin=7.0e-10, vmax=1.0e-6,
+                    norm=matplotlib.colors.LogNorm(),
+                    origin="lower", cmap="spectral")
+
+    # Add a colorbar
+    im.axes.set_xticks([], [])
+    im.axes.set_yticks([], [])
+    # divider = make_axes_locatable(axCLx)
+    # cax = divider.append_axes("right", size="5%", pad=0)
+    # ticks = matplotlib.ticker.LogLocator(subs=range(10))
+    # pyplot.colorbar(im, cax=cax, ticks=ticks, orientation="vertical")
+
+    # Display temperature
+    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+    mosaic = fits.open(lss_kT)
+
+    im = axCkT.imshow(mosaic[0].data, origin="lower", cmap="afmhot",
+        vmin=2.5, vmax=15)
+    im.axes.set_xticks([], [])
+    im.axes.set_yticks([], [])
+    # divider = make_axes_locatable(axCkT)
+    # cax = divider.append_axes("right", size="5%", pad=0)
+    # pyplot.colorbar(im, cax=cax, orientation="vertical")
+
+    from simulation import Simulation
+    sim50 = Simulation(base="/media/SURFlisa", timestamp="20170115T0905", name="both",
+                     set_data=False)
+    sim75 = Simulation(base="/media/SURFlisa", timestamp="20170115T0906", name="both",
+                     set_data=False)
+    sim25 = Simulation(base="/media/SURFlisa", timestamp="20170115T0907", name="both",
+                     set_data=False)
+
+    for Xe_i, sim in enumerate([sim25, sim50, sim75]):
+        # sim.read_ics()
+        # sim.set_gadget_paths()
+        sim.read_smac(verbose=True)
+        sim.nsnaps, sim.xlen, sim.ylen = sim.psmac.xray0.shape
+        sim.pixelscale = float(sim.psmac.xray0_header["XYSize"])/int(sim.xlen)
+
+        for EA2_i, inclination in enumerate([0, 15, 30, 45, 60, 75]):
+            data = getattr(sim.psmac, "xray{0}best".format(inclination))
+            header = getattr(sim.psmac, "xray{0}best_header".format(inclination))
+
+            maxcounts_sim = data.max()
+            maxcounts_sim_index = data.argmax()  # of flattened array
+            ylen_sim_pix, xlen_sim_pix = data[0].shape
+            ylen_sim_kpc = xlen_sim_kpc = float(header["XYSize"])
+            xcenter_sim = maxcounts_sim_index % xlen_sim_pix
+            ycenter_sim = maxcounts_sim_index / xlen_sim_pix
+            pix2kpc_sim = float(header["XYSize"])/int(header["XYPix"])
+
+            print "Smac Cube, i =", inclination
+            print "  Shape ({0},   {1})   pixels".format(xlen_sim_pix, ylen_sim_pix)
+            print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_sim_kpc, ylen_sim_kpc)
+            print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_sim, ycenter_sim, maxcounts_sim)
+
+            # Cut relevant part from the simulation
+            desired_xlen_sim_kpc = xlen_obs_kpc
+            desired_ylen_sim_kpc = ylen_obs_kpc
+            desired_xlen_sim_pix = int(desired_xlen_sim_kpc / pix2kpc_sim + 0.5)
+            desired_ylen_sim_pix = int(desired_ylen_sim_kpc / pix2kpc_sim + 0.5)
+            xoffset = int((xcenter_sim * pix2kpc_sim -
+                xcenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
+            yoffset = int((ycenter_sim * pix2kpc_sim -
+                ycenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
+
+            equal_boxsize_kpc_smaccube = data[0][yoffset:yoffset+desired_ylen_sim_pix,
+                                                 xoffset: xoffset+desired_xlen_sim_pix]
+
+            # Convolve with 2D Gaussian, radius converted to kpc in simulation
+            # from a 9 pixel radius in the Chandra observation
+            smooth_obs_kpc = 9 * pix2kpc_obs * arcsec2kpc
+            smooth_sim_kpc = smooth_obs_kpc / pix2kpc_sim
+            smaccube_smooth = scipy.ndimage.filters.gaussian_filter(
+                equal_boxsize_kpc_smaccube, smooth_sim_kpc)
+
+            # central value of CygNW observation / central value of simulated CygNW in 0th snapshot
+            magic = 5.82e-9 / 1.77e-5   # for 20170115T0905_xray_45_best.fits
+            # magic = 5.82e-9 / 2.788e-5   # for 20170115T0905_xray_0_best.fits
+            smaccube_smooth *= magic
+
+            # Display the cut-out, zoomed-in, correctly smoothed Smac Cube
+            im = axes[6*EA2_i+Xe_i].imshow(smaccube_smooth, vmin=7.0e-10, vmax=1.0e-6,
+                norm=matplotlib.colors.LogNorm(), origin="lower", cmap="spectral",
+                extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+
+            data = getattr(sim.psmac, "tspec{0}best".format(inclination))
+            equal_boxsize_kpc_smaccube = data[0][yoffset:yoffset+desired_ylen_sim_pix,
+                                                 xoffset: xoffset+desired_xlen_sim_pix]
+            tspec = convert.K_to_keV(equal_boxsize_kpc_smaccube)
+            im = axes[3+6*EA2_i+Xe_i].imshow(tspec, vmin=2.5, vmax=15,
+                origin="lower", cmap="afmhot", extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+
+    axCLx.text(0.5, 0.98, "\\textbf{\emph{Chandra} X-ray Surface Brightness}",
+               fontsize=12, color="white", ha="center", va="top", transform=axCLx.transAxes)
+    axCLx.text(0.02, 0.17, "ACIS Mosaic\n0.5-7.0 keV\n1.02 Msec total exposure", color="white",
+               fontsize=12, ha="left", va="top", transform=axCLx.transAxes)
+    axCkT.text(0.5, 0.98, "\\textbf{Temperature [keV]}",
+               fontsize=12, color="white", ha="center", va="top", transform=axCkT.transAxes)
+
+    for xE, ax in zip([0.25, 0.50, 0.75, 0.25, 0.50, 0.75], axes[0:6]):
+        ax.text(0.02, 0.95, "$X_E=\,${0:.2f}".format(xE), color="white", fontsize=12,
+                ha="left", va="top", transform=ax.transAxes)
+
+    for EA2, ax in zip([0, 15, 30, 45, 60, 75], axes[::6]):
+        ax.text(0.02, 0.02, "$i=\,${0:02d}".format(EA2),
+                color="white", fontsize=12, ha="left", va="bottom", transform=ax.transAxes)
+
+        # axes[n].text(0.5, 0.5, str(n), transform=axes[n].transAxes)
+    pyplot.subplots_adjust(left=0., bottom=0., right=1., top=1., wspace=0., hspace=0.05)
+    pyplot.savefig("out/matrix.png", pdi=6000)
+
+def build_hank2():
+    # Open observation lss [counts/s/arcsec^2]
+    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
+    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+
+    mosaic_Lx = fits.open(lss_Lx)
+    mosaic_kT = fits.open(lss_kT)
+
+    # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
+    Lx_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_Lx[0].data, 9)
+
+    # Find the centroid of CygA to align simulation and observation later on
+    maxcounts_obs = mosaic_Lx[0].data.max()
+    maxcounts_obs_index = mosaic_Lx[0].data.argmax()  # of flattened array
+    ylen_obs_pix, xlen_obs_pix = mosaic_Lx[0].data.shape
+    xcenter_obs = maxcounts_obs_index % xlen_obs_pix
+    ycenter_obs = maxcounts_obs_index / xlen_obs_pix
+
+    # Find the dimensions of the Chandra image in pix, arcsec and kpc
+    xlen_obs_pix = mosaic_Lx[0].header["NAXIS1"]  # same as using mosaic_smooth.shape
+    ylen_obs_pix = mosaic_Lx[0].header["NAXIS2"]
+    pix2arcsec_obs = mosaic_Lx[0].header["CDELT2"]*3600  # Chandra size of pixel 0.492". Value in header is in degrees.
+    xlen_obs_arcsec = xlen_obs_pix * pix2arcsec_obs
+    ylen_obs_arcsec = ylen_obs_pix * pix2arcsec_obs
+    from cosmology import CosmologyCalculator
+    cc = CosmologyCalculator(0.0562)
+    arcsec2kpc = cc.kpc_DA
+    pix2kpc_obs = pix2arcsec_obs * arcsec2kpc
+    xlen_obs_kpc = xlen_obs_arcsec * arcsec2kpc
+    ylen_obs_kpc = ylen_obs_arcsec * arcsec2kpc
+
+    print "Chandra Observation [lss_fill_flux]"
+    print "  Shape ({0},   {1})   pixels".format(xlen_obs_pix, ylen_obs_pix)
+    print "  Shape ({0:.1f}, {1:.1f}) arcsec".format(xlen_obs_arcsec, ylen_obs_arcsec)
+    print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_obs_kpc, ylen_obs_kpc)
+    print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_obs, ycenter_obs, maxcounts_obs)
+
+    fig = pyplot.figure(figsize=(12, 12))
+    axes = []
+    for y in range(6):
+        for x in range(6):
+            ax = pyplot.subplot2grid((6, 6), (y, x))
+            ax.set_xticks([], []); ax.set_yticks([], [])
+            axes.append(ax)
+
+    pyplot.show()
+    return
+
+    from simulation import Simulation
+    sim50 = Simulation(base="/media/SURFlisa", timestamp="20170115T0905", name="both",
+                     set_data=False)
+    sim75 = Simulation(base="/media/SURFlisa", timestamp="20170115T0906", name="both",
+                     set_data=False)
+    sim25 = Simulation(base="/media/SURFlisa", timestamp="20170115T0907", name="both",
+                     set_data=False)
+
+    for Xe_i, sim in enumerate([sim25, sim50, sim75]):
+        # sim.read_ics()
+        # sim.set_gadget_paths()
+        sim.read_smac(verbose=True)
+        sim.nsnaps, sim.xlen, sim.ylen = sim.psmac.xray0.shape
+        sim.pixelscale = float(sim.psmac.xray0_header["XYSize"])/int(sim.xlen)
+
+        for EA2_i, inclination in enumerate([0, 15, 30, 45, 60, 75]):
+            data = getattr(sim.psmac, "xray{0}best".format(inclination))
+            header = getattr(sim.psmac, "xray{0}best_header".format(inclination))
+
+            maxcounts_sim = data.max()
+            maxcounts_sim_index = data.argmax()  # of flattened array
+            ylen_sim_pix, xlen_sim_pix = data[0].shape
+            ylen_sim_kpc = xlen_sim_kpc = float(header["XYSize"])
+            xcenter_sim = maxcounts_sim_index % xlen_sim_pix
+            ycenter_sim = maxcounts_sim_index / xlen_sim_pix
+            pix2kpc_sim = float(header["XYSize"])/int(header["XYPix"])
+
+            print "Smac Cube, i =", inclination
+            print "  Shape ({0},   {1})   pixels".format(xlen_sim_pix, ylen_sim_pix)
+            print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_sim_kpc, ylen_sim_kpc)
+            print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_sim, ycenter_sim, maxcounts_sim)
+
+            # Cut relevant part from the simulation
+            desired_xlen_sim_kpc = xlen_obs_kpc
+            desired_ylen_sim_kpc = ylen_obs_kpc
+            desired_xlen_sim_pix = int(desired_xlen_sim_kpc / pix2kpc_sim + 0.5)
+            desired_ylen_sim_pix = int(desired_ylen_sim_kpc / pix2kpc_sim + 0.5)
+            xoffset = int((xcenter_sim * pix2kpc_sim -
+                xcenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
+            yoffset = int((ycenter_sim * pix2kpc_sim -
+                ycenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
+
+            equal_boxsize_kpc_smaccube = data[0][yoffset:yoffset+desired_ylen_sim_pix,
+                                                 xoffset: xoffset+desired_xlen_sim_pix]
+
+            # Convolve with 2D Gaussian, radius converted to kpc in simulation
+            # from a 9 pixel radius in the Chandra observation
+            smooth_obs_kpc = 9 * pix2kpc_obs * arcsec2kpc
+            smooth_sim_kpc = smooth_obs_kpc / pix2kpc_sim
+            smaccube_smooth = scipy.ndimage.filters.gaussian_filter(
+                equal_boxsize_kpc_smaccube, smooth_sim_kpc)
+
+            # central value of CygNW observation / central value of simulated CygNW in 0th snapshot
+            magic = 5.82e-9 / 1.77e-5   # for 20170115T0905_xray_45_best.fits
+            # magic = 5.82e-9 / 2.788e-5   # for 20170115T0905_xray_0_best.fits
+            smaccube_smooth *= magic
+
+            # Display the cut-out, zoomed-in, correctly smoothed Smac Cube
+            im = axes[6*EA2_i+Xe_i].imshow(smaccube_smooth, vmin=7.0e-10, vmax=1.0e-6,
+                norm=matplotlib.colors.LogNorm(), origin="lower", cmap="spectral",
+                extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+
+            data = getattr(sim.psmac, "tspec{0}best".format(inclination))
+            equal_boxsize_kpc_smaccube = data[0][yoffset:yoffset+desired_ylen_sim_pix,
+                                                 xoffset: xoffset+desired_xlen_sim_pix]
+            tspec = convert.K_to_keV(equal_boxsize_kpc_smaccube)
+            im = axes[3+6*EA2_i+Xe_i].imshow(tspec, vmin=2.5, vmax=15,
+                origin="lower", cmap="afmhot", extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+
+    axCLx.text(0.5, 0.98, "\\textbf{\emph{Chandra} X-ray Surface Brightness}",
+               fontsize=12, color="white", ha="center", va="top", transform=axCLx.transAxes)
+    axCLx.text(0.02, 0.17, "ACIS Mosaic\n0.5-7.0 keV\n1.02 Msec total exposure", color="white",
+               fontsize=12, ha="left", va="top", transform=axCLx.transAxes)
+    axCkT.text(0.5, 0.98, "\\textbf{Temperature [keV]}",
+               fontsize=12, color="white", ha="center", va="top", transform=axCkT.transAxes)
+
+    for xE, ax in zip([0.25, 0.50, 0.75, 0.25, 0.50, 0.75], axes[0:6]):
+        ax.text(0.02, 0.95, "$X_E=\,${0:.2f}".format(xE), color="white", fontsize=12,
+                ha="left", va="top", transform=ax.transAxes)
+
+    for EA2, ax in zip([0, 15, 30, 45, 60, 75], axes[::6]):
+        ax.text(0.02, 0.02, "$i=\,${0:02d}".format(EA2),
+                color="white", fontsize=12, ha="left", va="bottom", transform=ax.transAxes)
+
+        # axes[n].text(0.5, 0.5, str(n), transform=axes[n].transAxes)
+    pyplot.subplots_adjust(left=0., bottom=0., right=1., top=1., wspace=0., hspace=0.05)
+    pyplot.savefig("out/matrix.png", pdi=6000)
+
+
+def cygA_total_Lx():
+    # Open observation lss [counts/s/arcsec^2]
+    obs = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
+    mosaic = fits.open(obs)
+
+    # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
+    mosaic_smooth = scipy.ndimage.filters.gaussian_filter(mosaic[0].data, 9)
+
+    # Find the centroid of CygA to align simulation and observation later on
+    maxcounts_obs = mosaic[0].data.max()
+    maxcounts_obs_index = mosaic[0].data.argmax()  # of flattened array
+    ylen_obs_pix, xlen_obs_pix = mosaic[0].data.shape
+    xcenter_obs = maxcounts_obs_index % xlen_obs_pix
+    ycenter_obs = maxcounts_obs_index / xlen_obs_pix
+
+    # Find the dimensions of the Chandra image in pix, arcsec and kpc
+    xlen_obs_pix = mosaic[0].header["NAXIS1"]  # same as using mosaic_smooth.shape
+    ylen_obs_pix = mosaic[0].header["NAXIS2"]
+    pix2arcsec_obs = mosaic[0].header["CDELT2"]*3600  # Chandra size of pixel 0.492". Value in header is in degrees.
+    xlen_obs_arcsec = xlen_obs_pix * pix2arcsec_obs
+    ylen_obs_arcsec = ylen_obs_pix * pix2arcsec_obs
+    from cosmology import CosmologyCalculator
+    cc = CosmologyCalculator(0.0562)
+    arcsec2kpc = cc.kpc_DA
+    pix2kpc_obs = pix2arcsec_obs * arcsec2kpc
+    xlen_obs_kpc = xlen_obs_arcsec * arcsec2kpc
+    ylen_obs_kpc = ylen_obs_arcsec * arcsec2kpc
+
+    print "Chandra Observation [lss_fill_flux]"
+    print "  Shape ({0},   {1})   pixels".format(xlen_obs_pix, ylen_obs_pix)
+    print "  Shape ({0:.1f}, {1:.1f}) arcsec".format(xlen_obs_arcsec, ylen_obs_arcsec)
+    print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_obs_kpc, ylen_obs_kpc)
+    print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_obs, ycenter_obs, maxcounts_obs)
+    print
+
+    # Open Temperature
+    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+    mosaic_kT = fits.open(lss_kT)
+    mosaic_kT_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_kT[0].data, 15)
+
+    # Display the smoothed lss Chandra observation
+    pyplot.figure()
+
+    distance_factor = 4*numpy.pi*(cc.DL_Mpc*1000*convert.kpc2cm)**2
+    Lx = mosaic_smooth * convert.keV_to_erg(mosaic_kT_smooth) * distance_factor
+    # TODO: is pix2arcsec_obs**2 really needed?
+    # Lx *= p2(pix2arcsec_obs)
+
+    im = pyplot.imshow(Lx, origin="lower", cmap="spectral",
+                       norm=matplotlib.colors.LogNorm(),
+                       vmin=7.0e-10*convert.keV_to_erg(5.9)*distance_factor,
+                       vmax=1.0e-6*convert.keV_to_erg(5.9)*distance_factor)
+
+    y,x = numpy.ogrid[-ycenter_obs:ylen_obs_pix-ycenter_obs,
+                      -xcenter_obs:xlen_obs_pix-xcenter_obs]
+
+    mask = (p2(x) + p2(y) <= p2(700))
+    mask_no_nucleus = (p2(x) + p2(y) <= p2(700)) & (p2(x) + p2(y) >= p2(150))
+    mask_inner = (p2(x) + p2(y) <= p2(150)) & (p2(x) + p2(y) >= p2(150-6))
+    mask_outer = (p2(x) + p2(y) <= p2(700)) & (p2(x) + p2(y) >= p2(700-6))
+    y, x = numpy.where(mask_inner)
+    pyplot.scatter(x, y, s=1, c="r", edgecolor="face", alpha=1)
+    y, x = numpy.where(mask_outer)
+    pyplot.scatter(x, y, s=1, c="r", edgecolor="face", alpha=1)
+
+    print "Lx CygA  = ", sum(Lx[mask])
+    print "Lx CygA  = ", sum(Lx[mask_no_nucleus]), "w/o nucleus"
+    print "Lx CygA  = ", sum(Lx[mask])*p2(pix2arcsec_obs), "?"
+    print "Lx CygA  = ", sum(Lx[mask_no_nucleus])*p2(pix2arcsec_obs), "?", "w/o nucleus"
+
+    xcenter_NW, ycenter_NW = 1547, 1657
+    y,x = numpy.ogrid[-ycenter_NW:ylen_obs_pix-ycenter_NW,
+                      -xcenter_NW:xlen_obs_pix-xcenter_NW]
+    mask = (p2(x) + p2(y) <= p2(700))
+    mask_outer = (p2(x) + p2(y) <= p2(700)) & (p2(x) + p2(y) >= p2(700-6))
+    print "Lx CygNW = ", sum(Lx[mask])
+    print "Lx CygNW = ", sum(Lx[mask])*p2(pix2arcsec_obs), "?"
+
+    y, x = numpy.where(mask_outer)
+    pyplot.scatter(x, y, s=1, c="r", edgecolor="face", alpha=1)
+
+    pyplot.xlim(0, xlen_obs_pix)
+    pyplot.ylim(0, ylen_obs_pix)
+    im.axes.set_xticks([], [])
+    im.axes.set_yticks([], [])
+    divider = make_axes_locatable(pyplot.gca())
+    cax = divider.append_axes("bottom", size="5%", pad=0)
+    pyplot.colorbar(im, cax=cax, orientation="horizontal")
+
+    pyplot.savefig("out/total_Lx_regions.pdf", pdi=600)
+
+
+def build_1d_matrix():
+    from simulation import Simulation
+    sim50 = Simulation(base="/media/SURFlisa", timestamp="20170115T0905", name="both",
+                     set_data=False)
+    sim75 = Simulation(base="/media/SURFlisa", timestamp="20170115T0906", name="both",
+                     set_data=False)
+    sim25 = Simulation(base="/media/SURFlisa", timestamp="20170115T0907", name="both",
+                     set_data=False)
+
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 1, "alpha": 0.3,
+            "elinewidth": 1, "label": "avg"}
+    merger = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 0.3,
+            "elinewidth": 1, "label": "merger" }
+
+    import main
+    a = main.new_argument_parser().parse_args()
+    a.do_cut = False; a.clustername = "both"
+    cygA, cygNW = main.set_observed_clusters(a)
+
+
+    # pyplot.switch_backend("Agg")
+    fig = pyplot.figure(figsize=(22,12))
+    axes = list()
+    for y in range(6):
+        for x in range(6):
+            ax = pyplot.subplot2grid((6,6), (y,x))
+            axes.append(ax)
+
+    from panda import create_panda
+    for Xe_i, sim in enumerate([sim25, sim50, sim75]):
+        # sim.read_ics()
+        # sim.set_gadget_paths()
+        sim.read_smac(verbose=True)
+        sim.nsnaps, sim.xlen, sim.ylen = sim.psmac.xray0.shape
+        sim.pixelscale = float(sim.psmac.xray0_header["XYSize"])/int(sim.xlen)
+
+        rmax = 900/sim.pixelscale
+        radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(rmax), 42))
+        dr = radii[1:] - radii[:-1]
+        radii = radii[:-1]
+        N = len(radii)
+
+        for EA2_i, inclination in enumerate([0, 15, 30, 45, 60, 75]):
+            quiescent_temperature = numpy.zeros(N)
+            quiescent_temperature_std = numpy.zeros(N)
+            merger_temperature = numpy.zeros(N)
+            merger_temperature_std = numpy.zeros(N)
+
+            data = getattr(sim.psmac, "tspec{0}best".format(inclination))[0]
+            header = getattr(sim.psmac, "tspec{0}best_header".format(inclination))
+
+            # snapnr = int(header["Input_File"].strip("'")[-3:])
+            # snapnr=0 because tspec{0}best is not cube
+            cA, cNW, distance = sim.find_cluster_centroids_psmac_dmrho(
+                snapnr=0, EA2=inclination)
+
+            offset = 0
+            for (xc, yc), name in zip([cA, cNW], ["cygA", "cygNW"]):
+                pyplot.figure(figsize=(12, 12))
+                for i, r in enumerate(radii):
+                    print_progressbar(i, N)
+                    angle1 = 96 if name == "cygA" else 276
+                    angle2 = 6 if name == "cygA" else 186
+                    quiescent_mask = create_panda(sim.xlen, sim.ylen, xc, yc,
+                                                  r, angle1, angle2)
+                    quiescent_temperature[i] = convert.K_to_keV(
+                        numpy.median(data[quiescent_mask]))
+                    quiescent_temperature_std[i] = convert.K_to_keV(
+                        numpy.std(data[quiescent_mask]))
+
+                    angle1 = 6 if name == "cygA" else 186
+                    angle2 = 96 if name == "cygA" else 276
+                    merger_mask = create_panda(sim.xlen, sim.ylen, xc, yc,
+                                                  r, angle1, angle2)
+                    merger_temperature[i] = convert.K_to_keV(
+                        numpy.median(data[merger_mask]))
+                    merger_temperature_std[i] = convert.K_to_keV(
+                        numpy.std(data[merger_mask]))
+
+                    y, x = numpy.where(quiescent_mask)
+                    pyplot.scatter(x, y, s=1, c="r", edgecolor="face", alpha=1)
+                    y, x = numpy.where(merger_mask)
+                    pyplot.scatter(x, y, s=1, c="k", edgecolor="face", alpha=1)
+                im = pyplot.imshow(convert.K_to_keV(data), origin="lower",
+                                   cmap="afmhot",  vmin=2.5, vmax=15)
+                pyplot.gca().set_aspect("equal")
+                pyplot.xlim(cA[0]-100, cA[0]+300)
+                pyplot.ylim(cA[1]-100, cA[1]+300)
+                pyplot.xticks([], [])
+                pyplot.yticks([], [])
+                divider = make_axes_locatable(pyplot.gca())
+                cax = divider.append_axes("bottom", size="5%", pad=0)
+                pyplot.colorbar(im, cax=cax, orientation="horizontal")
+                pyplot.tight_layout()
+
+                pyplot.savefig("out/{0}_XE={1:.2f}_i={2:02d}.png".format(name, (Xe_i+1)*0.25, inclination))
+                pyplot.close()
+
+                axes[offset+6*EA2_i+Xe_i].errorbar(radii*sim.pixelscale,
+                    quiescent_temperature, [quiescent_temperature_std, quiescent_temperature_std],
+                    c="b")
+                axes[offset+6*EA2_i+Xe_i].errorbar(radii*sim.pixelscale,
+                    merger_temperature, [merger_temperature_std, merger_temperature_std],
+                    c="g")
+
+                if name == "cygA":
+                    cygA.plot_chandra_average(axes[offset+6*EA2_i+Xe_i],
+                        parm="kT", style=avg)
+                    cygA.plot_chandra_sector(axes[offset+6*EA2_i+Xe_i],
+                        parm="kT", merger=True, style=merger)
+                elif name == "cygNW":
+                    cygNW.plot_chandra_average(axes[offset+6*EA2_i+Xe_i],
+                        parm="kT", style=avg)
+                pyplot.xscale("log")
+                pyplot.yscale("log")
+                pyplot.xlim(1, 2000)
+
+                offset = 3
+            # break
+        # break
+
+    i=0
+    for xE, ax in zip([0.25, 0.50, 0.75, 0.25, 0.50, 0.75], axes[0:6]):
+        i+=1
+        ax.text(0.02, 0.95, "$X_E=\,${0:.2f}".format(xE)+("\nCygA" if i<4 else "\ncygNW"),
+                color="black", fontsize=12, ha="left", va="top", transform=ax.transAxes)
+
+    for EA2, ax in zip([0, 15, 30, 45, 60, 75], axes[::6]):
+        ax.text(0.02, 0.02, "$i=\,${0:02d}".format(EA2),
+                color="black", fontsize=12, ha="left", va="bottom", transform=ax.transAxes)
+
+    for ax in axes:
+        ax.set_yscale("linear")
+        ax.set_xscale("linear")
+        ax.set_ylim(2.5, 15)
+        ax.set_xlim(1, 900)
+        ax.set_xticks([], [])
+        ax.set_yticks([], [])
+
+    pyplot.subplots_adjust(left=0., bottom=0., right=1., top=1., wspace=0., hspace=0.)
+    pyplot.savefig("out/1d_matrix_lin.png", pdi=6000)
+
+    for ax in axes:
+        ax.set_yscale("log")
+        ax.set_xscale("log")
+        ax.set_ylim(2.5, 15)
+        ax.set_xlim(1, 900)
+        ax.set_xticks([], [])
+        ax.set_yticks([], [])
+    pyplot.subplots_adjust(left=0., bottom=0., right=1., top=1., wspace=0., hspace=0.)
+    pyplot.savefig("out/1d_matrix_log.png", pdi=6000)
+
+    for Xe_i, sim in enumerate([sim25, sim50, sim75]):
+        sim.read_smac(verbose=True)
+        sim.nsnaps, sim.xlen, sim.ylen = sim.psmac.xray0.shape
+        sim.pixelscale = float(sim.psmac.xray0_header["XYSize"])/int(sim.xlen)
+        sim.dt = 0.01
+
+        for EA2_i, inclination in enumerate([0, 15, 30, 45, 60, 75]):
+            cA, cNW, distance = sim.find_cluster_centroids_psmac_dmrho(
+                snapnr=0, EA2=inclination)
+            header = getattr(sim.psmac, "tspec{0}best_header".format(inclination))
+            snapnr = int(header["Input_File"].strip("'")[-3:])
+
+            offset = 0
+            for (xc, yc), name in zip([cA, cNW], ["cygA", "cygNW"]):
+                ax = axes[offset+6*EA2_i+Xe_i]
+                ax.cla()
+                ax.set_xticks([], [])
+                ax.set_yticks([], [])
+                info = r"\begin{tabular}{lll}"
+                info += r" ID & = & {0} \\".format(sim.timestamp)
+                info += " $X_E$ & = & {0:.2f} \\\\".format((Xe_i+1)*0.25)
+                info += " snapnr & = & {0:03d} \\\\".format(snapnr)
+                info += " time & = & {0:04.2f} Gyr \\\\".format(snapnr*sim.dt)
+                info += " distance & = & {0:03.2f} kpc \\\\".format(distance)
+                info += (" \end{tabular}")
+
+                ax.text(0.5, 0.5, info,
+                        transform=ax.transAxes, va="center", ha="center",
+                        fontsize=12)
+                offset = 3
+                # ax.texts[-1].remove()
+    i=0
+    for xE, ax in zip([0.25, 0.50, 0.75, 0.25, 0.50, 0.75], axes[0:6]):
+        i+=1
+        ax.text(0.02, 0.95, "$X_E=\,${0:.2f}".format(xE)+("\nCygA" if i<4 else "\ncygNW"),
+                color="black", fontsize=12, ha="left", va="top", transform=ax.transAxes)
+
+    for EA2, ax in zip([0, 15, 30, 45, 60, 75], axes[::6]):
+        ax.text(0.02, 0.02, "$i=\,${0:02d}".format(EA2),
+                color="black", fontsize=12, ha="left", va="bottom", transform=ax.transAxes)
+
+    pyplot.savefig("out/1d_matrix_info.png", pdi=6000)
+
+
+
+def hankieeeee():
+    # Space for ylabel
+    pyplot.figure(figsize=(10, 10))
+    gs = gridspec.GridSpec(1, 1)
+    gs.update(left=0.0, right=0.1, bottom=0, top=1, wspace=0)
+    axy = pyplot.subplot(gs[0])
+    axy.set_xticks([], []); axy.set_yticks([], [])
+    for k in axy.spines.keys():
+        axy.spines[k].set_visible(False)
+    axy.text(0.5, 0.55, "Temperature [keV]",
+             ha="center", va="center", rotation=90)
+
+
+    # Space for xlabel
+    gs = gridspec.GridSpec(1,1)
+    gs.update(left=0.1, right=1, bottom=0, top=0.1, wspace=0)
+    axx = pyplot.subplot(gs[0])
+    axx.set_xticks([], []); axx.set_yticks([], [])
+    for k in axx.spines.keys():
+        axx.spines[k].set_visible(False)
+    axx.text(0.5, 0.5, "Radius [kpc]", ha="center", va="center")
+
+    gs = gridspec.GridSpec(1,1)
+    gs.update(left=0.1, right=1, bottom=0.1001, top=1, wspace=0)
+    ax = pyplot.subplot(gs[0])
+    ax.set_xticks([], []); ax.set_yticks([], [])
+
+    for i in range(3):
+        for j in range(6):
+            gs1 = gridspec.GridSpec(1,2)
+            gs1.update(left=0.11+(1./3)*i*0.9, right=0.105+(1./3)*(i+1)*0.89,
+                       bottom=0.11+(1./6)*j*0.9, top=0.105+(1./6)*(j+1)*0.89,
+                       wspace=0.0)
+
+            ax = pyplot.subplot(gs1[-1, :-1])
+            ax.set_xticks([], []); ax.set_yticks([], [])
+            ax = pyplot.subplot(gs1[-1, -1])
+            ax.set_xticks([], []); ax.set_yticks([], [])
