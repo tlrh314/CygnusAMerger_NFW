@@ -1,17 +1,18 @@
 import glob
 import numpy
 import scipy
+from scipy import ndimage
 import astropy
-from astropy.io import ascii
 import astropy.units as u
-from scipy.stats import kde
+from astropy.io import ascii, fits
 import matplotlib
 from matplotlib import pyplot
 from matplotlib.ticker import MaxNLocator
+from matplotlib.widgets import Slider
 import aplpy
 from astroquery.vizier import Vizier
 Vizier.ROW_LIMIT = None
-import palettable
+import colorcet
 
 import main
 import plot
@@ -19,6 +20,37 @@ import convert
 from simulation import Simulation
 from plotsettings import PlotSettings
 style = PlotSettings()
+
+
+def adjustable_cmap(lss):
+    fig = pyplot.figure()
+    ax = fig.add_subplot(111)
+    fig.subplots_adjust(left=0.25, bottom=0.25)
+
+    f = fits.open(lss)
+    im = pyplot.imshow(numpy.log10(scipy.ndimage.gaussian_filter(f[0].data, 9)),
+        cmap=colorcet.cm["linear_bmw_5_95_c86"], origin="lower",
+        vmin=numpy.log10(7.0e-10), vmax=numpy.log10(1.0e-7))
+
+    min0 = numpy.log10(7.0e-10)
+    max0 = numpy.log10(2.0e-6)
+
+    fig.colorbar(im)
+
+    axcolor = 'lightgoldenrodyellow'
+    axmin = fig.add_axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor)
+    axmax  = fig.add_axes([0.25, 0.15, 0.65, 0.03], axisbg=axcolor)
+
+    smin = Slider(axmin, 'Min', -12, -6, valinit=min0)
+    smax = Slider(axmax, 'Max', -8, -2, valinit=max0)
+
+    def update(val):
+        im.set_clim([smin.val, smax.val])
+        fig.canvas.draw()
+    smin.on_changed(update)
+    smax.on_changed(update)
+
+    pyplot.show()
 
 
 def plot_mosaic(mosaic, cygA, cygNW, is_lss=False):
@@ -191,7 +223,7 @@ def bestfit_betamodel(c):
 
 
 def plot_mass_ratio(cygA, cygNW, cut=None):
-    fig = pyplot.figure(figsize=(12,10))
+    fig = pyplot.figure(figsize=(12, 10))
     ax = pyplot.gca()
 
     hydrostatic = ( scipy.ndimage.filters.gaussian_filter1d(cygA.HE_M_below_r, 1) /
@@ -207,20 +239,20 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
     pyplot.plot(cygA.ana_radii, dark, c="k", ls="-.", label="NFW")
     pyplot.plot(cygA.ana_radii, tot, c="k", ls="-", label="NFW + betamdodel")
 
-    pyplot.axvline(cygA.halo["r200"], ls=":", c="k", lw=1)
-    pyplot.axvline(cygA.halo["r500"], ls=":", c="k", lw=1)
-    pyplot.axvline(cygNW.halo["r200"], ls="--", c="k", lw=1)
-    pyplot.axvline(cygNW.halo["r500"], ls="--", c="k", lw=1)
+    pyplot.axvline(cygA.halo["r200"], ls="-", c="magenta", lw=1, label="cygA")
+    pyplot.axvline(cygA.halo["r500"], ls="-", c="magenta", lw=1)
+    pyplot.axvline(cygNW.halo["r200"], ls="-", c="blue", lw=1, label="cygNW")
+    pyplot.axvline(cygNW.halo["r500"], ls="-", c="blue", lw=1)
     trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
-    ax.text(cygA.halo["r200"]+150, 0.98, r"$r_{200}$", ha="left", va="top",
+    ax.text(0.97*cygA.halo["r200"], 0.98, r"$r_{200}$", ha="right", va="top",
             fontsize=22, transform=trans)
-    ax.text(cygA.halo["r500"]-150, 0.98, r"$r_{500}$", ha="right", va="top",
+    ax.text(0.97*cygNW.halo["r500"], 0.98, r"$r_{500}$", ha="right", va="top",
             fontsize=22, transform=trans)
 
     pyplot.xscale("log")
     # pyplot.xlim(200, 1e4)
     # pyplot.ylim(0.5, 2.5)
-    pyplot.xlim(60, 1e4)
+    pyplot.xlim(60, 1.1*cygA.halo["r200"])
     pyplot.ylim(0, 4)
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Mass Ratio [CygA/CygNW]")
@@ -232,7 +264,7 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
 
 
 if __name__ == "__main__":
-    to_plot = [ 1, 2 ]
+    to_plot = [ 3, 4, 5 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -241,6 +273,9 @@ if __name__ == "__main__":
     radio = "../runs/RadioObservation/radio5GHz.fits"
     mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
     lss = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
+
+    adjustable_cmap(lss)
+    import sys; sys.exit(0)
 
     if 1 in to_plot:
         pyplot.rcParams.update( { "text.usetex": False, "font.size": 18 } )
@@ -270,6 +305,8 @@ if __name__ == "__main__":
 
     if 5 in to_plot:
         a = main.new_argument_parser().parse_args()
+        a.do_cut = False
+        cygA_uncut, cygNW_uncut = main.set_observed_clusters(a)
         a.do_cut = True
         cygA_cut, cygNW_cut = main.set_observed_clusters(a)
         plot_mass_ratio(cygA_uncut, cygNW_uncut, cut=False)
