@@ -1861,11 +1861,11 @@ def cygA_total_Lx():
 
 def build_1d_matrix():
     from simulation import Simulation
-    sim50 = Simulation(base="/media/SURFlisa", timestamp="20170115T0905", name="both",
+    sim50 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0905", name="both",
                      set_data=False)
-    sim75 = Simulation(base="/media/SURFlisa", timestamp="20170115T0906", name="both",
+    sim75 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0906", name="both",
                      set_data=False)
-    sim25 = Simulation(base="/media/SURFlisa", timestamp="20170115T0907", name="both",
+    sim25 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0907", name="both",
                      set_data=False)
 
     avg = { "marker": "o", "ls": "", "c": "b", "ms": 1, "alpha": 0.3,
@@ -1907,8 +1907,8 @@ def build_1d_matrix():
             merger_temperature = numpy.zeros(N)
             merger_temperature_std = numpy.zeros(N)
 
-            data = getattr(sim.psmac, "tspec{0}best".format(inclination))[0]
-            header = getattr(sim.psmac, "tspec{0}best_header".format(inclination))
+            data = getattr(sim.psmac, "tspec{0}best765".format(inclination))[0]
+            header = getattr(sim.psmac, "tspec{0}best765_header".format(inclination))
 
             # snapnr = int(header["Input_File"].strip("'")[-3:])
             # snapnr=0 because tspec{0}best is not cube
@@ -2020,7 +2020,7 @@ def build_1d_matrix():
         for EA2_i, inclination in enumerate([0, 15, 30, 45, 60, 75]):
             cA, cNW, distance = sim.find_cluster_centroids_psmac_dmrho(
                 snapnr=0, EA2=inclination)
-            header = getattr(sim.psmac, "tspec{0}best_header".format(inclination))
+            header = getattr(sim.psmac, "tspec{0}best765_header".format(inclination))
             snapnr = int(header["Input_File"].strip("'")[-3:])
 
             offset = 0
@@ -2100,6 +2100,6 @@ def hankieeeee():
 if __name__ == "__main__":
     pyplot.rcParams.update( { "text.usetex": True, "font.size": 18 } )
     # matplotlib.rcParams['text.latex.preamble']=[r"\boldmath"]
-    build_hank2()
+    build_1d_matrix()
     pyplot.rcParams.update( { "text.usetex": True, "font.size": 28 } )
 

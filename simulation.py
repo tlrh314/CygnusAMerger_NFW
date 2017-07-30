@@ -199,7 +199,7 @@ class Simulation(object):
         density, where slightly is no more than 0.1%). To kill of these tiny noise
         fluctuations the summed dark matter density is squared, then normalised
         to the maximum, and finally smoothed with a Savitzky-Golay filter. """
-        rhodm = getattr(self.psmac, "rhodm{0}best".format(EA2), None)
+        rhodm = getattr(self.psmac, "rhodm{0}best765".format(EA2), None)
         if rhodm is None: return
         xsum = p2(numpy.sum(rhodm[snapnr], axis=0))
         xsum /= numpy.max(xsum)

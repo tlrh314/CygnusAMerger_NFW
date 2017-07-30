@@ -902,6 +902,7 @@ class PSmac2Output(object):
         smaccubes = glob.glob(sim.analysisdir+"*.fits.fz")
         smaccubes = glob.glob(sim.analysisdir+"*xray_0.fits.fz")
         [ smaccubes.append(s) for s in glob.glob(sim.analysisdir+"*best.fits.fz") ]
+        [ smaccubes.append(s) for s in glob.glob(sim.analysisdir+"*best765.fits.fz") ]
         # smaccubes.append(glob.glob(sim.analysisdir+"*Tspec_rot-ea0.fits.fz")[0])
         for path in smaccubes:
             for cubename, attr in attributes.iteritems():
@@ -915,7 +916,10 @@ class PSmac2Output(object):
                     print "ERROR: unknown fits filename '{0}'".format(path)
                     continue
             print path
-            if "best" in path:
+            if "best765" in path:
+                EA2 = (path.split("_")[-2]).split(".fits.fz")[0]
+                attr = attr+EA2+"best765"
+            elif "best" in path:
                 EA2 = (path.split("_")[-2]).split(".fits.fz")[0]
                 attr = attr+EA2+"best"
             else:

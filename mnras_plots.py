@@ -582,8 +582,8 @@ def build_matrix(residuals=False, residuals_minmax=100):
         sim.pixelscale = float(sim.psmac.xray0_header["XYSize"])/int(sim.xlen)
 
         for EA2_i, inclination in enumerate([0, 15, 30, 45, 60, 75]):
-            data = getattr(sim.psmac, "xray{0}best".format(inclination))
-            header = getattr(sim.psmac, "xray{0}best_header".format(inclination))
+            data = getattr(sim.psmac, "xray{0}best765".format(inclination))
+            header = getattr(sim.psmac, "xray{0}best765_header".format(inclination))
 
             maxcounts_sim = data.max()
             maxcounts_sim_index = data.argmax()  # of flattened array
@@ -641,7 +641,7 @@ def build_matrix(residuals=False, residuals_minmax=100):
                     extent=[0, xlen_obs_pix, 0, ylen_obs_pix]
                 )
 
-            data = getattr(sim.psmac, "tspec{0}best".format(inclination))
+            data = getattr(sim.psmac, "tspec{0}best765".format(inclination))
             equal_boxsize_kpc_smaccube = data[0][yoffset:yoffset+desired_ylen_sim_pix,
                                                  xoffset: xoffset+desired_xlen_sim_pix]
             tspec = convert.K_to_keV(equal_boxsize_kpc_smaccube)
@@ -660,14 +660,13 @@ def build_matrix(residuals=False, residuals_minmax=100):
                     extent=[0, xlen_obs_pix, 0, ylen_obs_pix]
                 )
 
-                fig = pyplot.gcf()
+                # kT_residuals = 100*(temperature_smooth-shape_matched)/shape_matched
+                # fighist = pyplot.figure()
+                # pyplot.hist(kT_residuals)
+                # pyplot.savefig("out/{0}_{1}.pdf".format(EA2_i, Xe_i), dpi=300)
+                # pyplot.close(fighist)
 
-                kT_residuals = 100*(temperature_smooth-shape_matched)/shape_matched
-                fighist = pyplot.figure()
-                pyplot.hist(kT_residuals)
-                pyplot.savefig("out/{0}_{1}.pdf".format(EA2_i, Xe_i), dpi=300)
-                pyplot.close()
-                pyplot.figure(fig)
+                # pyplot.figure(fig)
 
 
             if Xe_i is 0 and EA2_i is 0:
@@ -820,7 +819,7 @@ def plot_residuals():
 
 
 if __name__ == "__main__":
-    to_plot = [ 6 ]
+    to_plot = [ 7 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -882,12 +881,12 @@ if __name__ == "__main__":
         build_matrix()
 
     if 7 in to_plot:
-        # build_matrix(residuals=True, residuals_minmax=25)
-        # build_matrix(residuals=True, residuals_minmax=50)
+        build_matrix(residuals=True, residuals_minmax=25)
+        build_matrix(residuals=True, residuals_minmax=50)
         build_matrix(residuals=True, residuals_minmax=75)
-        # build_matrix(residuals=True, residuals_minmax=100)
-        # build_matrix(residuals=True, residuals_minmax=125)
-        # build_matrix(residuals=True, residuals_minmax=150)
+        build_matrix(residuals=True, residuals_minmax=100)
+        build_matrix(residuals=True, residuals_minmax=125)
+        build_matrix(residuals=True, residuals_minmax=150)
 
     if 8 in to_plot:
         plot_simulated_wedges()
