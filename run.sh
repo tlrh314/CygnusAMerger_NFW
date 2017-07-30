@@ -1186,6 +1186,17 @@ case "${EFFECT}" in
         echo "Running P-Smac2 for velocity"
         run_psmac2_for_given_module "velocity" "1" "0"
         ;;
+    "BFLD")
+        echo "Running P-Smac2 for magnetic field"
+        # 6 - Magnetic Field (req -DBFLD)
+        #     0 - Total
+        run_psmac2_for_given_module "Btot" "6" "0"
+        run_psmac2_for_given_module "Borth" "6" "1"
+        run_psmac2_for_given_module "Brot" "6" "2"
+        run_psmac2_for_given_module "Balf" "6" "3"
+        run_psmac2_for_given_module "Bdiv" "6" "4"
+        run_psmac2_for_given_module "Bplasmabeta" "6" "5"
+        ;;
     "xraytem")
         echo "Running P-Smac2 for X-Ray Surface Brightness."
         run_psmac2_for_given_module "xray-surface-brightness" "2" "0"

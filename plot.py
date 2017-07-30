@@ -18,6 +18,8 @@ from line_profiler_support import profile
 from deco import concurrent, synchronized
 threads=2
 
+import colorcet
+
 import fit
 import profiles
 import convert
@@ -1602,8 +1604,9 @@ def build_hank():
                 color="white", fontsize=12, ha="left", va="bottom", transform=ax.transAxes)
 
         # axes[n].text(0.5, 0.5, str(n), transform=axes[n].transAxes)
-    pyplot.subplots_adjust(left=0., bottom=0., right=1., top=1., wspace=0., hspace=0.05)
+    pyplot.subplots_adjust(left=0., bottom=0., right=1., top=1., wspace=0., hspace=0.01)
     pyplot.savefig("out/matrix.png", pdi=6000)
+
 
 def build_hank2():
     # Open observation lss [counts/s/arcsec^2]
@@ -1643,16 +1646,21 @@ def build_hank2():
     print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_obs_kpc, ylen_obs_kpc)
     print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_obs, ycenter_obs, maxcounts_obs)
 
-    fig = pyplot.figure(figsize=(12, 12))
+    fig = pyplot.figure(figsize=(12, 15))
     axes = []
     for y in range(6):
         for x in range(6):
-            ax = pyplot.subplot2grid((6, 6), (y, x))
+            ax = pyplot.subplot2grid((7, 6), (y, x))
             ax.set_xticks([], []); ax.set_yticks([], [])
             axes.append(ax)
 
-    pyplot.show()
-    return
+    cax_left = fig.add_axes([0.05, 0.11, 0.4, 0.03])
+    cax_left.set_xticks([], []); cax_left.set_yticks([], [])
+    cax_right = fig.add_axes([0.55, 0.11, 0.4, 0.03])
+    cax_right.set_xticks([], []); cax_right.set_yticks([], [])
+
+    # pyplot.show()
+    # return
 
     from simulation import Simulation
     sim50 = Simulation(base="/media/SURFlisa", timestamp="20170115T0905", name="both",
@@ -1712,35 +1720,50 @@ def build_hank2():
             smaccube_smooth *= magic
 
             # Display the cut-out, zoomed-in, correctly smoothed Smac Cube
-            im = axes[6*EA2_i+Xe_i].imshow(smaccube_smooth, vmin=7.0e-10, vmax=1.0e-6,
-                norm=matplotlib.colors.LogNorm(), origin="lower", cmap="spectral",
+            Lx = axes[6*EA2_i+Xe_i].imshow(smaccube_smooth, vmin=5.0e-10, vmax=1.0e-7,
+                norm=matplotlib.colors.LogNorm(), origin="lower", cmap=colorcet.cm["linear_bmw_5_95_c86"],
                 extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
 
             data = getattr(sim.psmac, "tspec{0}best".format(inclination))
             equal_boxsize_kpc_smaccube = data[0][yoffset:yoffset+desired_ylen_sim_pix,
                                                  xoffset: xoffset+desired_xlen_sim_pix]
             tspec = convert.K_to_keV(equal_boxsize_kpc_smaccube)
-            im = axes[3+6*EA2_i+Xe_i].imshow(tspec, vmin=2.5, vmax=15,
-                origin="lower", cmap="afmhot", extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+            kT = axes[3+6*EA2_i+Xe_i].imshow(tspec, vmin=3.5, vmax=12,
+                origin="lower", cmap=colorcet.cm["linear_kryw_5_100_c67"], extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
 
-    axCLx.text(0.5, 0.98, "\\textbf{\emph{Chandra} X-ray Surface Brightness}",
-               fontsize=12, color="white", ha="center", va="top", transform=axCLx.transAxes)
-    axCLx.text(0.02, 0.17, "ACIS Mosaic\n0.5-7.0 keV\n1.02 Msec total exposure", color="white",
-               fontsize=12, ha="left", va="top", transform=axCLx.transAxes)
-    axCkT.text(0.5, 0.98, "\\textbf{Temperature [keV]}",
-               fontsize=12, color="white", ha="center", va="top", transform=axCkT.transAxes)
+            if Xe_i is 0 and EA2_i is 0:
+                # Colorbar for X-ray Surface Brightness
+                cax = pyplot.colorbar(Lx, cax=cax_left, orientation="horizontal")
+                cax.ax.xaxis.set_ticks_position("both")
+                cax.ax.tick_params(axis="both", which="major", length=6, width=1, labelsize=16, direction="in")
+                cax.ax.set_xlabel(r"X-ray Surface Brightness $\left[\frac{\mathrm{counts}}{\mathrm{cm}^2 \, \mathrm{s}} \right]$", fontsize=18)
+                cax.set_ticks([1e-9, 1e-8, 1e-7])
+                cax.set_ticklabels(["$10^{-9}$", "$10^{-8}$", "$10^{-7}$"])
+                minorticks = Lx.norm(numpy.hstack([numpy.arange(5, 10, 1)/1e10,
+                    numpy.arange(2, 10, 1)/1e9, numpy.arange(2, 10, 1)/1e8]))
+                cax.ax.tick_params(which="minor", length=3, width=1, direction="in")
+                cax.ax.xaxis.set_ticks(minorticks, minor=True)
+
+                # Colorbar for Spectroscopic Temperature
+                cax = pyplot.colorbar(kT, cax=cax_right, orientation="horizontal")
+                cax_right.xaxis.set_ticks_position("both")
+                cax_right.tick_params(axis="both", length=6, width=1, labelsize=16, direction="in")
+                cax_right.set_xlabel(r"Temperature [keV]", fontsize=18)
+                cax_right.tick_params(which="minor", length=3, width=1, direction="in")
 
     for xE, ax in zip([0.25, 0.50, 0.75, 0.25, 0.50, 0.75], axes[0:6]):
-        ax.text(0.02, 0.95, "$X_E=\,${0:.2f}".format(xE), color="white", fontsize=12,
+        ax.text(0.02, 0.95, "$X_E={0:.2f}$".format(xE), color="white", fontsize=22,
                 ha="left", va="top", transform=ax.transAxes)
 
     for EA2, ax in zip([0, 15, 30, 45, 60, 75], axes[::6]):
-        ax.text(0.02, 0.02, "$i=\,${0:02d}".format(EA2),
-                color="white", fontsize=12, ha="left", va="bottom", transform=ax.transAxes)
+        ax.text(0.02, 0.02, "$i={0:02d}$".format(EA2),
+                color="white", fontsize=22, ha="left", va="bottom", transform=ax.transAxes)
 
         # axes[n].text(0.5, 0.5, str(n), transform=axes[n].transAxes)
-    pyplot.subplots_adjust(left=0., bottom=0., right=1., top=1., wspace=0., hspace=0.05)
+    pyplot.subplots_adjust(left=0., bottom=0.02, right=1., top=1., wspace=0., hspace=0.01)
     pyplot.savefig("out/matrix.png", pdi=6000)
+    pyplot.savefig("out/matrix.pdf", pdi=6000)
+    pyplot.close(fig)
 
 
 def cygA_total_Lx():
@@ -2071,3 +2094,12 @@ def hankieeeee():
             ax.set_xticks([], []); ax.set_yticks([], [])
             ax = pyplot.subplot(gs1[-1, -1])
             ax.set_xticks([], []); ax.set_yticks([], [])
+
+
+
+if __name__ == "__main__":
+    pyplot.rcParams.update( { "text.usetex": True, "font.size": 18 } )
+    # matplotlib.rcParams['text.latex.preamble']=[r"\boldmath"]
+    build_hank2()
+    pyplot.rcParams.update( { "text.usetex": True, "font.size": 28 } )
+

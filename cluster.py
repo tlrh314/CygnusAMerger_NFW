@@ -544,8 +544,8 @@ class ObservedCluster(object):
 
     def plot_inferred_temperature(self, ax, style=dict()):
         radii = self.ana_radii
-        ax.plot(radii, self.hydrostatic, label="cNFW={0:.3f}, bf={1:.4f}".format(
-            self.halo["cNFW"], self.halo["bf200"]),
+        label = "cNFW={0:.3f}, bf={1:.4f}".format(self.halo["cNFW"], self.halo["bf200"])
+        ax.plot(radii, self.hydrostatic, label=style.get("label", label) ,
             **{ k: style[k] for k in style.keys() if k != "label" })
 
     def plot_inferred_pressure(self, ax, style=dict(), do_cut=False):

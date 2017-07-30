@@ -248,14 +248,15 @@ def find_dm_centroid(header, dm, single=False, verbose=True):
 
 
 #@concurrent(processes=threads)
-def compute_distance(sim, snapnr, path_to_snaphot, verbose=True):
-    print "Checking", snapnr
+def compute_distance(sim, snapnr, path_to_snaphot, verbose=False):
+    if verbose:
+        print "Checking", snapnr
     # sim.set_gadget_snap_double(snapnr, path_to_snaphot, verbose=verbose)
     # cygAsim = getattr(sim, "cygA{0}".format(snapnr), None)
     # cygNWsim = getattr(sim, "cygNW{0}".format(snapnr), None)
 
-    header = parse.eat_f77(path_to_snaphot, "HEAD", verbose=False)
-    pos = parse.eat_f77(path_to_snaphot, "POS", verbose=False)
+    header = parse.eat_f77(path_to_snaphot, "HEAD", verbose=verbose)
+    pos = parse.eat_f77(path_to_snaphot, "POS", verbose=verbose)
 
     pos = pos.reshape((header["ntot"], 3))
     gas = pos[0:header["ngas"]]
@@ -297,7 +298,7 @@ def compute_distance(sim, snapnr, path_to_snaphot, verbose=True):
     return distance
 
 
-@synchronized
+# @synchronized
 def find_and_plot_700_kpc(sim, verbose=False):
     if verbose: print "Running find_and_plot_700_kpc"
 
