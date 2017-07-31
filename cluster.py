@@ -894,6 +894,7 @@ class PSmac2Output(object):
         attr_renamed = {
             "rhogas": "rhogas", "DMrho": "rhodm",
             "Tspec": "tspec",
+            "SZ": "sz",
             "Tem": "tem",
             "xray": "xray",
             "vel": "vel"

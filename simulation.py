@@ -179,8 +179,9 @@ class Simulation(object):
         else:
             print "Warning: Simulation instance attributes 'nsnaps', 'xlen', 'ylen', 'pixelscale' not set"
 
-    def find_cluster_centroids_psmac_dmrho(self, snapnr=0, EA2="", do_plot=False):
-        print "Checking snapshot {0}".format(snapnr)
+    def find_cluster_centroids_psmac_dmrho(self, snapnr=0, EA2="", do_plot=False, verbose=False):
+        if verbose:
+            print "Checking snapshot {0}".format(snapnr)
 
         if self.name and self.name != "both":  # Only one cluster in simulation box
             expected_xpeaks = 1

@@ -349,10 +349,10 @@ def plot_simulated_wedges():
     from simulation import Simulation
     # sim50 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0905", name="both",
     #                  set_data=False)
-    sim75 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0906", name="both",
-                     set_data=False)
-    # sim25 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0907", name="both",
+    # sim75 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0906", name="both",
     #                  set_data=False)
+    sim25 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0907", name="both",
+                     set_data=False)
 
     avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 0.4,
             "elinewidth": 1, "label": "Quiescent, Chandra"}
@@ -368,7 +368,7 @@ def plot_simulated_wedges():
     # pyplot.switch_backend("Agg")
 
     from panda import create_panda
-    for Xe_i, sim in enumerate([ sim75 ]):  # TODO pick best X_E
+    for Xe_i, sim in enumerate([ sim25 ]):
         # sim.read_ics()
         # sim.set_gadget_paths()
         sim.read_smac(verbose=True)
@@ -382,14 +382,14 @@ def plot_simulated_wedges():
         radii = radii[:-1]
         N = len(radii)
 
-        for EA2_i, inclination in enumerate([ 45 ]):  # TODO pick best inclination
+        for EA2_i, inclination in enumerate([ 45 ]):
             quiescent_temperature = numpy.zeros(N)
             quiescent_temperature_std = numpy.zeros(N)
             merger_temperature = numpy.zeros(N)
             merger_temperature_std = numpy.zeros(N)
 
-            data = getattr(sim.psmac, "tspec{0}best".format(inclination))[0]
-            header = getattr(sim.psmac, "tspec{0}best_header".format(inclination))
+            data = getattr(sim.psmac, "tspec{0}best765".format(inclination))[0]
+            header = getattr(sim.psmac, "tspec{0}best765_header".format(inclination))
             snapnr = int(header["Input_File"].strip("'")[-3:])
             cA, cNW, distance = sim.find_cluster_centroids_psmac_dmrho(
                 snapnr=0, EA2=inclination)
@@ -446,35 +446,138 @@ def plot_simulated_wedges():
                 ax.set_ylabel("Temperature [keV]")
                 filename = "{0}_{1}_{2}_{3}_{4}.pdf".format(
                     sim.timestamp, name, "0"+str((Xe_i+1)*25), snapnr, int(distance+0.5))
-                pyplot.legend(fontsize=22)
+                pyplot.legend(loc="upper left", fontsize=22)
                 pyplot.tight_layout()
                 pyplot.savefig("out/"+filename, dpi=300)
                 pyplot.close()
 
 
 def plot_compton_y():
+    # Open observation lss [counts/s/arcsec^2]
+    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
+    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+
+    mosaic_Lx = fits.open(lss_Lx)
+    mosaic_kT = fits.open(lss_kT)
+
+    # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
+    mosaic_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_Lx[0].data, 9)
+    temperature_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_kT[0].data, 9)
+
+    # Find the centroid of CygA to align simulation and observation later on
+    maxcounts_obs = mosaic_Lx[0].data.max()
+    maxcounts_obs_index = mosaic_Lx[0].data.argmax()  # of flattened array
+    ylen_obs_pix, xlen_obs_pix = mosaic_Lx[0].data.shape
+    xcenter_obs = maxcounts_obs_index % xlen_obs_pix
+    ycenter_obs = maxcounts_obs_index / xlen_obs_pix
+
+    # Find the dimensions of the Chandra image in pix, arcsec and kpc
+    xlen_obs_pix = mosaic_Lx[0].header["NAXIS1"]  # same as using mosaic_smooth.shape
+    ylen_obs_pix = mosaic_Lx[0].header["NAXIS2"]
+    pix2arcsec_obs = mosaic_Lx[0].header["CDELT2"]*3600  # Chandra size of pixel 0.492". Value in header is in degrees.
+    xlen_obs_arcsec = xlen_obs_pix * pix2arcsec_obs
+    ylen_obs_arcsec = ylen_obs_pix * pix2arcsec_obs
+    from cosmology import CosmologyCalculator
+    cc = CosmologyCalculator(0.0562)
+    arcsec2kpc = cc.kpc_DA
+    pix2kpc_obs = pix2arcsec_obs * arcsec2kpc
+    xlen_obs_kpc = xlen_obs_arcsec * arcsec2kpc
+    ylen_obs_kpc = ylen_obs_arcsec * arcsec2kpc
+
+    print "Chandra Observation [lss_fill_flux]"
+    print "  Shape ({0},   {1})   pixels".format(xlen_obs_pix, ylen_obs_pix)
+    print "  Shape ({0:.1f}, {1:.1f}) arcsec".format(xlen_obs_arcsec, ylen_obs_arcsec)
+    print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_obs_kpc, ylen_obs_kpc)
+    print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_obs, ycenter_obs, maxcounts_obs)
+
     from simulation import Simulation
-    sim50 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0905", name="both",
-                       set_data=False)
-
-    cmap=colorcet.cm["diverging_rainbow_bgymr_45_85_c67"]
-
-    import main
-    a = main.new_argument_parser().parse_args()
-    a.do_cut = False; a.clustername = "both"
-    cygA, cygNW = main.set_observed_clusters(a)
-
-    sim = sim50
+    sim = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0907",
+        name="both", set_data=False)
     sim.read_smac(verbose=True)
     sim.nsnaps, sim.xlen, sim.ylen = sim.psmac.xray0.shape
     sim.pixelscale = float(sim.psmac.xray0_header["XYSize"])/int(sim.xlen)
     sim.dt = 0.01
+    sim.dtfine = 0.01/40
 
-    data = getattr(sim.psmac, "tspec{0}best".format(inclination))[0]
-    header = getattr(sim.psmac, "tspec{0}best_header".format(inclination))
-    snapnr = int(header["Input_File"].strip("'")[-3:])
+    inclination = 45
+
+    data = getattr(sim.psmac, "sz{0}best765".format(inclination))
+    header = getattr(sim.psmac, "sz{0}best765_header".format(inclination))
+
+    maxcounts_sim = data.max()
+    maxcounts_sim_index = data.argmax()  # of flattened array
+    ylen_sim_pix, xlen_sim_pix = data[0].shape
+    ylen_sim_kpc = xlen_sim_kpc = float(header["XYSize"])
+    xcenter_sim = maxcounts_sim_index % xlen_sim_pix
+    ycenter_sim = maxcounts_sim_index / xlen_sim_pix
+    pix2kpc_sim = float(header["XYSize"])/int(header["XYPix"])
+
     cA, cNW, distance = sim.find_cluster_centroids_psmac_dmrho(
         snapnr=0, EA2=inclination)
+
+    print "Smac Cube, i =", inclination
+    print "  Shape ({0},   {1})   pixels".format(xlen_sim_pix, ylen_sim_pix)
+    print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_sim_kpc, ylen_sim_kpc)
+    print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_sim, ycenter_sim, maxcounts_sim)
+    print "  Core Separaton = {0:3.2f}".format(distance)
+
+    # Cut relevant part from the simulation
+    desired_xlen_sim_kpc = xlen_obs_kpc
+    desired_ylen_sim_kpc = ylen_obs_kpc
+    desired_xlen_sim_pix = int(desired_xlen_sim_kpc / pix2kpc_sim + 0.5)
+    desired_ylen_sim_pix = int(desired_ylen_sim_kpc / pix2kpc_sim + 0.5)
+    xoffset = int((xcenter_sim * pix2kpc_sim -
+        xcenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
+    yoffset = int((ycenter_sim * pix2kpc_sim -
+        ycenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
+
+    equal_boxsize_kpc_smaccube = data[0][yoffset:yoffset+desired_ylen_sim_pix,
+                                         xoffset: xoffset+desired_xlen_sim_pix]
+
+    zoomx = float(ylen_obs_pix) / equal_boxsize_kpc_smaccube.shape[0]
+    zoomy = float(xlen_obs_pix) / equal_boxsize_kpc_smaccube.shape[1]
+    shape_matched = scipy.ndimage.zoom(equal_boxsize_kpc_smaccube,  [zoomx, zoomy], order=3)
+
+    obsdir = "../runs/ChandraObservation/"
+    confiles = glob.glob(obsdir+"xray/xray_contours_*.con")
+
+    mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
+    gc = aplpy.FITSFigure(mosaic)
+
+    pyplot.figure()
+    ax = pyplot.gca()
+
+    kT = pyplot.imshow(shape_matched, vmin=7e-6, vmax=1e-4,
+        norm=matplotlib.colors.LogNorm(), origin="lower",
+        cmap=colorcet.cm["diverging_rainbow_bgymr_45_85_c67"],
+        extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+    cax = pyplot.colorbar(kT, ax=ax, shrink=0.45, pad=0.03,
+        aspect=12, orientation="horizontal")
+    cax.ax.xaxis.set_ticks_position("both")
+    cax.ax.tick_params(axis="both", length=6, width=1, labelsize=16, direction="in")
+    cax.ax.set_xlabel(r"Compton-Y Parameter", fontsize=18)
+    cax.ax.tick_params(which="minor", length=3, width=1, direction="in")
+
+    for c in confiles:
+        contours = ascii.read(c)
+        xray_ra, xray_dec = gc.world2pixel(contours['col1'], contours["col2"])
+        # Eyeballed. DEAL WITH IT
+        pyplot.plot(xray_ra - xlen_obs_pix+75, xray_dec - ylen_obs_pix, "w", lw=1)
+
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_xticklabels("")
+    ax.set_yticklabels("")
+    pyplot.tight_layout()
+    pyplot.savefig("out/SZ_prediction_XE={0}_i={1}.pdf".format(0.25, 45), dpi=300)  # Yes, hardcoded. DEAL WITH IT
+    pyplot.close()
+
+    # import main
+    # a = main.new_argument_parser().parse_args()
+    # a.do_cut = False; a.clustername = "both"
+    # cygA, cygNW = main.set_observed_clusters(a)
+
 
 
 def find_bestfit_snapshots(verbose=False):
@@ -593,10 +696,14 @@ def build_matrix(residuals=False, residuals_minmax=100):
             ycenter_sim = maxcounts_sim_index / xlen_sim_pix
             pix2kpc_sim = float(header["XYSize"])/int(header["XYPix"])
 
+            cA, cNW, distance = sim.find_cluster_centroids_psmac_dmrho(
+                snapnr=0, EA2=inclination)
+
             print "Smac Cube, i =", inclination
             print "  Shape ({0},   {1})   pixels".format(xlen_sim_pix, ylen_sim_pix)
             print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_sim_kpc, ylen_sim_kpc)
             print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_sim, ycenter_sim, maxcounts_sim)
+            print "  Core Separaton = {0:3.2f}".format(distance)
 
             # Cut relevant part from the simulation
             desired_xlen_sim_kpc = xlen_obs_kpc
@@ -660,13 +767,64 @@ def build_matrix(residuals=False, residuals_minmax=100):
                     extent=[0, xlen_obs_pix, 0, ylen_obs_pix]
                 )
 
-                # kT_residuals = 100*(temperature_smooth-shape_matched)/shape_matched
-                # fighist = pyplot.figure()
-                # pyplot.hist(kT_residuals)
-                # pyplot.savefig("out/{0}_{1}.pdf".format(EA2_i, Xe_i), dpi=300)
-                # pyplot.close(fighist)
+                fig = pyplot.gcf().number
 
-                # pyplot.figure(fig)
+                if (Xe_i == 0 and EA2_i == 2) or (Xe_i == 0 and EA2_i == 3):
+                    pyplot.figure()
+
+                    ax = pyplot.gca()
+                    ax.set_xlabel("")
+                    ax.set_ylabel("")
+                    ax.set_xticklabels("")
+                    ax.set_yticklabels("")
+
+                    kT = pyplot.imshow(tspec, vmin=3.5, vmax=12,
+                        origin="lower", cmap=colorcet.cm["linear_kryw_5_100_c67"],
+                        extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+                    cax = pyplot.colorbar(kT, ax=ax, shrink=0.45, pad=0.03,
+                        aspect=12, orientation="horizontal")
+                    cax.ax.xaxis.set_ticks_position("both")
+                    cax.ax.tick_params(axis="both", length=6, width=1, labelsize=16, direction="in")
+                    cax.ax.set_xlabel(r"Temperature [keV]", fontsize=18)
+                    cax.ax.tick_params(which="minor", length=3, width=1, direction="in")
+                    pyplot.tight_layout()
+                    pyplot.savefig("out/kT_XE={0}_i={1}.pdf".format(0.25*(Xe_i+1), 15*EA2_i), dpi=300)
+                    pyplot.close()
+
+                    pyplot.figure()
+
+                    ax = pyplot.gca()
+                    ax.set_xlabel("")
+                    ax.set_ylabel("")
+                    ax.set_xticklabels("")
+                    ax.set_yticklabels("")
+
+                    kT_residuals = pyplot.imshow(
+                        100*(temperature_smooth-shape_matched)/shape_matched,
+                        vmin=-residuals_minmax, vmax=residuals_minmax, origin="lower",
+                        # cmap=colorcet.cm["diverging_gwv_55_95_c39_r"],
+                        cmap=colorcet.cm["diverging_bwr_40_95_c42"],
+                        extent=[0, xlen_obs_pix, 0, ylen_obs_pix]
+                    )
+                    cax = pyplot.colorbar(kT_residuals, ax=ax, shrink=0.35, pad=0.03,
+                        aspect=12, orientation="horizontal")
+                    cax.ax.xaxis.set_ticks_position("both")
+                    cax.ax.tick_params(axis="both", length=6, width=1, labelsize=16, direction="in")
+                    cax.ax.set_xlabel(r"Temperature Residuals [\%]" , fontsize=18)
+                    cax.ax.tick_params(which="minor", length=3, width=1, direction="in")
+                    pyplot.tight_layout()
+                    pyplot.savefig("out/kT_residuals_XE={0}_i={1}.pdf".format(0.25*(Xe_i+1), 15*EA2_i), dpi=300)
+                    pyplot.close()
+
+                kT_residuals = 100*(temperature_smooth-shape_matched)/shape_matched
+                pyplot.figure()
+                pyplot.hist(kT_residuals.flat, bins=512, normed=True)
+                pyplot.xlim(-75, 75)
+                pyplot.title(r"$X_E = {0} \quad i = {1}$".format(0.25*(Xe_i+1), 15*EA2_i))
+                pyplot.savefig("out/temperature_residuals_histogram_XE={0}_i={1}.pdf".format(0.25*(Xe_i+1), 15*EA2_i), dpi=300)
+                pyplot.close()
+
+                pyplot.figure(fig)
 
 
             if Xe_i is 0 and EA2_i is 0:
@@ -819,7 +977,7 @@ def plot_residuals():
 
 
 if __name__ == "__main__":
-    to_plot = [ 7 ]
+    to_plot = [ 9 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -881,15 +1039,18 @@ if __name__ == "__main__":
         build_matrix()
 
     if 7 in to_plot:
-        build_matrix(residuals=True, residuals_minmax=25)
+        # build_matrix(residuals=True, residuals_minmax=25)
         build_matrix(residuals=True, residuals_minmax=50)
-        build_matrix(residuals=True, residuals_minmax=75)
-        build_matrix(residuals=True, residuals_minmax=100)
-        build_matrix(residuals=True, residuals_minmax=125)
-        build_matrix(residuals=True, residuals_minmax=150)
+        # build_matrix(residuals=True, residuals_minmax=75)
+        # build_matrix(residuals=True, residuals_minmax=100)
+        # build_matrix(residuals=True, residuals_minmax=125)
+        # build_matrix(residuals=True, residuals_minmax=150)
 
     if 8 in to_plot:
         plot_simulated_wedges()
+
+    if 9 in to_plot:
+        plot_compton_y()
 
     # Appendix
     if 1337 in to_plot:
