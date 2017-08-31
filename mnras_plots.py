@@ -1062,7 +1062,7 @@ if __name__ == "__main__":
 
     # Appendix
     if 1337 in to_plot:
-        pyplot.switch_backend('cairo')
+        pyplot.switch_backend('agg')
         a, unknown = main.new_argument_parser().parse_known_args()
         a.do_cut = True
         a.basedir = "/Volumes/Cygnus/timoh/"
@@ -1079,3 +1079,7 @@ if __name__ == "__main__":
         sim.toy.halo1.name = "cygNW"
         fignum = plot.donnert2014_figure1(cygNW_cut, add_sim=True, verlinde=False)
         plot.add_sim_to_donnert2014_figure1(fignum, sim.toy.halo1, sim.outdir)
+
+        # 30 MB down to ~3 MB, still looks vectorized
+        # gs -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/prepress -sOutputFile=cygA_donnert2014figure1_reduced.pdf cygA_donnert2014figure1.pdf
+        # gs -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/prepress -sOutputFile=cygNW_donnert2014figure1_reduced.pdf cygNW_donnert2014figure1.pdf

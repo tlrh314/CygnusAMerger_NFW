@@ -399,7 +399,7 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
         @param sim   : Simulation
         @param snapnr: TODO, string"""
 
-    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 1 }
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 1, "label": "data" }
     gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
     dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
     tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
@@ -446,7 +446,7 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
         ax.set_xlabel("Radius [kpc]")
         ax.set_xscale("log")
         ax.set_xlim(0, 5000)
-        ax.legend(fontsize=18, loc=loc)
+        if not add_sim: ax.legend(fontsize=18, loc=loc)
     ax0.set_ylabel("Density [g/cm$^3$]")
     ax1.set_ylabel("Mass [MSun]")
     ax2.set_ylabel("Temperature [keV]")
@@ -517,7 +517,7 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Fa
             temperature_std[i] = numpy.std(halo.gas["kT"][bin_edge[i]:bin_edge[i]+1])
             pressure[i] = numpy.median(halo.gas["P"][bin_edge[i]:bin_edge[i]+1])
 
-        gas = { "linestyle": "solid", "color": "green", "linewidth": "2", "label": "simulation" }
+        gas = { "linestyle": "solid", "color": "green", "linewidth": "2" }
         dm = { "linestyle": "solid", "color": "green", "linewidth": "2" }
 
         # Do not plot noisy inner bins
@@ -541,7 +541,7 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Fa
 
     else:
         gas = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 1,
-                "markeredgecolor": "none",  "label": ""}
+                "markeredgecolor": "none",  "label": "simulation"}
         dm = { "c": "g", "lw": 2, "drawstyle": "steps-post", "label": ""}
 
         mask = numpy.random.randint(0, len(halo.gas["r"]), size=10000)
@@ -552,21 +552,22 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Fa
             mask = numpy.setdiff1d(mask, mask2[0])
 
 
-        ax0.plot(halo.gas["r"][mask], halo.gas["rho"][mask], **gas)
-        ax0.plot(halo.dm_radii, halo.rho_dm_below_r, **dm)
+        ax0.plot(halo.gas["r"][mask], halo.gas["rho"][mask], rasterized=True, **gas)
+        ax0.plot(halo.dm_radii, halo.rho_dm_below_r, rasterized=True, **dm)
 
-        ax1.plot(halo.gas["r"][mask], halo.gas["mass"][mask], **gas)
-        ax1.plot(halo.dm_radii, halo.M_dm_below_r, **dm)
+        ax1.plot(halo.gas["r"][mask], halo.gas["mass"][mask], rasterized=True, **gas)
+        ax1.plot(halo.dm_radii, halo.M_dm_below_r, rasterized=True, **dm)
         # TODO: sampled DM profile misses, rho and mass
 
-        ax2.plot(halo.gas["r"][mask], halo.gas["kT"][mask], **gas)
+        ax2.plot(halo.gas["r"][mask], halo.gas["kT"][mask], rasterized=True, **gas)
 
-        ax3.plot(halo.gas["r"][mask], halo.gas["P"][mask], **gas)
+        ax3.plot(halo.gas["r"][mask], halo.gas["P"][mask], rasterized=True, **gas)
 
     inner = numpy.where(halo.gas["r"] < 50)
     hsml = 2*numpy.median(halo.gas["hsml"][inner])
     # hist, edges = numpy.histogram(halo.gas["hsml"], bins=1000)
     # hsml = edges[numpy.argmax(hist)]
+
     for ax, loc in zip(fig.axes, [3, 2, 3, 3]):
         # The y coordinates are axes while the x coordinates are data
         trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
@@ -576,13 +577,15 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Fa
         ax.axvline(x=hsml, c="g", ls=":")
         ax.text(hsml+6, 0.05, r"$2 h_{sml}$", ha="left", color="g",
             transform=trans, fontsize=22)
-        ax.legend(fontsize=18, loc=loc)
+        handles, labels = ax.get_legend_handles_labels()
+        handles[-2].set_linestyle("-")
+        ax.legend(handles, labels, fontsize=18, loc=loc)
 
     # ~2s, 10% runtime
     # fig.tight_layout(rect=[0, 0.00, 1, 0.98])  # rect b/c suptitle/tight_layout bug
     fig.set_tight_layout(True)
     fig.savefig(savedir+"{0}_donnert2014figure1{1}.pdf"
-        .format(halo.name, "_"+snapnr if snapnr else ""), dpi=600)
+        .format(halo.name, "_"+snapnr if snapnr else ""))
     # ~5.5s, 25% runtime
     fig.savefig(savedir+"{0}_donnert2014figure1{1}.png"
         .format(halo.name, "_"+snapnr if snapnr else ""), dpi=600)

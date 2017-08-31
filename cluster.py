@@ -380,7 +380,8 @@ class ObservedCluster(object):
                     numpy.ma.compressed(self.avg_for_plotting[parm]),
                     xerr=numpy.ma.compressed(self.avg_for_plotting["fr"])/2,
                     yerr=[numpy.ma.compressed(self.avg_for_plotting["f"+parm]),
-                          numpy.ma.compressed(self.avg_for_plotting["f"+parm])], **style)
+                          numpy.ma.compressed(self.avg_for_plotting["f"+parm])],
+                    rasterized=True, **style)
 
     def plot_chandra_sector(self, ax, parm="kT", merger=False, hot=False, cold=False,
                             style=dict()):
@@ -483,13 +484,14 @@ class ObservedCluster(object):
 
     def plot_hydrostatic_mass(self, ax, style=dict()):
         style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
-        style["label"] = "HE"
+        style["label"] = "data"
         style["color"] = "b"
-        ax.plot(self.HE_radii*convert.cm2kpc, self.HE_M_below_r*convert.g2msun, **style)
+        ax.plot(self.HE_radii*convert.cm2kpc, self.HE_M_below_r*convert.g2msun,
+                rasterized=True, **style)
 
     def plot_hydrostatic_mass_err(self, ax, style=dict()):
         style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
-        style["label"] = "HE"
+        style["label"] = "data"
         style["color"] = "b"
         # style = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
         #         "elinewidth": 0.5, "label": "HE" }
@@ -501,7 +503,7 @@ class ObservedCluster(object):
 
         ax.errorbar(self.avg_for_plotting["r"], self.avg_for_plotting["M_HE"],
             xerr=self.avg_for_plotting["fr"]/2, yerr=[self.avg_for_plotting["M_HE_min"],
-                self.avg_for_plotting["M_HE_plus"]], **style)
+                self.avg_for_plotting["M_HE_plus"]], rasterized=True, **style)
         self.avg_for_plotting.mask = mask
 
     def M_verlinde(self, r):
