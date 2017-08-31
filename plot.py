@@ -41,7 +41,8 @@ def quiescent_parm(c, parm="rho"):
     parmnames = { "kT": "kT [keV]",
                   "n": "Density [1/cm$^3$]",
                   "rho": "Mass Density [g/cm$^3$]",
-                  "P": "Pressure [erg/cm$^3$]" }
+                  "P": "Pressure [erg/cm$^3$]",
+                  "Yparm": "Compton-Y Parameter]" }
     if not parmnames.get(parm, None):
         print "ERRROR: parm '{0}' is not available".format(parm)
         return
@@ -57,7 +58,8 @@ def quiescent_parm(c, parm="rho"):
     # pyplot.ylim(-0.02, 0.2)
     pyplot.legend(loc="best")
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_quiescent_{1}.pdf".format(c.name, parm), dpi=150)
+    pyplot.show()
+    # pyplot.savefig("out/{0}_quiescent_{1}.pdf".format(c.name, parm), dpi=150)
 
 
 def sector_parm(c, parm="kT"):
@@ -444,7 +446,7 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
         ax.set_xlabel("Radius [kpc]")
         ax.set_xscale("log")
         ax.set_xlim(0, 5000)
-        ax.legend(fontsize=12, loc=loc)
+        ax.legend(fontsize=18, loc=loc)
     ax0.set_ylabel("Density [g/cm$^3$]")
     ax1.set_ylabel("Mass [MSun]")
     ax2.set_ylabel("Temperature [keV]")
@@ -515,7 +517,7 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Fa
             temperature_std[i] = numpy.std(halo.gas["kT"][bin_edge[i]:bin_edge[i]+1])
             pressure[i] = numpy.median(halo.gas["P"][bin_edge[i]:bin_edge[i]+1])
 
-        gas = { "linestyle": "solid", "color": "green", "linewidth": "2" }
+        gas = { "linestyle": "solid", "color": "green", "linewidth": "2", "label": "simulation" }
         dm = { "linestyle": "solid", "color": "green", "linewidth": "2" }
 
         # Do not plot noisy inner bins
@@ -565,7 +567,7 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Fa
     hsml = 2*numpy.median(halo.gas["hsml"][inner])
     # hist, edges = numpy.histogram(halo.gas["hsml"], bins=1000)
     # hsml = edges[numpy.argmax(hist)]
-    for ax in fig.axes:
+    for ax, loc in zip(fig.axes, [3, 2, 3, 3]):
         # The y coordinates are axes while the x coordinates are data
         trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
         ax.fill_between(numpy.arange(2000, 1e4, 0.01), 0, 1,
@@ -574,12 +576,16 @@ def add_sim_to_donnert2014_figure1(fignum, halo, savedir, snapnr=None, binned=Fa
         ax.axvline(x=hsml, c="g", ls=":")
         ax.text(hsml+6, 0.05, r"$2 h_{sml}$", ha="left", color="g",
             transform=trans, fontsize=22)
+        ax.legend(fontsize=18, loc=loc)
 
     # ~2s, 10% runtime
-    fig.tight_layout(rect=[0, 0.00, 1, 0.98])  # rect b/c suptitle/tight_layout bug
+    # fig.tight_layout(rect=[0, 0.00, 1, 0.98])  # rect b/c suptitle/tight_layout bug
+    fig.set_tight_layout(True)
+    fig.savefig(savedir+"{0}_donnert2014figure1{1}.pdf"
+        .format(halo.name, "_"+snapnr if snapnr else ""), dpi=600)
     # ~5.5s, 25% runtime
     fig.savefig(savedir+"{0}_donnert2014figure1{1}.png"
-        .format(halo.name, "_"+snapnr if snapnr else ""), dpi=150)
+        .format(halo.name, "_"+snapnr if snapnr else ""), dpi=600)
     pyplot.close(fig)
     return halo
 

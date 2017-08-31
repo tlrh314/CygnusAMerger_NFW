@@ -87,7 +87,7 @@ def plot_mosaic(mosaic, cygA, cygNW, is_lss=False, is_kT=False):
     gc.scalebar.set_color("white")
 
     # Pretty notation on the axes
-    gc.tick_labels.set_xformat("hh:mm")
+    gc.tick_labels.set_xformat("hh:mm:ss")
     gc.tick_labels.set_yformat("dd:mm")
     gc.frame.set_color("white")
 
@@ -110,10 +110,10 @@ def plot_mosaic(mosaic, cygA, cygNW, is_lss=False, is_kT=False):
         ax.text(text_x, text_y, "701.3''", ha="center", va="center", color="white",
                 rotation=51, weight="bold", fontsize=22)
         # gc.recenter(299.78952, 40.81, width=0.185, height=0.185)
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.set_xticklabels("")
-        ax.set_yticklabels("")
+        # ax.set_xlabel("")
+        # ax.set_ylabel("")
+        # ax.set_xticklabels("")
+        # ax.set_yticklabels("")
 
         cax = pyplot.colorbar(gc.image, ax=ax, shrink=0.45, pad=0.03,
                               aspect=12, orientation="horizontal")
@@ -148,6 +148,18 @@ def plot_mosaic(mosaic, cygA, cygNW, is_lss=False, is_kT=False):
 
         ax.plot(-x6+cygNW_x, -y6+cygNW_y, c="w", lw=2, ls=":")
         ax.plot(-x96+cygNW_x, -y96+cygNW_y, c="w", lw=2, ls=":")
+
+        for label in ax.get_ymajorticklabels() + ax.get_yminorticklabels():
+            label.set_rotation_mode("anchor")
+            label.set_rotation(90)
+            label.set_horizontalalignment("center")
+
+        pyplot.xlabel("RA (J2000)")
+        ax.xaxis.set_tick_params(labeltop="on", labelbottom="off")
+        ax.xaxis.set_label_position("top")
+        pyplot.ylabel("Dec (J2000)")
+        start, end = ax.get_xlim()
+        # ax.xaxis.set_ticks([0, 500, 1000, 1500, 2000], 'top')
     else:
         # Annotate top and low left corner with observation details
         # ax.text(0.5, 0.98, "Chandra X-ray Surface Brightness", weight="bold",
@@ -159,10 +171,16 @@ def plot_mosaic(mosaic, cygA, cygNW, is_lss=False, is_kT=False):
             label.set_rotation(90)
             label.set_horizontalalignment("center")
     if is_kT:
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.set_xticklabels("")
-        ax.set_yticklabels("")
+        # ax.set_xlabel("")
+        # ax.set_ylabel("")
+        # ax.set_xticklabels("")
+        # ax.set_yticklabels("")
+        pyplot.xlabel("RA (J2000)")
+        ax.xaxis.set_tick_params(labeltop="on", labelbottom="off")
+        ax.xaxis.set_label_position("top")
+        pyplot.ylabel("Dec (J2000)")
+        start, end = ax.get_xlim()
+        # ax.xaxis.set_ticks([0, 500, 1000, 1500, 2000], 'top')
 
         cax = pyplot.colorbar(gc.image, ax=ax, shrink=0.45, pad=0.03,
                               aspect=12, orientation="horizontal")
@@ -190,8 +208,8 @@ def bestfit_betamodel(c):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "b" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
-            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
-    fit = { "color": "k", "lw": 4, "linestyle": "solid" }
+            "label": "data (1.03 Msec)" }
+    fit = { "color": "k", "lw": 4, "linestyle": "solid", "label": "best fit" }
 
     fig, (ax, ax_r) = pyplot.subplots(2, 2, sharex=True, figsize=(12, 9))
     gs1 = matplotlib.gridspec.GridSpec(3, 3)
@@ -248,7 +266,7 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
 
     hydrostatic = ( scipy.ndimage.filters.gaussian_filter1d(cygA.HE_M_below_r, 1) /
                     scipy.ndimage.filters.gaussian_filter1d(cygNW.HE_M_below_r, 2) )
-    pyplot.plot(cygA.HE_radii * convert.cm2kpc, hydrostatic, c="k", ls="--", label="hydrostatic")
+    pyplot.plot(cygA.HE_radii * convert.cm2kpc, hydrostatic, c="k", ls="--", label="Wise+ 2017")
 
     radii = cygA.ana_radii * convert.kpc2cm
     dark = cygA.M_dm(radii) / cygNW.M_dm(radii)
@@ -548,11 +566,11 @@ def plot_compton_y():
     pyplot.figure()
     ax = pyplot.gca()
 
-    kT = pyplot.imshow(shape_matched, vmin=7e-6, vmax=1e-4,
+    sz = pyplot.imshow(shape_matched, vmin=7e-6, vmax=1e-4,
         norm=matplotlib.colors.LogNorm(), origin="lower",
         cmap=colorcet.cm["diverging_rainbow_bgymr_45_85_c67"],
         extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
-    cax = pyplot.colorbar(kT, ax=ax, shrink=0.45, pad=0.03,
+    cax = pyplot.colorbar(sz, ax=ax, shrink=0.45, pad=0.03,
         aspect=12, orientation="horizontal")
     cax.ax.xaxis.set_ticks_position("both")
     cax.ax.tick_params(axis="both", length=6, width=1, labelsize=16, direction="in")
@@ -977,7 +995,7 @@ def plot_residuals():
 
 
 if __name__ == "__main__":
-    to_plot = [ 9 ]
+    to_plot = [ 1337 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -991,21 +1009,11 @@ if __name__ == "__main__":
 
     if 1 in to_plot:
         pyplot.rcParams.update( { "text.usetex": False, "font.size": 18 } )
-        plot_mosaic(mosaic, cygA, cygNW, is_lss=False)
-        pyplot.rcParams.update( { "text.usetex": True, "font.size": 28 } )
-
-    if 1 in to_plot:
-        pyplot.rcParams.update( { "text.usetex": True, "font.size": 18 } )
-        # pyplot.rcParams["text.latex.preamble"] = [r"\usepackage{amsmath}"]
         plot_mosaic(lss, cygA, cygNW, is_lss=True)
-        pyplot.rcParams.update( { "text.usetex": True, "font.size": 28 } )
-
-    if 2 in to_plot:
-        pyplot.rcParams.update( { "text.usetex": True, "font.size": 18 } )
         plot_mosaic(lss_kT, cygA, cygNW, is_lss=False, is_kT=True)
         pyplot.rcParams.update( { "text.usetex": True, "font.size": 28 } )
 
-    if 3 in to_plot:
+    if 2 in to_plot:
         a = main.new_argument_parser().parse_args()
         a.do_cut = False
         cygA_uncut, cygNW_uncut = main.set_observed_clusters(a)
@@ -1014,13 +1022,13 @@ if __name__ == "__main__":
         bestfit_betamodel(cygA_uncut)
         cygA_uncut.avg.mask = cygA_mask
 
-    if 3 in to_plot:
+    if 2 in to_plot:
         cygNW_mask = cygNW_uncut.avg.mask
         cygNW_uncut.avg.mask = [False for i in range(len(cygNW_uncut.avg.columns))]
         bestfit_betamodel(cygNW_uncut)
         cygNW_uncut.avg.mask = cygNW_mask
 
-    if 4 in to_plot:
+    if 3 in to_plot:
         a = main.new_argument_parser().parse_args()
         a.do_cut = False
         cygA_uncut, cygNW_uncut = main.set_observed_clusters(a)
@@ -1054,7 +1062,8 @@ if __name__ == "__main__":
 
     # Appendix
     if 1337 in to_plot:
-        a = main.new_argument_parser().parse_args()
+        pyplot.switch_backend('cairo')
+        a, unknown = main.new_argument_parser().parse_known_args()
         a.do_cut = True
         a.basedir = "/Volumes/Cygnus/timoh/"
         a.timestamp = "20170115T0905"

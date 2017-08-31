@@ -345,7 +345,7 @@ def new_argument_parser():
 
 
 if __name__ == "__main__":
-    a = new_argument_parser().parse_args()
+    a, unknown = new_argument_parser().parse_known_args()
     if a.embed: header = ""
 
     sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
