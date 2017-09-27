@@ -758,10 +758,17 @@ def build_matrix(residuals=False, residuals_minmax=100):
             smaccube_smooth *= magic
 
             if not residuals:
-                # Display the cut-out, zoomed-in, correctly smoothed Smac Cube
-                Lx = axes[6*EA2_i+Xe_i].imshow(smaccube_smooth, vmin=5.0e-10, vmax=1.0e-7,
-                    norm=matplotlib.colors.LogNorm(), origin="lower", cmap=colorcet.cm["linear_bmw_5_95_c86"],
-                    extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+                if Xe_i == 2 and EA2_i == 5:
+                    # Show the observation
+                    Lx = axes[6*EA2_i+Xe_i].imshow(mosaic_smooth, vmin=5.0e-10, vmax=1.0e-7,
+                        norm=matplotlib.colors.LogNorm(), origin="lower",
+                        cmap=colorcet.cm["linear_bmw_5_95_c86"],
+                        extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+                else:
+                    # Display the cut-out, zoomed-in, correctly smoothed Smac Cube
+                    Lx = axes[6*EA2_i+Xe_i].imshow(smaccube_smooth, vmin=5.0e-10, vmax=1.0e-7,
+                        norm=matplotlib.colors.LogNorm(), origin="lower", cmap=colorcet.cm["linear_bmw_5_95_c86"],
+                        extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
             else:
                 zoomx = float(ylen_obs_pix) / smaccube_smooth.shape[0]
                 zoomy = float(xlen_obs_pix) / smaccube_smooth.shape[1]
@@ -780,8 +787,16 @@ def build_matrix(residuals=False, residuals_minmax=100):
                                                  xoffset: xoffset+desired_xlen_sim_pix]
             tspec = convert.K_to_keV(equal_boxsize_kpc_smaccube)
             if not residuals:
-                kT = axes[3+6*EA2_i+Xe_i].imshow(tspec, vmin=3.5, vmax=12,
-                    origin="lower", cmap=colorcet.cm["linear_kryw_5_100_c67"], extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+                if Xe_i == 2 and EA2_i == 5:
+                    # Show the observation
+                    kT = axes[3+6*EA2_i+Xe_i].imshow(temperature_smooth, vmin=3.5, vmax=12,
+                        origin="lower", cmap=colorcet.cm["linear_kryw_5_100_c67"],
+                        extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
+                else:
+                    # Display the cut-out, zoomed-in, correctly smoothed Smac Cube
+                    kT = axes[3+6*EA2_i+Xe_i].imshow(tspec, vmin=3.5, vmax=12,
+                        origin="lower", cmap=colorcet.cm["linear_kryw_5_100_c67"],
+                        extent=[0, xlen_obs_pix, 0, ylen_obs_pix])
             else:
                 zoomx = float(ylen_obs_pix) / tspec.shape[0]
                 zoomy = float(xlen_obs_pix) / tspec.shape[1]
@@ -887,8 +902,22 @@ def build_matrix(residuals=False, residuals_minmax=100):
     for EA2, ax in zip([0, 15, 30, 45, 60, 75], axes[::6]):
         ax.text(0.02, 0.02, "$i={0:02d}$".format(EA2),
                 color="white", fontsize=22, ha="left", va="bottom", transform=ax.transAxes)
-
         # axes[n].text(0.5, 0.5, str(n), transform=axes[n].transAxes)
+
+    # Green border around bestfit
+    for ax in [axes[18], axes[21]]:
+        ax.set_zorder(10)  # 'bring to front'
+        for s in ax.spines.values():
+            s.set_color("lawngreen")
+            s.set_linewidth(4.0)
+
+    # White border around observation
+    for ax in [axes[-1], axes[-4]]:
+        ax.set_zorder(10)  # 'bring to front'
+        for s in ax.spines.values():
+            s.set_color("darkgreen")
+            s.set_linewidth(4.0)
+
     pyplot.subplots_adjust(left=0., bottom=0.02, right=1., top=1., wspace=0., hspace=0.01)
     pyplot.savefig("out/matrix{0}.png".format("_residuals_"+str(residuals_minmax) if residuals else ""), pdi=6000)
     pyplot.savefig("out/matrix{0}.pdf".format("_residuals_"+str(residuals_minmax) if residuals else ""), pdi=6000)
@@ -1004,7 +1033,7 @@ def plot_residuals():
 
 
 if __name__ == "__main__":
-    to_plot = [ 3 ]
+    to_plot = [ 6 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
