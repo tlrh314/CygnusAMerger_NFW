@@ -283,20 +283,20 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
     pyplot.axvline(cygNW.halo["r500"], ls="-", c="blue", lw=1)
     trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
     ax.text(0.97*cygA.halo["r200"], 0.98, r"$r_{200}$", ha="right", va="top",
-            fontsize=22, transform=trans)
+            fontsize=28, transform=trans)
     ax.text(0.97*cygNW.halo["r500"], 0.98, r"$r_{500}$", ha="right", va="top",
-            fontsize=22, transform=trans)
+            fontsize=28, transform=trans)
 
     pyplot.xscale("log")
     # pyplot.xlim(200, 1e4)
     # pyplot.ylim(0.5, 2.5)
     pyplot.xlim(60, 1.1*cygA.halo["r200"])
-    pyplot.ylim(0, 4)
-    pyplot.xlabel("Radius [kpc]")
-    pyplot.ylabel("Mass Ratio [CygA/CygNW]")
-    pyplot.legend(loc="lower left", fontsize=22)
+    pyplot.ylim(1, 4)
+    pyplot.xlabel("Radius [kpc]", fontsize=32)
+    pyplot.ylabel("Mass Ratio [CygA/CygNW]", fontsize=32)
+    pyplot.legend(loc="upper center", fontsize=24)
 
-    ax.tick_params(axis="both", which="both", top="on", right="on")
+    ax.tick_params(axis="both", which="both", top="on", right="on", labelsize=28)
     pyplot.tight_layout()
     pyplot.savefig("out/mass_ratio_{0}cut.pdf".format("" if cut else "un"), dpi=600)
 
@@ -481,6 +481,7 @@ def plot_compton_y():
 
     # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
     mosaic_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_Lx[0].data, 9)
+    contour_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_Lx[0].data, 25)
     temperature_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_kT[0].data, 9)
 
     # Find the centroid of CygA to align simulation and observation later on
@@ -577,11 +578,19 @@ def plot_compton_y():
     cax.ax.set_xlabel(r"Compton-Y Parameter", fontsize=18)
     cax.ax.tick_params(which="minor", length=3, width=1, direction="in")
 
-    for c in confiles:
-        contours = ascii.read(c)
-        xray_ra, xray_dec = gc.world2pixel(contours['col1'], contours["col2"])
-        # Eyeballed. DEAL WITH IT
-        pyplot.plot(xray_ra - xlen_obs_pix+75, xray_dec - ylen_obs_pix, "w", lw=1)
+    # for c in confiles:
+    #     contours = ascii.read(c)
+    #     xray_ra, xray_dec = gc.world2pixel(contours['col1'], contours["col2"])
+    #     # Eyeballed. DEAL WITH IT
+    #     pyplot.plot(xray_ra - xlen_obs_pix+75, xray_dec - ylen_obs_pix, "w", lw=1)
+
+    delta = 1
+    x = numpy.arange(0, xlen_obs_pix, delta)
+    y = numpy.arange(0, ylen_obs_pix, delta)
+    X, Y = numpy.meshgrid(x, y)
+    CS = pyplot.contour(X, Y, numpy.log10(contour_smooth.clip(10**-8.8)), 7,
+        colors="black", linestyles="solid", ls=4)
+    pyplot.clabel(CS, fontsize=16, inline=1, colors="black")
 
     ax.set_xlabel("")
     ax.set_ylabel("")
@@ -995,7 +1004,7 @@ def plot_residuals():
 
 
 if __name__ == "__main__":
-    to_plot = [ 1337 ]
+    to_plot = [ 3 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
