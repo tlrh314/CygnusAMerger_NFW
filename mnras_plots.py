@@ -331,7 +331,7 @@ def show_puffup():
         c.plot_inferred_temperature(ax, style=tot)
 
         halo = getattr(sim, "{0}{1}".format(c.name, snapnr), None)
-        ax.plot(halo.gas["r"], halo.gas["kT"], **gas)
+        ax.plot(halo.gas["r"], halo.gas["kT"], rasterized=True, **gas)
 
         ax.axvline(c.halo["r200"], c="k")
         # The y coordinates are axes while the x coordinates are data
@@ -359,7 +359,7 @@ def show_puffup():
 
         ax.legend(fontsize=22, loc=3)
         pyplot.tight_layout()
-        pyplot.savefig("out/{0}_puffup.png".format(c.name))
+        pyplot.savefig("out/{0}_puffup.pdf".format(c.name))
         pyplot.close(fig)
 
 
@@ -643,9 +643,13 @@ def find_bestfit_snapshots(verbose=False):
 
 def build_matrix(residuals=False, residuals_minmax=100):
     # Open observation lss [counts/s/arcsec^2]
-    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
-    lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
-    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+    # lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    # lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
+    # lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+
+    # 2.2 MSec
+    lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
+    lss_kT = "/usr/local/mscproj/runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
 
     mosaic_Lx = fits.open(lss_Lx)
     mosaic_kT = fits.open(lss_kT)
@@ -927,7 +931,10 @@ def build_matrix(residuals=False, residuals_minmax=100):
 
 def plot_residuals():
     # Open observation lss [counts/s/arcsec^2]
-    obs = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
+    # obs = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
+
+    # 2.2 MSec
+    obs = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
     mosaic = fits.open(obs)
 
     # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
@@ -1033,17 +1040,21 @@ def plot_residuals():
 
 
 if __name__ == "__main__":
-    to_plot = [ 6 ]
+    to_plot = [ 4 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
     cygNW = ( 299.7055, 40.884849 )
 
-    radio = "../runs/RadioObservation/radio5GHz.fits"
-    mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
-    lss = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
-    kT = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
-    lss_kT = "../runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck.dir/Frame2/working_spectra_kT_map.fits"
+    # radio = "../runs/RadioObservation/radio5GHz.fits"
+    # mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
+    # lss = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
+    # kT = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
+    # lss_kT = "../runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck.dir/Frame2/working_spectra_kT_map.fits"
+
+    # 2.2 MSec
+    lss = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
+    lss_kT = "../runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
 
     if 1 in to_plot:
         pyplot.rcParams.update( { "text.usetex": False, "font.size": 18 } )
@@ -1075,7 +1086,7 @@ if __name__ == "__main__":
         plot_mass_ratio(cygA_uncut, cygNW_uncut, cut=False)
         plot_mass_ratio(cygA_cut, cygNW_cut, cut=True)
 
-    if 5 in to_plot:
+    if 4 in to_plot:
         show_puffup()
 
     if 1338 in to_plot:
