@@ -101,6 +101,7 @@ class ObservedCluster(object):
     def set_radius(self, t):
         """ An adaptive binning routine is used for data extraction to ensure
         SNR==100. Therefore binsizes vary, but error bars are equal. """
+
         arcsec2kpc = self.cc.kpc_DA  # kpc
         t["r"] = (t["Radius1"] + t["Radius2"])/2 * arcsec2kpc  # radius
         t["fr"] = (t["Radius2"] - t["Radius1"]) * arcsec2kpc   # binsize
@@ -108,10 +109,16 @@ class ObservedCluster(object):
     def set_massdensity(self, t):
         """ Set mass density from number density """
         t["rho"] = convert.ne_to_rho(t["n"])
+
+        if "fn" not in t.keys():
+            t["fn"] = 0.5 * ( t["fn_hi"]+t["fn_lo"] )
         t["frho"] = convert.ne_to_rho(t["fn"])
 
     def set_temperature_kelvin(self, t):
         t["T"] = convert.keV_to_K(t["kT"])
+        if "fkT" not in t.keys():
+            t["fkT"] =  0.5 * ( t["fkT_lo"]+t["fkT_hi"] )
+
         t["fT"] = convert.keV_to_K(t["fkT"])
 
     def mask_bins(self, t, first=0, last=1):
