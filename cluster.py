@@ -48,6 +48,7 @@ class ObservedCluster(object):
         self.cc = CosmologyCalculator(z=0.0562, H0=70, WM=0.3, WV=0.7)
 
         self.avg = parse.chandra_quiescent(self.basedir, self.name)
+        self.force_symmetrical_error(self.avg)
         self.set_radius(self.avg)
         self.set_massdensity(self.avg)
         self.set_temperature_kelvin(self.avg)
@@ -59,6 +60,8 @@ class ObservedCluster(object):
             self.avg_for_plotting = self.mask_bins(self.avg, first=2, last=2)
             self.avg = self.mask_bins(self.avg, first=5, last=4)
             self.merger, self.hot, self.cold = parse.chandra_sectors(self.basedir)
+            for t in [self.merger, self.hot, self.cold]:
+                self.force_symmetrical_error(t)
             self.set_radius(self.merger)
             self.set_radius(self.hot)
             self.set_radius(self.cold)
@@ -72,6 +75,7 @@ class ObservedCluster(object):
             self.hot = self.mask_bins(self.hot, first=6, last=4)
             self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=2)
             self.cold = self.mask_bins(self.cold, first=0, last=4)
+
         if self.name == "cygNW":
             self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
             self.avg = self.mask_bins(self.avg, first=0, last=2)
@@ -109,17 +113,16 @@ class ObservedCluster(object):
     def set_massdensity(self, t):
         """ Set mass density from number density """
         t["rho"] = convert.ne_to_rho(t["n"])
-
-        if "fn" not in t.keys():
-            t["fn"] = 0.5 * ( t["fn_hi"]+t["fn_lo"] )
         t["frho"] = convert.ne_to_rho(t["fn"])
 
     def set_temperature_kelvin(self, t):
         t["T"] = convert.keV_to_K(t["kT"])
-        if "fkT" not in t.keys():
-            t["fkT"] =  0.5 * ( t["fkT_lo"]+t["fkT_hi"] )
-
         t["fT"] = convert.keV_to_K(t["fkT"])
+
+    def force_symmetrical_error(self, t):
+        t["fn"] = 0.5 * ( t["fn_hi"]+t["fn_lo"] )
+        t["fP"] =  0.5 * ( t["fP_lo"]+t["fP_hi"] )
+        t["fkT"] =  0.5 * ( t["fkT_lo"]+t["fkT_hi"] )
 
     def mask_bins(self, t, first=0, last=1):
         """ Mask first n bins, default 0 (mask nothing)
@@ -395,6 +398,7 @@ class ObservedCluster(object):
         if self.name != "cygA":
             print "ERROR: Sectoranalysis not available for", self.name
             return
+
         if merger:
             ax.errorbar(numpy.ma.compressed(self.merger_for_plotting["r"]),
                         numpy.ma.compressed(self.merger_for_plotting[parm]),

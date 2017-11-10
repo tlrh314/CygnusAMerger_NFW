@@ -374,7 +374,7 @@ if __name__ == "__main__":
             plot.twocluster_stability(sim, cygA, cygNW, verbose=a.verbose)
         if a.embed: header += "ObservedCluster instances in `cygA' and `cygNW'\n"
 
-        # show_observations(cygA, cygNW)
+        show_observations(cygA, cygNW)
 
     if a.clustername == "cygA" or a.clustername == "cygNW":
         obs = set_observed_cluster(a)
