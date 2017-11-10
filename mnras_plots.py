@@ -226,7 +226,7 @@ def bestfit_betamodel(c):
     ax.axvline(c.rc, ls="--", c="k", lw=3)
     ax.texts[0].remove()
     trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
-    ax.text(1.1*c.rc, 0.98, r"$r_c$", ha="left", va="top", fontsize=22, transform=trans)
+    ax.text(1.1*c.rc, 0.98, r"$r_c$", ha="left", va="top", fontsize=32, transform=trans)
 
     pyplot.ylabel("Density [g/cm$^3$]")
     pyplot.xscale("log")
@@ -643,13 +643,13 @@ def find_bestfit_snapshots(verbose=False):
 
 def build_matrix(residuals=False, residuals_minmax=100):
     # Open observation lss [counts/s/arcsec^2]
-    # lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
-    # lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
-    # lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
+    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
 
     # 2.2 MSec
-    lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
-    lss_kT = "/usr/local/mscproj/runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
+    # lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
+    # lss_kT = "/usr/local/mscproj/runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
 
     mosaic_Lx = fits.open(lss_Lx)
     mosaic_kT = fits.open(lss_kT)
@@ -1040,7 +1040,7 @@ def plot_residuals():
 
 
 if __name__ == "__main__":
-    to_plot = [ 4 ]
+    to_plot = [ 2 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -1092,10 +1092,10 @@ if __name__ == "__main__":
     if 1338 in to_plot:
         find_bestfit_snapshots()
 
-    if 6 in to_plot:
+    if 5 in to_plot:
         build_matrix()
 
-    if 7 in to_plot:
+    if 6 in to_plot:
         # build_matrix(residuals=True, residuals_minmax=25)
         build_matrix(residuals=True, residuals_minmax=50)
         # build_matrix(residuals=True, residuals_minmax=75)
@@ -1103,11 +1103,11 @@ if __name__ == "__main__":
         # build_matrix(residuals=True, residuals_minmax=125)
         # build_matrix(residuals=True, residuals_minmax=150)
 
-    if 8 in to_plot:
-        plot_simulated_wedges()
-
-    if 9 in to_plot:
+    if 6 in to_plot:
         plot_compton_y()
+
+    if 7 in to_plot:
+        plot_simulated_wedges()
 
     # Appendix
     if 1337 in to_plot:
@@ -1115,6 +1115,7 @@ if __name__ == "__main__":
         a, unknown = main.new_argument_parser().parse_known_args()
         a.do_cut = True
         a.basedir = "/Volumes/Cygnus/timoh/"
+        a.basedir = "/media/SURFlisa/"
         a.timestamp = "20170115T0905"
         a.clustername = "both"
         cygA_cut, cygNW_cut = main.set_observed_clusters(a)
