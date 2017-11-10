@@ -1039,8 +1039,65 @@ def plot_residuals():
     # pyplot.savefig("out/Lx_45_with_residuals.pdf", dpi=300)
 
 
+def plot_mach_hist(base):
+    bestfit_snap = "/media/SURFlisa/runs/20170115T0907/snaps/snapshot_147_010"
+    header, gas, dm = toycluster_icfile("/media/SURFlisa/runs/20170115T0907/snaps/snapshot_147_010", verbose=True)
+
+    ishock, = numpy.where(gas["mach"] > 0.9)
+
+    pyplot.figure()
+    hist, edges = numpy.histogram(gas["mach"][ishock], bins=42, normed=False)
+    edges = (edges[:-1] + edges[1:])/2
+    pyplot.plot(edges, hist, drawstyle="steps-mid")
+    for tick in pyplot.gca().xaxis.get_major_ticks():
+        tick.label.set_fontsize(12)
+    for tick in pyplot.gca().yaxis.get_major_ticks():
+        tick.label.set_fontsize(12)
+    pyplot.xlim(1, 2.5)
+    pyplot.yscale("log")
+    pyplot.ylabel("No. of SPH particles", fontsize=16)
+    pyplot.xlabel("Mach Number", fontsize=16)
+    pyplot.savefig("out/mach_distribution_bestfit.pdf")
+
+    boxsize = header["boxSize"]
+    boxhalf = boxsize/2
+    nbins = int(numpy.sqrt(header["ndm"]))
+
+    import scipy
+    import peakutils
+    from scipy.ndimage.filters import gaussian_filter1d
+    # savgol = scipy.signal.savgol_filter(hist, 21, 5)
+    peaks = { "x": [], "y": [], "z": [] }
+    for dim in ["x", "y", "z"]:
+        hist, edges = numpy.histogram(dm[dim], bins=nbins, normed=True)
+        edges = (edges[:-1] + edges[1:])/2
+        hist_smooth = scipy.ndimage.filters.gaussian_filter1d(hist, 5)
+        spline = scipy.interpolate.splrep(edges, hist_smooth)
+        xval = numpy.arange(0, boxsize, 0.1)
+        hist_splev = scipy.interpolate.splev(xval, spline, der=0)
+        for ipeak in peakutils.indexes(hist_splev):
+            peaks[dim].append(xval[ipeak])
+
+    from mpl_toolkits.mplot3d import Axes3D
+    fig = pyplot.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    x =  gas["x"][ishock]
+    y =  gas["y"][ishock]
+    z =  gas["z"][ishock]
+
+    c = ax.scatter(x, y, z, c=gas["mach"][ishock])
+    ax.scatter(peaks["x"][0], peaks["y"][0], peaks["z"][0], s=100, c="r")
+    ax.scatter(peaks["x"][1], peaks["y"][0], peaks["z"][0], s=100, c="r")
+    ax.set_xlim(peaks["x"][0]-350, peaks["x"][1]+350)
+    ax.set_ylim(peaks["y"][0]-350, peaks["y"][0]+350)
+    ax.set_zlim(peaks["z"][0]-350, peaks["z"][0]+350)
+    pyplot.colorbar(c)
+
+
+
 if __name__ == "__main__":
-    to_plot = [ 2 ]
+    to_plot = [ 8 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -1108,6 +1165,9 @@ if __name__ == "__main__":
 
     if 7 in to_plot:
         plot_simulated_wedges()
+
+    if 8 in to_plot:
+        plot_mach_hist()
 
     # Appendix
     if 1337 in to_plot:
