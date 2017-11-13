@@ -472,12 +472,19 @@ def plot_simulated_wedges():
 
 def plot_compton_y():
     # Open observation lss [counts/s/arcsec^2]
-    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
-    lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
-    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+    # Old: 1.03 Msec
+    # lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    # lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
+    # lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+
+    # New/final: 2.2 Msec
+    lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
+    lss_kT = "/usr/local/mscproj/runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
 
     mosaic_Lx = fits.open(lss_Lx)
+    print("\n\nmosaic_Lx --> TOTEXP: {0:.2f} Msec\n\n".format(mosaic_Lx[0].header["TOTEXP"]/1e6))
     mosaic_kT = fits.open(lss_kT)
+    print("\n\nmosaic_kT --> TOTEXP: {0:.2f} Msec\n\n".format(mosaic_kT[0].header["TOTEXP"]/1e6))
 
     # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
     mosaic_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_Lx[0].data, 9)
@@ -558,10 +565,14 @@ def plot_compton_y():
     zoomy = float(xlen_obs_pix) / equal_boxsize_kpc_smaccube.shape[1]
     shape_matched = scipy.ndimage.zoom(equal_boxsize_kpc_smaccube,  [zoomx, zoomy], order=3)
 
-    obsdir = "../runs/ChandraObservation/"
-    confiles = glob.glob(obsdir+"xray/xray_contours_*.con")
+    # 'Bad' contours
+    # obsdir = "../runs/ChandraObservation/"
+    # confiles = glob.glob(obsdir+"xray/xray_contours_*.con")
 
-    mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
+    # Old: 1.03 Msec
+    # mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
+    # New/final: 2.2 Msec
+    mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux_2Msec.fits"
     gc = aplpy.FITSFigure(mosaic)
 
     pyplot.figure()
@@ -643,16 +654,19 @@ def find_bestfit_snapshots(verbose=False):
 
 def build_matrix(residuals=False, residuals_minmax=100):
     # Open observation lss [counts/s/arcsec^2]
-    lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
-    lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
-    lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
+    # 1.03 Msec
+    # lss = "/usr/local/mscproj/runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck"
+    # lss_Lx = lss+".dir/Frame1/cygnus_lss_fill_flux.fits"
+    # lss_kT = lss+".dir/Frame2/working_spectra_kT_map.fits"
 
     # 2.2 MSec
-    # lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
-    # lss_kT = "/usr/local/mscproj/runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
+    lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
+    lss_kT = "/usr/local/mscproj/runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
 
     mosaic_Lx = fits.open(lss_Lx)
+    print("\n\nmosaic_Lx --> TOTEXP: {0} Msec\n\n".format(mosaic_Lx[0].header["TOTEXP"]/1e6))
     mosaic_kT = fits.open(lss_kT)
+    print("\n\nmosaic_kT --> TOTEXP: {0} Msec\n\n".format(mosaic_kT[0].header["TOTEXP"]/1e6))
 
     # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
     mosaic_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_Lx[0].data, 9)
@@ -928,14 +942,15 @@ def build_matrix(residuals=False, residuals_minmax=100):
     pyplot.close(fig)
 
 
-
 def plot_residuals():
     # Open observation lss [counts/s/arcsec^2]
+    # Old: 1.03 Msec
     # obs = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
 
     # 2.2 MSec
     obs = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
     mosaic = fits.open(obs)
+    print("cygnus_lss_fill_flux_2Msec --> TOTEXP: {0} Msec".format(mosaic[0].header["TOTEXP"]/1e6))
 
     # Convolve with 2D Gaussian, 9 pixel smoothing to ensure CygNW is visible
     mosaic_smooth = scipy.ndimage.filters.gaussian_filter(mosaic[0].data, 9)
@@ -1097,21 +1112,27 @@ def plot_mach_hist(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 8 ]
+    to_plot = [ 6, 7, 8 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
     cygNW = ( 299.7055, 40.884849 )
 
+    # Old: 1.03 Msec
     # radio = "../runs/RadioObservation/radio5GHz.fits"
     # mosaic = "../runs/ChandraObservation/xray/cygnus_tot_flux.fits"
     # lss = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
     # kT = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux.fits"
     # lss_kT = "../runs/ChandraObservation/ds9bck_Lx-lss_kT-lss/ds9.bck.dir/Frame2/working_spectra_kT_map.fits"
 
-    # 2.2 MSec
+    # New/final: 2.2 MSec
     lss = "../runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
+    with fits.open(lss) as tmp:
+        print("\n\nlss    --> TOTEXP: {0:.2f} Msec\n\n".format(tmp[0].header["TOTEXP"]/1e6))
+
     lss_kT = "../runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
+    with fits.open(lss_kT) as tmp:
+        print("\n\nlss_kT --> TOTEXP: {0:.2f} Msec\n\n".format(tmp[0].header["TOTEXP"]/1e6))
 
     if 1 in to_plot:
         pyplot.rcParams.update( { "text.usetex": False, "font.size": 18 } )

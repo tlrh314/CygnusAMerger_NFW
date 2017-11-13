@@ -57,8 +57,8 @@ class ObservedCluster(object):
             Otherwise for plotting we want to show all other bins, but for
             our fits we ignore the central (AGN) dominated emission. """
         if self.name == "cygA":  # no have sectoranalysis for CygNW
-            self.avg_for_plotting = self.mask_bins(self.avg, first=2, last=2)
-            self.avg = self.mask_bins(self.avg, first=5, last=4)
+            self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
+            self.avg = self.mask_bins(self.avg, first=0, last=1)
             self.merger, self.hot, self.cold = parse.chandra_sectors(self.basedir)
             for t in [self.merger, self.hot, self.cold]:
                 self.force_symmetrical_error(t)
@@ -69,12 +69,12 @@ class ObservedCluster(object):
             self.set_massdensity(self.hot)
             self.set_massdensity(self.cold)
             # sector analysis fit broke for last two bins
-            self.merger_for_plotting = self.mask_bins(self.merger, first=0, last=2)
-            self.merger = self.mask_bins(self.merger, first=2, last=4)
-            self.hot_for_plotting = self.mask_bins(self.hot, first=1, last=2)
-            self.hot = self.mask_bins(self.hot, first=6, last=4)
-            self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=2)
-            self.cold = self.mask_bins(self.cold, first=0, last=4)
+            self.merger_for_plotting = self.mask_bins(self.merger, first=0, last=1)
+            self.merger = self.mask_bins(self.merger, first=0, last=1)
+            self.hot_for_plotting = self.mask_bins(self.hot, first=0, last=1)
+            self.hot = self.mask_bins(self.hot, first=0, last=1)
+            self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=1)
+            self.cold = self.mask_bins(self.cold, first=0, last=1)
 
         if self.name == "cygNW":
             self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
@@ -690,7 +690,7 @@ class Toycluster(object):
         self.gas["P"] = convert.rho_to_ne(self.gas["rho"]) *\
             convert.keV_to_erg(self.gas["kT"])
 
-    def find_dm_peak(self, expected, dim="x"):
+    def find_dm_peak(self, expected, dim="x", debug=False):
         if dim != "x" and dim != "y" and dim != "z":
             print "ERROR: please use 'x', 'y', or 'z' as dimension in find_dm_peak"
             return None
@@ -709,16 +709,18 @@ class Toycluster(object):
             print "ERROR: more than one {0}peak found".format(dim)
             return None
 
-        # pyplot.figure()
-        # pyplot.plot(edges, hist, **dm)
-        # pyplot.plot(xval, hist_splev)
-        # pyplot.ylim(0, 1.1*numpy.max(hist))
-        # pyplot.xlabel(dim)
-        # pyplot.ylabel("Normed Counts")
-        # for peak in xval[peaks]: pyplot.axvline(peak)
-        # pyplot.tight_layout()
-        # pyplot.savefig(sim.outdir+"dm_peak_{0}".format(dim)+snapnr+".png", dpi=300)
-        # pyplot.close()
+        if debug:
+            from matplotlib import pyplot
+            pyplot.figure()
+            pyplot.plot(edges, hist, ls="steps-mid")
+            pyplot.plot(xval, hist_splev)
+            pyplot.ylim(0, 1.1*numpy.max(hist))
+            pyplot.xlabel(dim)
+            pyplot.ylabel("Normed Counts")
+            for peak in xval[peaks]: pyplot.axvline(peak)
+            pyplot.tight_layout()
+            pyplot.savefig(sim.outdir+"dm_peak_{0}".format(dim)+snapnr+".png", dpi=300)
+            pyplot.close()
 
         return xval[peaks]
 
@@ -743,11 +745,9 @@ class Toycluster(object):
                 """ TODO: The histogram does not have enough resolution to find two ypeaks
                 if the impactparam is not 0 (e.g. 50 kpc). We could split the haloes based
                 on x-position and then look for the y peaks in self.dm["y"] """
-                pass
-                # TODO: implement for impactparam
-                # exp_x = 2
-                # exp_y = 2
-                # exp_z = 1
+                exp_x = 2
+                exp_y = 2
+                exp_z = 2
 
         xpeaks = self.find_dm_peak(exp_x, "x")
         ypeaks = self.find_dm_peak(exp_y, "y")
