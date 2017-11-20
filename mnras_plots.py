@@ -1055,8 +1055,8 @@ def plot_residuals():
 
 
 def plot_mach_hist(base):
-    bestfit_snap = "/media/SURFlisa/runs/20170115T0907/snaps/snapshot_147_010"
-    header, gas, dm = toycluster_icfile("/media/SURFlisa/runs/20170115T0907/snaps/snapshot_147_010", verbose=True)
+    bestfit_snap = "/media/SURFlisa/runs/20170115T0907/snaps/snapshot_147_009"
+    header, gas, dm = toycluster_icfile("/media/SURFlisa/runs/20170115T0907/snaps/snapshot_147_009", verbose=True)
 
     ishock, = numpy.where(gas["mach"] > 0.9)
 
