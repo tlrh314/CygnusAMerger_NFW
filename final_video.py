@@ -223,7 +223,7 @@ def build_bestfit(i, Lx, kT, xlen, ylen, pix2kpc_sim, time, outdir, pix2kpc_obs,
         Stage 3: Euler_Angle_1 0 51 3
         Stage 3: Euler_Angle_2 0 45 3 """
 
-    print("    building frame {0:03d}".format(i))
+    print("    ... building {0:03d}: {1:04.6f} --> {2}, {3}; {4}".format(i, time, EA1, EA2, zoom))
 
     #### Build Lx ####
     lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
@@ -370,7 +370,8 @@ def set_observation():
 
 
 @synchronized
-def build_varying_time(smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc):
+def build_varying_time(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False, bestfit=True):
     print("\nBuilding frames of varying time")
 
     Lx_stage1 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx.fits.fz"
@@ -392,9 +393,10 @@ def build_varying_time(smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc):
     print("  arcsec2kpc : {0:.3f}".format(arcsec2kpc))
     print("")
 
-    for i in range(nsnap):
+    for i in range(147 if bestfit else nsnap):
         time = 0 + 3*i * dt
         print("  {0:03d}: {1:04.6f}".format(i, time))
+        if skip: continue
         # if i > 1 and i < nsnap-2: continue
         build_bestfit(i, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc)
@@ -403,8 +405,8 @@ def build_varying_time(smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc):
 
 
 @synchronized
-def build_varying_time_finer_interpolation(smacdir, outdir,
-        frame_number, pix2kpc_obs, arcsec2kpc):
+def build_varying_time_finer_interpolation(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False):
     print("\nBuilding frames of varying time with finer interpolation")
 
     Lx_stage2 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx_finer.fits.fz"
@@ -422,6 +424,7 @@ def build_varying_time_finer_interpolation(smacdir, outdir,
     for i in range(1, nsnap-1):
         time = t0 + i * dt_finer
         print("  {0:03d}: {1:04.6f}".format(i+frame_number, time))
+        if skip: continue
         # if i > 1 and i < nsnap-3: continue
         build_bestfit(i+frame_number, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc)
@@ -430,8 +433,8 @@ def build_varying_time_finer_interpolation(smacdir, outdir,
 
 
 @synchronized
-def build_varying_euler_angle_1(smacdir, outdir,
-        frame_number, pix2kpc_obs, arcsec2kpc):
+def build_varying_euler_angle_1(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False):
     print("\nBuilding frames of varying Euler Angle 1 (Angle in Sky Plane)")
 
     Lx_stage3 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx_EA1.fits.fz"
@@ -450,6 +453,7 @@ def build_varying_euler_angle_1(smacdir, outdir,
     for i in range(1, nsnap):
         EA1 = i
         print("  {0:03d}: {1:04.6f} --> {2}".format(i+frame_number, time, EA1))
+        if skip: continue
         # if i > 1 and i < nsnap-2: continue
         build_bestfit(i+frame_number, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1)
@@ -458,9 +462,10 @@ def build_varying_euler_angle_1(smacdir, outdir,
 
 
 @synchronized
-def build_varying_euler_angle_2(smacdir, outdir,
-        frame_number, pix2kpc_obs, arcsec2kpc):
+def build_varying_euler_angle_2(smacdir, outdir, frame_number, pix2kpc_obs,
+        arcsec2kpc, skip=False):
     print("\nBuilding frames of varying Euler Angle 2 (Inclination)")
+    print("Going from 1 - 80")
 
     Lx_stage4 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx_EA2.fits.fz"
     kT_stage4 = smacdir + "BestFitSimulation_Stage1_BestTime_kT_EA2.fits.fz"
@@ -476,21 +481,78 @@ def build_varying_euler_angle_2(smacdir, outdir,
     t0 = 147 * dt
     time = t0 + 9 * dt_finer
     EA1 = 51
-    for i in range(1, nsnap):
+    for i in range(1, 81):
         EA2 = i
         print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(i+frame_number, time, EA1, EA2))
+        if skip: continue
         # if i > 1 and i < nsnap-2: continue
         build_bestfit(i+frame_number, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1, EA2=EA2)
 
-    for j in range(nsnap, 44, -1):
+    return frame_number + i
+
+
+@synchronized
+def build_varying_euler_angle_2_goback(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False):
+    print("\nBuilding frames of varying Euler Angle 2 (Inclination)")
+    print("Going from 80 - 0")
+
+    Lx_stage4 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx_EA2.fits.fz"
+    kT_stage4 = smacdir + "BestFitSimulation_Stage1_BestTime_kT_EA2.fits.fz"
+
+    header, Lx = psmac2_fitsfile(Lx_stage4)
+    header2, kT = psmac2_fitsfile(kT_stage4)
+    nsnap, xlen, ylen = Lx.shape
+    pix2kpc_sim = float(header["XYSize"])/int(xlen)
+
+    dt = 0.01         # For regular snapshots
+    dt_finer = dt/40  # For finer interpolation
+
+    t0 = 147 * dt
+    time = t0 + 9 * dt_finer
+    EA1 = 51
+    for j in range(79, -1, -1):
         EA2 = j
-        print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(i+frame_number, time, EA1, EA2))
         # if i > 1 and i < nsnap-2: continue
-        build_bestfit(i+j+frame_number, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
+        print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(frame_number+80-j, time, EA1, EA2))
+        if j > 46: continue
+        if skip: continue
+        build_bestfit(frame_number+80-j, Lx[j], kT[j], xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1, EA2=EA2)
 
-    return frame_number+i+j, Lx[j], kT[j]
+    return frame_number+80-j
+
+
+@synchronized
+def build_varying_euler_angle_2_goforth(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False):
+    print("\nBuilding frames of varying Euler Angle 2 (Inclination)")
+    print("Going from 1 - 45")
+
+    Lx_stage4 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx_EA2.fits.fz"
+    kT_stage4 = smacdir + "BestFitSimulation_Stage1_BestTime_kT_EA2.fits.fz"
+
+    header, Lx = psmac2_fitsfile(Lx_stage4)
+    header2, kT = psmac2_fitsfile(kT_stage4)
+    nsnap, xlen, ylen = Lx.shape
+    pix2kpc_sim = float(header["XYSize"])/int(xlen)
+
+    dt = 0.01         # For regular snapshots
+    dt_finer = dt/40  # For finer interpolation
+
+    t0 = 147 * dt
+    time = t0 + 9 * dt_finer
+    EA1 = 51
+    for i in range(1, 45):
+        EA2 = i
+        # if i > 1 and i < nsnap-2: continue
+        print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(frame_number+i, time, EA1, EA2))
+        if skip: continue
+        build_bestfit(frame_number+i, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
+            time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1, EA2=EA2)
+
+    return frame_number + i , Lx[i], kT[i], pix2kpc_sim
 
 
 def increase_time_resolution_of_ea2(frame_number):
@@ -519,15 +581,23 @@ def increase_time_resolution_of_ea2(frame_number):
 
 
 @synchronized
-def build_zoom_into_simulation_box(outdir, Lx, kT,
-        frame_number, pix2kpc_obs, arcsec2kpc):
+def build_zoom_into_simulation_box(outdir, Lx, kT, frame_number, pix2kpc_sim,
+        pix2kpc_obs, xcenter_obs, ycenter_obs, arcsec2kpc, skip=False):
     print("\nBuilding frames of zooming into the simulation box")
 
     # We have now reached best time, best EA1, best EA2, so Lx[-1]
     # will tell us where the centroid sits. We can then place simulated
     # centroid on top of observed centroid (which is already defined).
 
-    cygA, cygNW, distance = get_core_separation(Lx[-1], pix2kpc_sim, 90)
+    dt = 0.01         # For regular snapshots
+    dt_finer = dt/40  # For finer interpolation
+
+    t0 = 147 * dt
+    time = t0 + 9 * dt_finer
+
+    xlen, ylen = Lx.shape
+
+    cygA, cygNW, distance = get_core_separation(Lx, pix2kpc_sim, 90)
     xcenter_sim = cygA[0]
     ycenter_sim = cygA[1]
 
@@ -541,14 +611,15 @@ def build_zoom_into_simulation_box(outdir, Lx, kT,
     print(xoffset)
     print(yoffset)
 
-    nsteps = 25
+    nsteps = 50
     EA1, EA2 = 51, 45
-    for i in range(1, nsteps+1, nsteps-1):
+    for i in range(1, nsteps+1):
         print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(i+frame_number, time, EA1, EA2))
-        Lxzoom, zoomx = zoom_into_box(Lx[-1], i, nsteps,
+        if skip: continue
+        Lxzoom, zoomx = zoom_into_box(Lx, i, nsteps,
             xlen, xoffset, desired_xlen_sim_pix,
             ylen, yoffset, desired_ylen_sim_pix )
-        kTzoom, zoomx = zoom_into_box(kT[-1], i, nsteps,
+        kTzoom, zoomx = zoom_into_box(kT, i, nsteps,
           xlen, xoffset, desired_xlen_sim_pix,
             ylen, yoffset, desired_ylen_sim_pix )
 
@@ -572,19 +643,41 @@ if __name__ == "__main__":
     smacdir = simdir + "analysis/"
     outdir = simdir + "out/"
 
+    # import sys
+    # old_stdout, old_stderr = sys.stdout, sys.stderr
+    # sys.stderr = open("/dev/null", "w")
 
     frame_number = 0   # Global Counter to keep track of 'offset'
-    frame_number = build_varying_time(
-        smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc)
+    frame_number = build_varying_time(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False, bestfit=False)
 
-    frame_number = build_varying_time_finer_interpolation(
-        smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc)
+    frame_number = build_varying_time(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False, bestfit=True)
 
-    frame_number = build_varying_euler_angle_1(
-        smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc)
+    frame_number = build_varying_time_finer_interpolation(smacdir, outdir,
+        frame_number, pix2kpc_obs, arcsec2kpc, skip=True)
 
-    frame_number, Lx, kT = build_varying_euler_angle_2(
-        smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc)
+    frame_number = build_varying_euler_angle_1(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False)
 
-    build_zoom_into_simulation_box(outdir, Lx, kT,
-        frame_number, pix2kpc_obs, arcsec2kpc)
+    frame_number = build_varying_euler_angle_2(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False)
+
+    frame_number = build_varying_euler_angle_2_goback(smacdir, outdir,
+        frame_number, pix2kpc_obs, arcsec2kpc, skip=False)
+
+    frame_number, Lx, kT, pix2kpc_sim = build_varying_euler_angle_2_goforth(
+        smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc, skip=False)
+
+    frame_number = build_zoom_into_simulation_box(outdir, Lx, kT, frame_number,
+        pix2kpc_sim, pix2kpc_obs, xcenter_obs, ycenter_obs, arcsec2kpc, skip=False)
+
+    import os
+
+    os.system('ffmpeg -y -r 10 -i "out/vid/sim_kT_%3d.png" -profile:v high444 -level 4.1 \
+        -c:v libx264 -preset slow -crf 25 -pix_fmt yuv420p -s "2000:2000" \
+        -an "out/vid/sim_kT.mp4"')
+
+    os.system('ffmpeg -y -r 10 -i "out/vid/sim_Lx_%3d.png" -profile:v high444 -level 4.1 \
+        -c:v libx264 -preset slow -crf 25 -pix_fmt yuv420p -s "2000:2000" \
+        -an "out/vid/sim_Lx.mp4"')
