@@ -1,3 +1,5 @@
+import os
+import sys
 import aplpy
 import numpy
 import scipy
@@ -7,12 +9,6 @@ from scipy import ndimage
 from matplotlib import pyplot
 from astropy.io import fits
 pyplot.rcParams.update( { "text.usetex": True, "font.size": 16 } )
-
-import warnings
-from astropy.utils.exceptions import AstropyWarning
-from astropy.utils.exceptions import AstropyUserWarning
-warnings.filterwarnings("ignore", category=AstropyWarning, append=True)
-warnings.filterwarnings("ignore", category=AstropyUserWarning, append=True)
 
 import convert
 from parse import psmac2_fitsfile
@@ -393,12 +389,26 @@ def build_varying_time(smacdir, outdir, frame_number,
     print("  arcsec2kpc : {0:.3f}".format(arcsec2kpc))
     print("")
 
-    for i in range(147 if bestfit else nsnap):
+    if bestfit:
+        for j in range(1, 11):
+            time = 0
+            print("  {0:03d}: {1:04.6f}".format(j+frame_number, time))
+            if skip: continue
+            # if i > 1 and i < nsnap-2: continue
+            build_bestfit(j+frame_number, Lx[0], kT[0], xlen, ylen, pix2kpc_sim,
+                time, outdir, pix2kpc_obs, arcsec2kpc)
+
+        frame_number += j
+        snapnumbers = range(1, 147/3 + 1)
+    else:
+        snapnumbers = range(nsnap)
+
+    for i in snapnumbers:
         time = 0 + 3*i * dt
-        print("  {0:03d}: {1:04.6f}".format(i, time))
+        print("  {0:03d}: {1:04.6f}".format(i+frame_number, time))
         if skip: continue
         # if i > 1 and i < nsnap-2: continue
-        build_bestfit(i, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
+        build_bestfit(i+frame_number, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc)
 
     return frame_number + i
@@ -516,7 +526,6 @@ def build_varying_euler_angle_2_goback(smacdir, outdir, frame_number,
         EA2 = j
         # if i > 1 and i < nsnap-2: continue
         print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(frame_number+80-j, time, EA1, EA2))
-        if j > 46: continue
         if skip: continue
         build_bestfit(frame_number+80-j, Lx[j], kT[j], xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1, EA2=EA2)
@@ -544,7 +553,7 @@ def build_varying_euler_angle_2_goforth(smacdir, outdir, frame_number,
     t0 = 147 * dt
     time = t0 + 9 * dt_finer
     EA1 = 51
-    for i in range(1, 45):
+    for i in range(1, 46):
         EA2 = i
         # if i > 1 and i < nsnap-2: continue
         print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(frame_number+i, time, EA1, EA2))
@@ -552,7 +561,17 @@ def build_varying_euler_angle_2_goforth(smacdir, outdir, frame_number,
         build_bestfit(frame_number+i, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1, EA2=EA2)
 
-    return frame_number + i , Lx[i], kT[i], pix2kpc_sim
+
+    print("\nBuilding 'pause' frames of bestfit Euler Angle 2 (Inclination)")
+    j = 0
+    # Save ten more of the last one for a 'pause' before going to zoom
+    for j in range(1, 11):
+        print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(frame_number+i+j, time, EA1, EA2))
+        if skip: continue
+        build_bestfit(frame_number+i+j, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
+            time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1, EA2=EA2)
+
+    return frame_number + i + j , Lx[i], kT[i], pix2kpc_sim
 
 
 def increase_time_resolution_of_ea2(frame_number):
@@ -560,7 +579,6 @@ def increase_time_resolution_of_ea2(frame_number):
 
     increase_time_resolution_EA2 = False
     if increase_time_resolution_EA2:
-        import os
         for i in range(1, 16):
             # print("sim_Lx_{0:03d}.png".format(i+frame_number))
             # print("sim_kT_{0:03d}.png".format(i+frame_number))
@@ -608,9 +626,6 @@ def build_zoom_into_simulation_box(outdir, Lx, kT, frame_number, pix2kpc_sim,
     xoffset = int((xcenter_sim * pix2kpc_sim - xcenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
     yoffset = int((ycenter_sim * pix2kpc_sim - ycenter_obs * pix2kpc_obs) / pix2kpc_sim + 0.5)
 
-    print(xoffset)
-    print(yoffset)
-
     nsteps = 50
     EA1, EA2 = 51, 45
     for i in range(1, nsteps+1):
@@ -643,9 +658,9 @@ if __name__ == "__main__":
     smacdir = simdir + "analysis/"
     outdir = simdir + "out/"
 
-    # import sys
-    # old_stdout, old_stderr = sys.stdout, sys.stderr
-    # sys.stderr = open("/dev/null", "w")
+    # Cheat to supress aplpy warnings -.0'
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stderr = open("/dev/null", "w")
 
     frame_number = 0   # Global Counter to keep track of 'offset'
     frame_number = build_varying_time(smacdir, outdir, frame_number,
@@ -655,7 +670,7 @@ if __name__ == "__main__":
         pix2kpc_obs, arcsec2kpc, skip=False, bestfit=True)
 
     frame_number = build_varying_time_finer_interpolation(smacdir, outdir,
-        frame_number, pix2kpc_obs, arcsec2kpc, skip=True)
+        frame_number, pix2kpc_obs, arcsec2kpc, skip=False)
 
     frame_number = build_varying_euler_angle_1(smacdir, outdir, frame_number,
         pix2kpc_obs, arcsec2kpc, skip=False)
@@ -672,12 +687,12 @@ if __name__ == "__main__":
     frame_number = build_zoom_into_simulation_box(outdir, Lx, kT, frame_number,
         pix2kpc_sim, pix2kpc_obs, xcenter_obs, ycenter_obs, arcsec2kpc, skip=False)
 
-    import os
+    assemble_video = False
+    if assemble_video:
+        os.system('ffmpeg -y -r 25 -i "out/vid/sim_kT_%3d.png" -profile:v high444 -level 4.1 \
+            -c:v libx264 -preset slow -crf 25 -pix_fmt yuv420p -s "2000:2000" \
+            -an "out/vid/sim_kT.mp4"')
 
-    os.system('ffmpeg -y -r 10 -i "out/vid/sim_kT_%3d.png" -profile:v high444 -level 4.1 \
-        -c:v libx264 -preset slow -crf 25 -pix_fmt yuv420p -s "2000:2000" \
-        -an "out/vid/sim_kT.mp4"')
-
-    os.system('ffmpeg -y -r 10 -i "out/vid/sim_Lx_%3d.png" -profile:v high444 -level 4.1 \
-        -c:v libx264 -preset slow -crf 25 -pix_fmt yuv420p -s "2000:2000" \
-        -an "out/vid/sim_Lx.mp4"')
+        os.system('ffmpeg -y -r 25 -i "out/vid/sim_Lx_%3d.png" -profile:v high444 -level 4.1 \
+            -c:v libx264 -preset slow -crf 25 -pix_fmt yuv420p -s "2000:2000" \
+            -an "out/vid/sim_Lx.mp4"')
