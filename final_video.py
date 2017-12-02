@@ -17,7 +17,7 @@ from deco import concurrent, synchronized
 threads=4
 
 
-def build_observation_Lx(lss_Lx, set_the_stage=True):
+def build_observation_Lx(lss_Lx, set_the_stage=True, alpha=None):
     cygA = ( 299.8669, 40.734496 )
     cygNW = ( 299.7055, 40.884849 )
 
@@ -25,10 +25,17 @@ def build_observation_Lx(lss_Lx, set_the_stage=True):
     gc.show_colorscale(vmin=5.0e-10, vmax=1.0e-7, stretch="log",
         cmap=colorcet.cm["linear_bmw_5_95_c86"],
         smooth=9 if not set_the_stage else None)
+    if alpha:
+        mosaic_Lx = fits.open(lss_Lx)
+        Lx = scipy.ndimage.filters.gaussian_filter(mosaic_Lx[0].data, 9)
+        pyplot.gca().imshow(Lx, origin="lower", vmin=5.0e-10, vmax=1.0e-7,
+        norm=matplotlib.colors.LogNorm(),
+        cmap=colorcet.cm["linear_bmw_5_95_c86"], alpha=alpha)
+        mosaic_Lx.close()
     cygA_x, cygA_y = gc.world2pixel(cygA[0], cygA[1])
     cygNW_x, cygNW_y = gc.world2pixel(cygNW[0], cygNW[1])
 
-    if not set_the_stage:
+    if (not set_the_stage) or (alpha is not None):
         # Add scale. Length is 500 kpc after unit conversions
         gc.add_scalebar(0.13227513)
         gc.scalebar.set_corner("bottom right")
@@ -48,7 +55,7 @@ def build_observation_Lx(lss_Lx, set_the_stage=True):
         pad=8, width=2, size=4, direction="in", top="on", right="on")
     ax.tick_params(axis="both", which="major", size=8)
 
-    if not set_the_stage:
+    if (not set_the_stage) or (alpha is not None):
         # CygA and CygNW label
         ax.text(cygA_x, 0.60*cygA_y, "CygA", weight="bold",
                 ha="center", va="center", color="white", fontsize=22)
@@ -92,18 +99,24 @@ def build_observation_Lx(lss_Lx, set_the_stage=True):
     return pyplot.gcf(), ax, cax
 
 
-def build_observation_kT(lss_kT, set_the_stage=True):
+def build_observation_kT(lss_kT, set_the_stage=True, alpha=None):
     cygA = ( 299.8669, 40.734496 )
     cygNW = ( 299.7055, 40.884849 )
 
     gc = aplpy.FITSFigure(lss_kT, figsize=(11, 12))
     gc.show_colorscale(vmin=3.5, vmax=12, stretch="linear",
         cmap=colorcet.cm["linear_kryw_5_100_c67"],
-        smooth=9 if not set_the_stage else None)
+        smooth=9 if (not set_the_stage) or (alpha is not None) else None)
+    if alpha:
+        mosaic_kT = fits.open(lss_kT)
+        kT = scipy.ndimage.filters.gaussian_filter(mosaic_kT[0].data, 9)
+        pyplot.gca().imshow(kT, origin="lower", vmin=3.5, vmax=12,
+        cmap=colorcet.cm["linear_kryw_5_100_c67"], alpha=alpha)
+        mosaic_kT.close()
     cygA_x, cygA_y = gc.world2pixel(cygA[0], cygA[1])
     cygNW_x, cygNW_y = gc.world2pixel(cygNW[0], cygNW[1])
 
-    if not set_the_stage:
+    if (not set_the_stage) or (alpha is not None):
         # Add scale. Length is 500 kpc after unit conversions
         gc.add_scalebar(0.13227513)
         gc.scalebar.set_corner("bottom right")
@@ -123,7 +136,7 @@ def build_observation_kT(lss_kT, set_the_stage=True):
         pad=8, width=2, size=4, direction="in", top="on", right="on")
     ax.tick_params(axis="both", which="major", size=8)
 
-    if not set_the_stage:
+    if (not set_the_stage) or (alpha is not None):
         # CygA and CygNW label
         ax.text(cygA_x, 0.60*cygA_y, "CygA", weight="bold",
                 ha="center", va="center", color="white", fontsize=22)
@@ -213,23 +226,38 @@ def zoom_into_box(H, i, nsteps,
 
 @concurrent(processes=threads)
 def build_bestfit(i, Lx, kT, xlen, ylen, pix2kpc_sim, time, outdir, pix2kpc_obs,
-                  arcsec2kpc, EA1=0, EA2=0, zoom=None):
+                  arcsec2kpc, EA1=0, EA2=0, zoom=None, alpha=None):
     """ Stage 1: snapshot_000 snapshot_147 3
         Stage 2: snapshot_147_000 snapshot_147_010 1 [end at 9!]
         Stage 3: Euler_Angle_1 0 51 3
         Stage 3: Euler_Angle_2 0 45 3 """
 
-    print("    ... building {0:03d}: {1:04.6f} --> {2}, {3}; {4}".format(i, time, EA1, EA2, zoom))
+    print("    ... building {0:03d}: {1:04.6f} --> EA1={2}, EA2={3}; zoomx={4}; alpha={5}"
+        .format(i, time, EA1, EA2, zoom, alpha))
 
     #### Build Lx ####
     lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
-    fig_Lx, ax_Lx, cax_Lx = build_observation_Lx(lss_Lx)
+    fig_Lx, ax_Lx, cax_Lx = build_observation_Lx(lss_Lx, alpha=alpha)
 
     # First, get some parameters from the observation to ensure
     # equal smoothing and limits to the imshow of Smac Lx/kT
     magic = 5.82e-9 / 1.77e-5
     smooth_obs_kpc = 9 * pix2kpc_obs * arcsec2kpc
     smooth_sim_kpc = smooth_obs_kpc / pix2kpc_sim
+
+    # Get before alpha because after final zoom boxsize is unequal
+    cygA, cygNW, distance = get_core_separation(Lx, pix2kpc_sim, i)
+
+    if alpha:
+        (xlen_obs_kpc, ylen_obs_kpc, xcenter_obs, ycenter_obs,
+            pix2kpc_obs, arcsec2kpc) = set_observation()
+        xlen_obs_pix = xlen_obs_kpc / pix2kpc_obs
+        ylen_obs_pix = ylen_obs_kpc / pix2kpc_obs
+        zoomx = float(ylen_obs_pix) / ylen
+        zoomy = float(xlen_obs_pix) / xlen
+
+        Lx = scipy.ndimage.zoom(Lx,  [zoomx, zoomy], order=3)
+        kT = scipy.ndimage.zoom(kT,  [zoomx, zoomy], order=3)
 
     (xmin, xmax), (ymin, ymax) = ax_Lx.get_xlim(), ax_Lx.get_ylim()
     Lx_smooth = magic*scipy.ndimage.filters.gaussian_filter(
@@ -238,16 +266,15 @@ def build_bestfit(i, Lx, kT, xlen, ylen, pix2kpc_sim, time, outdir, pix2kpc_obs,
         Lx_smooth, extent=[xmin, xmax, ymin, ymax],
         origin="lower", vmin=5.0e-10, vmax=1.0e-7,
         cmap=colorcet.cm["linear_bmw_5_95_c86"],
-        norm=matplotlib.colors.LogNorm())
+        norm=matplotlib.colors.LogNorm(), alpha=1.0-alpha)
 
     # Hide observer units on axes
-    ax_Lx.tick_params(axis="both", colors="white")
-    ax_Lx.xaxis.label.set_color("white")
-    ax_Lx.yaxis.label.set_color("white")
+    if not alpha:
+        ax_Lx.tick_params(axis="both", colors="white")
+        ax_Lx.xaxis.label.set_color("white")
+        ax_Lx.yaxis.label.set_color("white")
 
     # Toss in some simulation numbers
-    cygA, cygNW, distance = get_core_separation(Lx, pix2kpc_sim, i)
-
     # Set Time + Distance
     distance_ph = distance
     if EA1 is not 0:
@@ -264,8 +291,9 @@ def build_bestfit(i, Lx, kT, xlen, ylen, pix2kpc_sim, time, outdir, pix2kpc_obs,
         timedistance += r" d$_{{\rm physical}}$ & = & {0:<06.2f} kpc \\".format(distance_ph)
         timedistance += r" d$_{{\rm observed}}$ & = & {0:<06.2f} kpc \\".format(distance_obs)
     timedistance += (" \end{tabular}")
-    ax_Lx.text(0.5, 0.98, timedistance, size=18, color="white",
-        ha="center", va="top", transform=ax_Lx.transAxes)
+    if not alpha:
+        ax_Lx.text(0.5, 0.98, timedistance, size=18, color="white",
+            ha="center", va="top", transform=ax_Lx.transAxes)
 
     # Set Scale indicator
     scale = xlen*pix2kpc_sim
@@ -273,7 +301,8 @@ def build_bestfit(i, Lx, kT, xlen, ylen, pix2kpc_sim, time, outdir, pix2kpc_obs,
         scale /= zoom
     scale = "[{0:.1f} Mpc]$^2$".format(float(scale)/1000)
     pad = 50
-    ax_Lx.text(2*pad, pad, scale, size=16, color="white", ha="left", va="bottom")
+    if not alpha:
+        ax_Lx.text(2*pad, pad, scale, size=16, color="white", ha="left", va="bottom")
 
     # Set Euler Angles
     EA0 = 90
@@ -282,7 +311,8 @@ def build_bestfit(i, Lx, kT, xlen, ylen, pix2kpc_sim, time, outdir, pix2kpc_obs,
     angles += " EA1 & = & {0:03d} \\\\".format(EA1)
     angles += " EA2 & = & {0:03d} \\\\".format(EA2)
     angles += (" \end{tabular}")
-    ax_Lx.text(xmax-2*pad, pad, angles, size=16, color="white", ha="right", va="bottom")
+    if not alpha:
+        ax_Lx.text(xmax-2*pad, pad, angles, size=16, color="white", ha="right", va="bottom")
 
     fig_Lx.subplots_adjust(left=-0.02, right=1.05, top=0.95, bottom=-0.05)
     fig_Lx.savefig("out/vid/sim_Lx_{0:03d}.png".format(i), dpi=600)
@@ -291,7 +321,7 @@ def build_bestfit(i, Lx, kT, xlen, ylen, pix2kpc_sim, time, outdir, pix2kpc_obs,
 
     #### Build kT ####
     lss_kT = "/usr/local/mscproj/runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
-    fig_kT, ax_kT, cax_kT = build_observation_kT(lss_kT)
+    fig_kT, ax_kT, cax_kT = build_observation_kT(lss_kT, alpha=alpha)
 
     (xmin, xmax), (ymin, ymax) = ax_kT.get_xlim(), ax_kT.get_ylim()
     kT_smooth = scipy.ndimage.filters.gaussian_filter(
@@ -299,21 +329,23 @@ def build_bestfit(i, Lx, kT, xlen, ylen, pix2kpc_sim, time, outdir, pix2kpc_obs,
     im = ax_kT.imshow(#numpy.ma.masked_less_equal(kT_smooth, 3.5),
         kT_smooth, extent=[xmin, xmax, ymin, ymax],
         origin="lower", vmin=3.5, vmax=12,
-        cmap=colorcet.cm["linear_kryw_5_100_c67"])
+        cmap=colorcet.cm["linear_kryw_5_100_c67"], alpha=1.0-alpha)
     # Hide observer units on axes
-    ax_kT.tick_params(axis="both", colors="white")
-    ax_kT.xaxis.label.set_color("white")
-    ax_kT.yaxis.label.set_color("white")
+    if not alpha:
+        ax_kT.tick_params(axis="both", colors="white")
+        ax_kT.xaxis.label.set_color("white")
+        ax_kT.yaxis.label.set_color("white")
 
     # Set Time + Distance
-    ax_kT.text(0.5, 0.98, timedistance, size=18, color="white",
-        ha="center", va="top", transform=ax_kT.transAxes)
+    if not alpha:
+        ax_kT.text(0.5, 0.98, timedistance, size=18, color="white",
+            ha="center", va="top", transform=ax_kT.transAxes)
 
-    # Set Scale indicator
-    ax_kT.text(2*pad, pad, scale, size=16, color="white", ha="left", va="bottom")
+        # Set Scale indicator
+        ax_kT.text(2*pad, pad, scale, size=16, color="white", ha="left", va="bottom")
 
-    # Set Euler Angles
-    ax_kT.text(xmax-2*pad, pad, angles, size=16, color="white", ha="right", va="bottom")
+        # Set Euler Angles
+        ax_kT.text(xmax-2*pad, pad, angles, size=16, color="white", ha="right", va="bottom")
 
     fig_kT.subplots_adjust(left=-0.02, right=1.05, top=0.95, bottom=-0.05)
     fig_kT.savefig("out/vid/sim_kT_{0:03d}.png".format(i), dpi=600)
@@ -367,7 +399,7 @@ def set_observation():
 
 @synchronized
 def build_varying_time(smacdir, outdir, frame_number,
-        pix2kpc_obs, arcsec2kpc, skip=False, bestfit=True):
+        pix2kpc_obs, arcsec2kpc, skip=False):
     print("\nBuilding frames of varying time")
 
     Lx_stage1 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx.fits.fz"
@@ -389,21 +421,77 @@ def build_varying_time(smacdir, outdir, frame_number,
     print("  arcsec2kpc : {0:.3f}".format(arcsec2kpc))
     print("")
 
-    if bestfit:
-        for j in range(1, 11):
-            time = 0
-            print("  {0:03d}: {1:04.6f}".format(j+frame_number, time))
-            if skip: continue
-            # if i > 1 and i < nsnap-2: continue
-            build_bestfit(j+frame_number, Lx[0], kT[0], xlen, ylen, pix2kpc_sim,
-                time, outdir, pix2kpc_obs, arcsec2kpc)
+    for i in range(nsnap):
+        time = 0 + 3*i * dt
+        print("  {0:03d}: {1:04.6f}".format(i+frame_number, time))
+        if skip: continue
+        # if i > 1 and i < nsnap-2: continue
+        build_bestfit(i+frame_number, Lx[i], kT[i], xlen, ylen, pix2kpc_sim,
+            time, outdir, pix2kpc_obs, arcsec2kpc)
 
-        frame_number += j
-        snapnumbers = range(1, 147/3 + 1)
-    else:
-        snapnumbers = range(nsnap)
+    return frame_number + i
 
-    for i in snapnumbers:
+
+@synchronized
+def build_varying_time_bestfit_pause(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False):
+    print("\nBuilding frames of varying time")
+
+    Lx_stage1 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx.fits.fz"
+    kT_stage1 = smacdir + "BestFitSimulation_Stage1_BestTime_kT.fits.fz"
+
+    header, Lx = psmac2_fitsfile(Lx_stage1)
+    header2, kT = psmac2_fitsfile(kT_stage1)
+    nsnap, xlen, ylen = kT.shape
+    pix2kpc_sim = float(header["XYSize"])/int(xlen)
+
+    dt = 0.01         # For regular snapshots
+    dt_finer = dt/40  # For finer interpolation
+
+    print("  nsnap      : {0}\n  xlen       : {1}\n  ylen       : {2}"\
+          .format(nsnap, xlen, ylen))
+    print("  dt         : {0}".format(dt))
+    print("  pix2kpc_sim: {0:.3f}".format(pix2kpc_sim))
+    print("  pix2kpc_obs: {0:.3f}".format(pix2kpc_obs))
+    print("  arcsec2kpc : {0:.3f}".format(arcsec2kpc))
+    print("")
+
+    for i in range(1, 11):
+        time = 0
+        print("  {0:03d}: {1:04.6f}".format(i+frame_number, time))
+        if skip: continue
+        # if i > 1 and i < nsnap-2: continue
+        build_bestfit(i+frame_number, Lx[0], kT[0], xlen, ylen, pix2kpc_sim,
+            time, outdir, pix2kpc_obs, arcsec2kpc)
+
+    return frame_number + i
+
+
+@synchronized
+def build_varying_time_bestfit(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False):
+    print("\nBuilding frames of varying time")
+
+    Lx_stage1 = smacdir + "BestFitSimulation_Stage1_BestTime_Lx.fits.fz"
+    kT_stage1 = smacdir + "BestFitSimulation_Stage1_BestTime_kT.fits.fz"
+
+    header, Lx = psmac2_fitsfile(Lx_stage1)
+    header2, kT = psmac2_fitsfile(kT_stage1)
+    nsnap, xlen, ylen = kT.shape
+    pix2kpc_sim = float(header["XYSize"])/int(xlen)
+
+    dt = 0.01         # For regular snapshots
+    dt_finer = dt/40  # For finer interpolation
+
+    print("  nsnap      : {0}\n  xlen       : {1}\n  ylen       : {2}"\
+          .format(nsnap, xlen, ylen))
+    print("  dt         : {0}".format(dt))
+    print("  pix2kpc_sim: {0:.3f}".format(pix2kpc_sim))
+    print("  pix2kpc_obs: {0:.3f}".format(pix2kpc_obs))
+    print("  arcsec2kpc : {0:.3f}".format(arcsec2kpc))
+    print("")
+
+    for i in range(1, 147/3 + 1):
         time = 0 + 3*i * dt
         print("  {0:03d}: {1:04.6f}".format(i+frame_number, time))
         if skip: continue
@@ -642,7 +730,40 @@ def build_zoom_into_simulation_box(outdir, Lx, kT, frame_number, pix2kpc_sim,
         build_bestfit(i+frame_number, Lxzoom, kTzoom, xlen, ylen, pix2kpc_sim,
             time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1, EA2=EA2, zoom=zoomx)
 
-    return frame_number + i
+    if skip:
+        Lxzoom, zoomx = zoom_into_box(Lx, i, nsteps,
+            xlen, xoffset, desired_xlen_sim_pix,
+            ylen, yoffset, desired_ylen_sim_pix )
+        kTzoom, zoomx = zoom_into_box(kT, i, nsteps,
+          xlen, xoffset, desired_xlen_sim_pix,
+            ylen, yoffset, desired_ylen_sim_pix )
+
+    return frame_number + i, Lxzoom, kTzoom
+
+
+@synchronized
+def build_observational_morphing(outdir, Lx, kT, frame_number,
+        pix2kpc_sim, pix2kpc_obs, arcsec2kpc, skip=False):
+    print("\nMorphing Simulation into Observation")
+
+    dt = 0.01         # For regular snapshots
+    dt_finer = dt/40  # For finer interpolation
+
+    t0 = 147 * dt
+    time = t0 + 9 * dt_finer
+    EA1 = 51
+    EA2 = 45
+
+    xlen, ylen = Lx.shape
+
+    nsteps = 50
+    for i in range(1, nsteps+1):
+        print("  {0:03d}: {1:04.6f} --> {2}, {3}".format(i+frame_number, time, EA1, EA2))
+        if skip: continue
+
+        build_bestfit(i+frame_number, Lxzoom, kTzoom, xlen, ylen, pix2kpc_sim,
+            time, outdir, pix2kpc_obs, arcsec2kpc, EA1=EA1, EA2=EA2, zoom=1337,
+            alpha=float(i)/nsteps)
 
 
 if __name__ == "__main__":
@@ -660,14 +781,17 @@ if __name__ == "__main__":
 
     # Cheat to supress aplpy warnings -.0'
     old_stdout, old_stderr = sys.stdout, sys.stderr
-    sys.stderr = open("/dev/null", "w")
+    # sys.stderr = open("poeperrors.tmp", "w")
 
     frame_number = 0   # Global Counter to keep track of 'offset'
     frame_number = build_varying_time(smacdir, outdir, frame_number,
-        pix2kpc_obs, arcsec2kpc, skip=False, bestfit=False)
+        pix2kpc_obs, arcsec2kpc, skip=False)
 
-    frame_number = build_varying_time(smacdir, outdir, frame_number,
-        pix2kpc_obs, arcsec2kpc, skip=False, bestfit=True)
+    frame_number = build_varying_time_bestfit_pause(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False)
+
+    frame_number = build_varying_time_bestfit(smacdir, outdir, frame_number,
+        pix2kpc_obs, arcsec2kpc, skip=False)
 
     frame_number = build_varying_time_finer_interpolation(smacdir, outdir,
         frame_number, pix2kpc_obs, arcsec2kpc, skip=False)
@@ -684,15 +808,18 @@ if __name__ == "__main__":
     frame_number, Lx, kT, pix2kpc_sim = build_varying_euler_angle_2_goforth(
         smacdir, outdir, frame_number, pix2kpc_obs, arcsec2kpc, skip=False)
 
-    frame_number = build_zoom_into_simulation_box(outdir, Lx, kT, frame_number,
+    frame_number, Lxzoom, kTzoom = build_zoom_into_simulation_box(outdir, Lx, kT, frame_number,
         pix2kpc_sim, pix2kpc_obs, xcenter_obs, ycenter_obs, arcsec2kpc, skip=False)
 
-    assemble_video = False
+    frame_number = build_observational_morphing(outdir, Lxzoom, kTzoom, frame_number,
+        pix2kpc_sim, pix2kpc_obs, arcsec2kpc, skip=False)
+
+    assemble_video = True
     if assemble_video:
-        os.system('ffmpeg -y -r 25 -i "out/vid/sim_kT_%3d.png" -profile:v high444 -level 4.1 \
+        os.system('ffmpeg -y -r 15 -i "out/vid/sim_kT_%3d.png" -profile:v high444 -level 4.1 \
             -c:v libx264 -preset slow -crf 25 -pix_fmt yuv420p -s "2000:2000" \
             -an "out/vid/sim_kT.mp4"')
 
-        os.system('ffmpeg -y -r 25 -i "out/vid/sim_Lx_%3d.png" -profile:v high444 -level 4.1 \
+        os.system('ffmpeg -y -r 15 -i "out/vid/sim_Lx_%3d.png" -profile:v high444 -level 4.1 \
             -c:v libx264 -preset slow -crf 25 -pix_fmt yuv420p -s "2000:2000" \
             -an "out/vid/sim_Lx.mp4"')
