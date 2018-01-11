@@ -259,7 +259,7 @@ class ObservedCluster(object):
                 M_below_r_min*convert.g2msun)
 
     def infer_NFW_mass(self, cNFW=None, bf=0.17, RCUT_R200_RATIO=None,
-                       verbose=False, debug=False):
+                       verbose=False, debug=True):
         self.halo = fit.total_gravitating_mass(self, cNFW=cNFW, bf=bf,
             RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=verbose, debug=debug)
 
@@ -455,8 +455,8 @@ class ObservedCluster(object):
         ax.errorbar(self.avg["r"], 100*residuals,
                     yerr=100*self.avg["fn"]/self.avg["n"],
                     ls="", c="k", lw=3, elinewidth=1)
-        ax.errorbar(self.avg["r"]-self.avg["fr"]/2, 100*residuals, c="k",
-                    lw=3, elinewidth=1, drawstyle="steps-post")
+        ax.errorbar(self.avg["r"], 100*residuals, c="k",
+                    lw=3, elinewidth=1, drawstyle="steps-mid")
         ax.axvline(x=self.rc, lw=3, ls="dashed", c="k")
 
     def plot_inferred_nfw_profile(self, ax, style=dict(), rho=True):

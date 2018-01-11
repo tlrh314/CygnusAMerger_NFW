@@ -5,7 +5,7 @@ import scipy
 from scipy import ndimage
 import matplotlib
 from matplotlib import pyplot
-pyplot.switch_backend("Qt4Agg")
+pyplot.switch_backend("Qt5Agg")
 from astropy.io import ascii, fits
 
 import parse

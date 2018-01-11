@@ -125,7 +125,7 @@ def bestfit_betamodel(c):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "b" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
-            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+            "label": "data (2.2 Msec)" }
     fit = { "color": "k", "lw": 4, "linestyle": "solid" }
 
     fig, (ax, ax_r) = pyplot.subplots(2, 2, sharex=True, figsize=(16, 12))
@@ -176,7 +176,7 @@ def inferred_nfw_profile(c):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "g" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
-            "label": "1.03 Msec Chandra\n(Wise+ in prep)" }
+            "label": "data (2.2 Msec)" }
     fit = { "color": "k", "lw": 1, "linestyle": "dashed" }
     dm = { "color": "k", "lw": 1, "linestyle": "solid" }
 
@@ -260,6 +260,7 @@ def inferred_temperature(c):
                "_fit-{0:02d}".format(c.fit_counter) if hasattr(c, "fit_counter") else "",
                c.halo["cNFW"], c.halo["bf200"], cut), dpi=150)
     pyplot.close()
+
 
 def inferred_pressure(c):
     """ Plot the observed pressure profile and the inferred hydrostatic

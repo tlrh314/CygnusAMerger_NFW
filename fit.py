@@ -52,7 +52,7 @@ def betamodel_to_chandra(c, verbose=False):
         parms=[0.1, 0.67, 10]
         bounds = [(None, None), (0.0, 1.0), (None, None)]
     if c.name == "cygNW":
-        bounds = [(0.002, 0.003), (0.0, 1.0), (None, None)]
+        bounds = [(0.001, 0.01), (0.0, 1.0), (None, None)]
         parms=[1.0, 1.0, 1.0]
 
     # Minimise chi^2 to obtain best-fit parameters
@@ -272,11 +272,11 @@ def total_gravitating_mass_freecbf(c, do_cut=True, verbose=False):
 
     print "Fitting cNFW, bf to retrieve T_HE = Tobs"
     if c.name == "cygA":
-        p0 = [12.18, 0.075] if not do_cut else [10.808, 0.04487, 0.7497]
-        bounds = ((0,0),(20,0.25)) if not do_cut else ((0,0,0),(20,0.25,2))
+        p0 = [10, 0.07] if not do_cut else [10, 0.07, 0.75]
+        bounds = ((0, 0), (40, 0.25)) if not do_cut else ((0, 0, 0), (40, 0.25, 2))
     if c.name == "cygNW":
-        p0 = [4.842, 0.0535] if not do_cut else [3.692, 0.0357, 0.9948]
-        bounds = ((0,0),(20,0.25)) if not do_cut else ((0,0,0),(20,0.25,2))
+        p0 = [5, 0.17] if not do_cut else [5, 0.17, 1.1]
+        bounds = ((0, 0), (400, 0.25)) if not do_cut else ((0, 0, 0), (400, 0.25, 2))
 
     c.fit_counter = 0
     ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1, parm2=None:
@@ -286,3 +286,21 @@ def total_gravitating_mass_freecbf(c, do_cut=True, verbose=False):
     c.fit_counter = None
 
     return ml_vals, numpy.sqrt(numpy.diag(ml_covar))
+
+
+if __name__ == "__main__":
+    from main import new_argument_parser
+    from main import infer_toycluster_ics
+    from main import set_observed_clusters
+    from plot import inferred_temperature
+
+    a, unknown = new_argument_parser().parse_known_args()
+    a.do_cut = True
+    cygA, cygNW = infer_toycluster_ics(a)
+    # cygA, cygNW = set_observed_clusters(a)
+
+    pyplot.switch_backend("Qt5Agg")
+    inferred_temperature(cygA)
+    inferred_temperature(cygNW)
+
+    # total_gravitating_mass_freecbf()

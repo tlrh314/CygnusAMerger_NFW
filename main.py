@@ -110,7 +110,7 @@ def infer_toycluster_ics(a):
     cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=mle[0], bf=mle[1],
                             RCUT_R200_RATIO=mle[2] if a.do_cut else None, verbose=a.verbose)
 
-    write_ics(cygA, cygNW)
+    # write_ics(cygA, cygNW)
 
     return cygA, cygNW
 

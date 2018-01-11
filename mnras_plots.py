@@ -7,6 +7,7 @@ import astropy.units as u
 from astropy.io import ascii, fits
 import matplotlib
 from matplotlib import pyplot
+pyplot.switch_backend('Qt5Agg')
 from matplotlib.ticker import MaxNLocator
 from matplotlib.widgets import Slider
 import aplpy
@@ -208,7 +209,7 @@ def bestfit_betamodel(c):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "b" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
-            "label": "data (1.03 Msec)" }
+            "label": "data (2.2 Msec)" }
     fit = { "color": "k", "lw": 4, "linestyle": "solid", "label": "best fit" }
 
     fig, (ax, ax_r) = pyplot.subplots(2, 2, sharex=True, figsize=(12, 9))
@@ -449,6 +450,14 @@ def plot_simulated_wedges():
                 ax.errorbar(radii*sim.pixelscale, merger_temperature,
                     [merger_temperature_std, merger_temperature_std],
                     c="g", lw=2, elinewidth=2, label="Merger, simulated")
+
+                # Save the data for MW
+                numpy.savetxt("out/CygAMergerDraft_Data_Figure7_Quiescent_{0}_TLRH.csv"\
+                    .format(name), zip(radii*sim.pixelscale, quiescent_temperature,
+                        quiescent_temperature_std), delimiter=",")
+                numpy.savetxt("out/CygAMergerDraft_Data_Figure7_Merger_{0}_TLRH.csv"\
+                    .format(name), zip(radii*sim.pixelscale, merger_temperature,
+                        merger_temperature_std), delimiter=",")
 
                 if name == "cygA":
                     cygA.plot_chandra_average(ax, parm="kT", style=avg)
@@ -1112,7 +1121,7 @@ def plot_mach_hist(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 6, 7, 8 ]
+    to_plot = [ 7 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -1141,7 +1150,7 @@ if __name__ == "__main__":
         pyplot.rcParams.update( { "text.usetex": True, "font.size": 28 } )
 
     if 2 in to_plot:
-        a = main.new_argument_parser().parse_args()
+        a, unknown = main.new_argument_parser().parse_known_args()
         a.do_cut = False
         cygA_uncut, cygNW_uncut = main.set_observed_clusters(a)
         cygA_mask = cygA_uncut.avg.mask
@@ -1156,7 +1165,7 @@ if __name__ == "__main__":
         cygNW_uncut.avg.mask = cygNW_mask
 
     if 3 in to_plot:
-        a = main.new_argument_parser().parse_args()
+        a, unknown = main.new_argument_parser().parse_known_args()
         a.do_cut = False
         cygA_uncut, cygNW_uncut = main.set_observed_clusters(a)
         a.do_cut = True
@@ -1196,9 +1205,11 @@ if __name__ == "__main__":
         a, unknown = main.new_argument_parser().parse_known_args()
         a.do_cut = True
         a.basedir = "/Volumes/Cygnus/timoh/"
-        a.basedir = "/media/SURFlisa/"
+        # a.basedir = "/media/SURFlisa/"
         a.timestamp = "20170115T0905"
         a.clustername = "both"
+        a.debug=True
+        a.verbose=True
         cygA_cut, cygNW_cut = main.set_observed_clusters(a)
         sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
         sim.read_ics(verbose=True)
