@@ -164,7 +164,8 @@ def bestfit_betamodel(c):
     ax.get_yaxis().set_label_coords(-0.07, 0.5)
     ax_r.get_yaxis().set_label_coords(-0.07, 0.5)
     pyplot.tight_layout()
-    pyplot.savefig("out/{0}_bestfit_betamodel.pdf".format(c.name), dpi=150)
+    pyplot.savefig("out/{0}_bestfit_betamodel_{1}{2}.pdf".format(
+        c.name, c.data, "_cut" if c.rcut_kpc is not None else ""), dpi=150)
     pyplot.sca(ax)
 
 

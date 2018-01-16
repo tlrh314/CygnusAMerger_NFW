@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!/usr/bin/env python
 
 import os
 import copy
@@ -101,14 +102,18 @@ def write_ics(cygA, cygNW):
 def infer_toycluster_ics(a):
     # Fit the concentration parameter and baryon fraction
     mle, cis = fit.total_gravitating_mass_freecbf(
-        ObservedCluster(a.basedir, "cygA", verbose=True), do_cut=a.do_cut)
+        ObservedCluster(a.basedir, "cygA", verbose=True, data=a.data),
+        do_cut=a.do_cut)
     cygA = ObservedCluster(a.basedir, "cygA", cNFW=mle[0], bf=mle[1],
-                           RCUT_R200_RATIO=mle[2] if a.do_cut else None, verbose=a.verbose)
+                           RCUT_R200_RATIO=mle[2] if a.do_cut else None,
+                           verbose=a.verbose, data=a.data)
 
     mle, cis = fit.total_gravitating_mass_freecbf(
-        ObservedCluster(a.basedir, "cygNW", verbose=False), do_cut=a.do_cut)
+        ObservedCluster(a.basedir, "cygNW", verbose=False, data=a.data),
+        do_cut=a.do_cut)
     cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=mle[0], bf=mle[1],
-                            RCUT_R200_RATIO=mle[2] if a.do_cut else None, verbose=a.verbose)
+                            RCUT_R200_RATIO=mle[2] if a.do_cut else None,
+                            verbose=a.verbose, data=a.data)
 
     # write_ics(cygA, cygNW)
 
@@ -117,30 +122,48 @@ def infer_toycluster_ics(a):
 
 @profile
 def set_observed_cluster(a):
-    if a.clustername == "cygA":
-        if a.do_cut:
-            cNFW = 10.8084913766
-            bf = 0.0448823494125
-            RCUT_R200_RATIO = 0.749826451566
-        else:
-            cNFW = 12.1616022474
-            bf = 0.075207094556
-            RCUT_R200_RATIO = None
+    if a.data == "2MSec":
+        if a.clustername == "cygA":  # TODO
+            if a.do_cut:
+                pass
+            else:
+                pass
 
-    if a.clustername == "cygNW":
-        if a.do_cut:
-            cNFW = 3.69286089273
-            bf = 0.0357979867269
-            RCUT_R200_RATIO = 0.994860631699
-        else:
-            cNFW = 4.84194426883
-            bf = 0.0535343411893
-            RCUT_R200_RATIO = None
+        if a.clustername == "cygNW":  # TODO
+            if a.do_cut:
+                pass
+            else:
+                pass
+
+        cNFW = 1
+        bf = 1
+        RCUT_R200_RATIO = 1
+    else:
+        if a.clustername == "cygA":
+            if a.do_cut:
+                cNFW = 10.8084913766
+                bf = 0.0448823494125
+                RCUT_R200_RATIO = 0.749826451566
+            else:
+                cNFW = 12.1616022474
+                bf = 0.075207094556
+                RCUT_R200_RATIO = None
+
+        if a.clustername == "cygNW":
+            if a.do_cut:
+                cNFW = 3.69286089273
+                bf = 0.0357979867269
+                RCUT_R200_RATIO = 0.994860631699
+            else:
+                cNFW = 4.84194426883
+                bf = 0.0535343411893
+                RCUT_R200_RATIO = None
 
     obs = ObservedCluster(a.basedir, a.clustername, cNFW=cNFW, bf=bf,
-        RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose)
+        RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose, data=a.data)
 
     return obs
+
 
 @profile
 def set_observed_clusters(a):
@@ -153,8 +176,8 @@ def set_observed_clusters(a):
 
 
 def check_twocluster_ics(a):
-    cygA = ObservedCluster(a.basedir, "cygA", cNFW=12.40, bf=0.07653)
-    cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=5.17, bf=0.05498)
+    cygA = ObservedCluster(a.basedir, "cygA", cNFW=12.40, bf=0.07653, data=a.data)
+    cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=5.17, bf=0.05498, data=a.data)
     sim = Simulation(a.basedir, a.timestamp, name="both")
     plot.twocluster_quiescent_parm(cygA, cygNW, sim, 0, parm="kT")
 
@@ -162,7 +185,8 @@ def check_twocluster_ics(a):
 def plot_smac_snapshots(a):
     if a.clustername:
         print "Running for single cluster", a.clustername
-        obs = ObservedCluster(a.basedir, a.clustername, verbose=a.verbose)
+        obs = ObservedCluster(a.basedir, a.clustername,
+                              verbose=a.verbose, data=a.data)
         sim = Simulation(a.basedir, a.timestamp, a.clustername)
         for i in range(sim.nsnaps):
             # sim.find_cluster_centroids_psmac_dmrho(i)
@@ -177,7 +201,8 @@ def plot_smac_snapshots(a):
 
 def test_cnfw(a):
     for cNFW in range(1, 25, 2):
-        cygA = ObservedCluster(a.basedir, "cygA", cNFW=cNFW, verbose=a.verbose)
+        cygA = ObservedCluster(a.basedir, "cygA", cNFW=cNFW,
+                               verbose=a.verbose, data=a.data)
         plot.inferred_nfw_profile(cygA)
         plot.inferred_temperature(cygA)
 
@@ -323,20 +348,24 @@ def new_argument_parser():
         help="Path to the base directory", default="/usr/local/mscproj")
     args.add_argument("-c", "--clustername", dest="clustername",
         help="Name of the subcluster", default=None, choices=["cygA", "cygNW", "both"])
+    args.add_argument("--chandra", dest="chandra", action="store_true",
+        help="Generate observational plots", default=False)
     args.add_argument("--cut", dest="do_cut", action="store_true",
         help="Show analytical profiles with cut-off", default=False)
-    args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
-        help="Toggle verbose. Verbose is True by default", default=True)
-    args.add_argument("-d", "--debug", dest="debug", action="store_true",
-        help="Toggle debug. Debug is False by default", default=False)
-    args.add_argument("-e", "--embed", dest="embed", action="store_true",
-        help="Toggle iPython embedding. Embed is False by default", default=False)
     args.add_argument("--gen1D", dest="gen1D", action="store_true",
         help="Generate 1D radial profiles plots for all snapshots", default=False)
     args.add_argument("--checkIC", dest="check_ics", action="store_true",
         help="Generate 1D radial profiles plots for ICs", default=False)
     args.add_argument("--best700", dest="find_700", action="store_true",
         help="Find bestfit 700 kpc snapshot", default=False)
+    args.add_argument("--data", dest="data", default="1MSec",
+        help="Exposuretime of Chandra observation", choices=["1MSec", "2MSec"])
+    args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
+        help="Toggle verbose. Verbose is True by default", default=True)
+    args.add_argument("-d", "--debug", dest="debug", action="store_true",
+        help="Toggle debug. Debug is False by default", default=False)
+    args.add_argument("-e", "--embed", dest="embed", action="store_true",
+        help="Toggle iPython embedding. Embed is False by default", default=False)
     # group = args.add_mutually_exclusive_group(required=True)
     # group.add_argument("-t", "--timestamp", dest="timestamp", nargs=1,
     #    help="string of the Simulation ID")
@@ -347,6 +376,21 @@ def new_argument_parser():
 if __name__ == "__main__":
     a, unknown = new_argument_parser().parse_known_args()
     if a.embed: header = ""
+
+    for k, v in vars(a).items():
+        print("{0:<12} = {1}".format(k, v))
+    print("")
+
+    # python main.py --chandra --data 1MSec -c "both"
+    # python main.py --chandra --data 1MSec -c "both" --cut
+    # python main.py --chandra --data 2MSec -c "both"
+    # python main.py --chandra --data 2MSec -c "both" --cut
+    if a.chandra:
+        cygA, cygNW = set_observed_clusters(a)
+        if a.clustername == "cygA" or a.clustername == "both":
+            plot.bestfit_betamodel(cygA)
+        if a.clustername == "cygNW" or a.clustername == "both":
+            plot.bestfit_betamodel(cygNW)
 
     sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
 

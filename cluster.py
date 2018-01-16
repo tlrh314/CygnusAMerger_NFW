@@ -28,7 +28,7 @@ from macro import *
 class ObservedCluster(object):
     """ Parse and store Chandra XVP (PI Wise) observation """
     def __init__(self, basedir, name, cNFW=None, bf=0.17, RCUT_R200_RATIO=None,
-                 verbose=True, debug=False):
+                 verbose=True, debug=False, data="2Msec"):
         """ Read in the quiescent radial profiles of CygA/CygNW afer 1.03 Msec
             Chandra XVP observations (PI Wise). Data courtesy of M.N. de Vries.
             Files are copied over from Struis account martyndv.
@@ -39,6 +39,7 @@ class ObservedCluster(object):
         if name != "cygA" and name != "cygNW":
             print "ERROR: incorrect ObservedCluster name specified: '{0}'".format(name)
             return
+        self.data = data
         self.basedir = basedir
         self.name = name
         self.RCUT_R200_RATIO = RCUT_R200_RATIO
@@ -47,8 +48,9 @@ class ObservedCluster(object):
         # We adopt concordance cosmology with generic cosmological parameters
         self.cc = CosmologyCalculator(z=0.0562, H0=70, WM=0.3, WV=0.7)
 
-        self.avg = parse.chandra_quiescent(self.basedir, self.name)
-        self.force_symmetrical_error(self.avg)
+        self.avg = parse.chandra_quiescent(self.basedir, self.name, data=self.data)
+        if self.data == "2MSec":
+            self.force_symmetrical_error(self.avg)
         self.set_radius(self.avg)
         self.set_massdensity(self.avg)
         self.set_temperature_kelvin(self.avg)
@@ -59,9 +61,11 @@ class ObservedCluster(object):
         if self.name == "cygA":  # no have sectoranalysis for CygNW
             self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
             self.avg = self.mask_bins(self.avg, first=0, last=1)
-            self.merger, self.hot, self.cold = parse.chandra_sectors(self.basedir)
-            for t in [self.merger, self.hot, self.cold]:
-                self.force_symmetrical_error(t)
+            self.merger, self.hot, self.cold = parse.chandra_sectors(
+                self.basedir, data=self.data)
+            if data == "2MSec":
+                for t in [self.merger, self.hot, self.cold]:
+                    self.force_symmetrical_error(t)
             self.set_radius(self.merger)
             self.set_radius(self.hot)
             self.set_radius(self.cold)
