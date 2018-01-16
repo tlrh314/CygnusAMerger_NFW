@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#!/usr/bin/env python
 
 import os
 import copy
@@ -122,22 +121,27 @@ def infer_toycluster_ics(a):
 
 @profile
 def set_observed_cluster(a):
-    if a.data == "2MSec":
+    if a.data == "2Msec":
         if a.clustername == "cygA":  # TODO
             if a.do_cut:
-                pass
+                cNFW = 1
+                bf = 1
+                RCUT_R200_RATIO = 1
             else:
-                pass
+                cNFW = 1
+                bf = 1
+                RCUT_R200_RATIO = None
 
         if a.clustername == "cygNW":  # TODO
             if a.do_cut:
-                pass
+                cNFW = 1
+                bf = 1
+                RCUT_R200_RATIO = 1
             else:
-                pass
+                cNFW = 1
+                bf = 1
+                RCUT_R200_RATIO = None
 
-        cNFW = 1
-        bf = 1
-        RCUT_R200_RATIO = 1
     else:
         if a.clustername == "cygA":
             if a.do_cut:
@@ -358,8 +362,8 @@ def new_argument_parser():
         help="Generate 1D radial profiles plots for ICs", default=False)
     args.add_argument("--best700", dest="find_700", action="store_true",
         help="Find bestfit 700 kpc snapshot", default=False)
-    args.add_argument("--data", dest="data", default="1MSec",
-        help="Exposuretime of Chandra observation", choices=["1MSec", "2MSec"])
+    args.add_argument("--data", dest="data", default="1Msec",
+        help="Exposuretime of Chandra observation", choices=["1Msec", "2Msec"])
     args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
         help="Toggle verbose. Verbose is True by default", default=True)
     args.add_argument("-d", "--debug", dest="debug", action="store_true",
@@ -381,10 +385,10 @@ if __name__ == "__main__":
         print("{0:<12} = {1}".format(k, v))
     print("")
 
-    # python main.py --chandra --data 1MSec -c "both"
-    # python main.py --chandra --data 1MSec -c "both" --cut
-    # python main.py --chandra --data 2MSec -c "both"
-    # python main.py --chandra --data 2MSec -c "both" --cut
+    # python main.py --chandra --data 1Msec -c "both"
+    # python main.py --chandra --data 1Msec -c "both" --cut
+    # python main.py --chandra --data 2Msec -c "both"
+    # python main.py --chandra --data 2Msec -c "both" --cut
     if a.chandra:
         cygA, cygNW = set_observed_clusters(a)
         if a.clustername == "cygA" or a.clustername == "both":
