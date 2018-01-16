@@ -49,8 +49,6 @@ class ObservedCluster(object):
         self.cc = CosmologyCalculator(z=0.0562, H0=70, WM=0.3, WV=0.7)
 
         self.avg = parse.chandra_quiescent(self.basedir, self.name, data=self.data)
-        if self.data == "2MSec":
-            self.force_symmetrical_error(self.avg)
         self.set_radius(self.avg)
         self.set_massdensity(self.avg)
         self.set_temperature_kelvin(self.avg)
@@ -63,9 +61,6 @@ class ObservedCluster(object):
             self.avg = self.mask_bins(self.avg, first=0, last=1)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
-            if data == "2MSec":
-                for t in [self.merger, self.hot, self.cold]:
-                    self.force_symmetrical_error(t)
             self.set_radius(self.merger)
             self.set_radius(self.hot)
             self.set_radius(self.cold)
@@ -122,11 +117,6 @@ class ObservedCluster(object):
     def set_temperature_kelvin(self, t):
         t["T"] = convert.keV_to_K(t["kT"])
         t["fT"] = convert.keV_to_K(t["fkT"])
-
-    def force_symmetrical_error(self, t):
-        t["fn"] = 0.5 * ( t["fn_hi"]+t["fn_lo"] )
-        t["fP"] =  0.5 * ( t["fP_lo"]+t["fP_hi"] )
-        t["fkT"] =  0.5 * ( t["fkT_lo"]+t["fkT_hi"] )
 
     def mask_bins(self, t, first=0, last=1):
         """ Mask first n bins, default 0 (mask nothing)

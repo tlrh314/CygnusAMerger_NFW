@@ -28,6 +28,9 @@ def chandra_quiescent(basedir, name, data="2Msec"):
         neresults = ascii.read(ne_file, names=header, data_start=1)
 
         avg = astropy.table.hstack([sbresults, neresults])
+        avg["fn"] = 0.5 * ( avg["fn_hi"]+avg["fn_lo"] )
+        avg["fP"] =  0.5 * ( avg["fP_lo"]+avg["fP_hi"] )
+        avg["fkT"] =  0.5 * ( avg["fkT_lo"]+avg["fkT_hi"] )
     else:  # data is 1.03 Msec
         datadir = basedir+"/CygnusAMerger_NFW/data/20161108/"
 
@@ -69,6 +72,11 @@ def chandra_sectors(basedir, data="2Msec"):
         merger = sector[0:136]  # careful with indices when looking at raw data
         hot = sector[136:302]   # astropy Table removes header, so off-by-one
         cold = sector[302:]
+
+        for t in [merger, hot, cold]:
+            t["fn"] = 0.5 * ( t["fn_hi"]+t["fn_lo"] )
+            t["fP"] =  0.5 * ( t["fP_lo"]+t["fP_hi"] )
+            t["fkT"] =  0.5 * ( t["fkT_lo"]+t["fkT_hi"] )
     else:  # data is 1.03 Msec
         datadir = basedir+"/CygnusAMerger_NFW/data/20161108/"
 
