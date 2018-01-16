@@ -125,7 +125,7 @@ def bestfit_betamodel(c):
     # Define kwargs for pyplot to set up style of the plot
     avg = { "marker": "o", "ls": "", "c": "b" if c.name == "cygA" else "b",
             "ms": 4, "alpha": 1, "elinewidth": 2,
-            "label": "data (2.2 Msec)" }
+            "label": "data ({0} Msec)".format("1.03" if c.data == "1Msec" else "2.2") }
     fit = { "color": "k", "lw": 4, "linestyle": "solid" }
 
     fig, (ax, ax_r) = pyplot.subplots(2, 2, sharex=True, figsize=(16, 12))
