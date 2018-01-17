@@ -57,8 +57,16 @@ class ObservedCluster(object):
             Otherwise for plotting we want to show all other bins, but for
             our fits we ignore the central (AGN) dominated emission. """
         if self.name == "cygA":  # no have sectoranalysis for CygNW
-            self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
-            self.avg = self.mask_bins(self.avg, first=0, last=1)
+            if self.data == "1Msec":
+                print "INFO: CygA, 1Msec --> masking avg_for_plotting ",
+                self.avg_for_plotting = self.mask_bins(self.avg, first=2, last=2)  # MdV: data fit broke
+                print "INFO: CygA, 1Msec --> masking avg ",
+                self.avg = self.mask_bins(self.avg, first=5, last=4)  # AGN rather than cluster
+            if self.data == "2Msec":
+                print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
+                self.avg_for_plotting = self.mask_bins(self.avg, first=5, last=2)
+                print "INFO: CygA, 2Msec --> masking avg ",
+                self.avg = self.mask_bins(self.avg, first=5, last=2)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
             self.set_radius(self.merger)
@@ -68,16 +76,38 @@ class ObservedCluster(object):
             self.set_massdensity(self.hot)
             self.set_massdensity(self.cold)
             # sector analysis fit broke for last two bins
-            self.merger_for_plotting = self.mask_bins(self.merger, first=0, last=1)
-            self.merger = self.mask_bins(self.merger, first=0, last=1)
-            self.hot_for_plotting = self.mask_bins(self.hot, first=0, last=1)
-            self.hot = self.mask_bins(self.hot, first=0, last=1)
-            self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=1)
-            self.cold = self.mask_bins(self.cold, first=0, last=1)
+            if self.data == "1Msec":
+                print "INFO: CygA, 1Msec --> masking merger_for_plotting ",
+                self.merger_for_plotting = self.mask_bins(self.merger, first=0, last=2)
+                print "INFO: CygA, 1Msec --> masking merger ",
+                self.merger = self.mask_bins(self.merger, first=2, last=4)
+                print "INFO: CygA, 1Msec --> masking hot_for_plotting ",
+                self.hot_for_plotting = self.mask_bins(self.hot, first=1, last=2)
+                print "INFO: CygA, 1Msec --> masking hot ",
+                self.hot = self.mask_bins(self.hot, first=6, last=4)
+                print "INFO: CygA, 1Msec --> masking cold_for_plotting ",
+                self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=2)
+                print "INFO: 1Msec --> masking cold ",
+                self.cold = self.mask_bins(self.cold, first=0, last=4)
+            if self.data == "CygA, 2Msec":
+                print "INFO: CygA, 2Msec --> masking merger_for_plotting ",
+                self.merger_for_plotting = self.mask_bins(self.merger, first=0, last=1)
+                print "INFO: CygA, 2Msec --> masking merger ",
+                self.merger = self.mask_bins(self.merger, first=0, last=1)
+                print "INFO: CygA, 2Msec --> masking hot_for_plotting ",
+                self.hot_for_plotting = self.mask_bins(self.hot, first=0, last=1)
+                print "INFO: CygA, 2Msec --> masking hot ",
+                self.hot = self.mask_bins(self.hot, first=0, last=1)
+                print "INFO: CygA, 2Msec --> masking cold_for_plotting ",
+                self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=1)
+                print "INFO: CygA, 2Msec --> masking cold ",
+                self.cold = self.mask_bins(self.cold, first=0, last=1)
 
         if self.name == "cygNW":
             self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
+            print "INFO: CygNW, 2Msec --> masking avg_for_plotting ",
             self.avg = self.mask_bins(self.avg, first=0, last=2)
+            print "INFO: CygNW, 2Msec --> masking avg ",
 
         self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(5e4), 64))
 
@@ -121,6 +151,8 @@ class ObservedCluster(object):
     def mask_bins(self, t, first=0, last=1):
         """ Mask first n bins, default 0 (mask nothing)
             Mask last (n-1) bins, default 1 (mask nothing) """
+
+        print "first: {0}, last: {1}".format(first, last)
         t = astropy.table.Table(t, masked=True)
         # discard first six bins: CygA dominated
         t[0:first].mask = [True for i in range(len(t.columns))]

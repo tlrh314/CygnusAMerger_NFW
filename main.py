@@ -107,6 +107,8 @@ def infer_toycluster_ics(a):
                            RCUT_R200_RATIO=mle[2] if a.do_cut else None,
                            verbose=a.verbose, data=a.data)
 
+    return
+
     mle, cis = fit.total_gravitating_mass_freecbf(
         ObservedCluster(a.basedir, "cygNW", verbose=False, data=a.data),
         do_cut=a.do_cut)
@@ -385,16 +387,28 @@ if __name__ == "__main__":
         print("{0:<12} = {1}".format(k, v))
     print("")
 
+    cygA, cygNW = infer_toycluster_ics(a)
+    import sys; sys.exit(0)
+
     # python main.py --chandra --data 1Msec -c "both"
     # python main.py --chandra --data 1Msec -c "both" --cut
     # python main.py --chandra --data 2Msec -c "both"
     # python main.py --chandra --data 2Msec -c "both" --cut
     if a.chandra:
-        cygA, cygNW = set_observed_clusters(a)
-        if a.clustername == "cygA" or a.clustername == "both":
+        if a.clustername == "cygA":
+            cygA = set_observed_cluster(a)
             plot.bestfit_betamodel(cygA)
-        if a.clustername == "cygNW" or a.clustername == "both":
+        if a.clustername == "cygNW":
+            cygNW = set_observed_cluster(a)
             plot.bestfit_betamodel(cygNW)
+        if a.clustername == "both":
+            cygA, cygNW = set_observed_clusters(a)
+            # plot.bestfit_betamodel(cygA)
+            # plot.bestfit_betamodel(cygNW)
+            show_observations(cygA, cygNW)
+
+        import sys; sys.exit(0)
+
 
     sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
 
@@ -408,7 +422,6 @@ if __name__ == "__main__":
         import sys; sys.exit(0)
 
 
-    # cygA, cygNW = infer_toycluster_ics(a)
     if a.clustername == "both":
         cygA, cygNW = set_observed_clusters(a)
         # Remove unpickleable items in ObservedCluster.__dict__
@@ -421,8 +434,6 @@ if __name__ == "__main__":
             del(cygNW.T_spline)
             plot.twocluster_stability(sim, cygA, cygNW, verbose=a.verbose)
         if a.embed: header += "ObservedCluster instances in `cygA' and `cygNW'\n"
-
-        # show_observations(cygA, cygNW)
 
     if a.clustername == "cygA" or a.clustername == "cygNW":
         obs = set_observed_cluster(a)

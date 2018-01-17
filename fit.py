@@ -52,13 +52,15 @@ def betamodel_to_chandra(c, verbose=False):
         parms=[0.1, 0.67, 10]
         bounds = [(None, None), (0.0, 1.0), (None, None)]
     if c.name == "cygNW":
-        bounds = [(0.001, 0.01), (0.0, 1.0), (None, None)]
-        parms=[1.0, 1.0, 1.0]
+        bounds = [(None, None), (0.0, 1.0), (None, None)]
+        parms=[0.1, 0.67, 200.0]
 
     # Minimise chi^2 to obtain best-fit parameters
     result = scipy.optimize.minimize(stat, parms,
             args=(c.avg["r"], c.avg["n"], c.avg["fn"]),
             method='L-BFGS-B', bounds=bounds)
+
+    print result
 
     ml_vals = result["x"]
     ml_func = result["fun"]
@@ -78,6 +80,8 @@ def betamodel_to_chandra(c, verbose=False):
         print "  scipy.optimize.curve_fit broke down!\n    Reason: '{0}'"\
             .format(result["message"])
         print "  No confidence intervals have been calculated."
+        print ml_vals, ml_covar
+        import sys; sys.exit(1)
 
     err = numpy.sqrt(numpy.diag(ml_covar))
 
