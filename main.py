@@ -124,24 +124,33 @@ def infer_toycluster_ics(a):
 @profile
 def set_observed_cluster(a):
     if a.data == "2Msec":
+        # I neither believe the cut nor the uncut model of CygA. The cut model
+        # has a weird average rho/rho_crit(r200) = 333, which should be 200,
+        # has a baryon fraction of 1% and a mass of 1.6e15 MSun. Model seems
+        # not converged, baryon fraction too low, and mass too high? Also, visual
+        # inspection shows that although the analytical T profile looks rather
+        # sweet, the analytical density, mass and pressure all do not match the
+        # data points. The uncut model, on the other hand, seems to have an
+        # unmatched-looking T profile while the density, mass and pressure
+        # profiles look much better
         if a.clustername == "cygA":  # TODO
             if a.do_cut:
-                cNFW = 1
-                bf = 1
-                RCUT_R200_RATIO = 1
+                cNFW = 4.6878
+                bf = 0.0106
+                RCUT_R200_RATIO = 546.3/1998.1
             else:
-                cNFW = 1
-                bf = 1
+                cNFW = 8.8653
+                bf = 0.0839
                 RCUT_R200_RATIO = None
 
         if a.clustername == "cygNW":  # TODO
             if a.do_cut:
-                cNFW = 1
-                bf = 1
-                RCUT_R200_RATIO = 1
+                cNFW = 2.9839
+                bf = 0.0655
+                RCUT_R200_RATIO = 1622.9/1637.6
             else:
-                cNFW = 1
-                bf = 1
+                cNFW = 4.4412
+                bf = 0.1036
                 RCUT_R200_RATIO = None
 
     else:
