@@ -6,6 +6,7 @@ import argparse
 import numpy
 import scipy
 import peakutils
+import matplotlib
 from matplotlib import pyplot
 from line_profiler_support import profile
 
@@ -135,9 +136,9 @@ def set_observed_cluster(a):
         # profiles look much better
         if a.clustername == "cygA":  # TODO
             if a.do_cut:
-                cNFW = 4.6878
-                bf = 0.0106
-                RCUT_R200_RATIO = 546.3/1998.1
+                cNFW = 8.7967
+                bf = 0.0426
+                RCUT_R200_RATIO = 1122.2/1928.0
             else:
                 cNFW = 8.8653
                 bf = 0.0839
@@ -354,6 +355,79 @@ def find_and_plot_700_kpc(sim, verbose=False):
     print distances
 
 
+def compare_one_and_two_megaseconds():
+    a.clusters = "both"
+    a.data = "1Msec"
+    cygA_1Msec, cygNW_1Msec = set_observed_clusters(a)
+
+    a.data = "2Msec"
+    cygA_2Msec, cygNW_2Msec = set_observed_clusters(a)
+
+    clusters = {
+        "cygA": [cygA_1Msec, cygA_2Msec],
+        "cygNW": [cygNW_1Msec, cygNW_2Msec]
+    }
+
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 1, "label": "data" }
+    gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
+    dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
+    tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
+
+    for clustername in ["cygA", "cygNW"]:
+        fig, ((ax0, ax1), (ax2, ax3)) = pyplot.subplots(2, 2, figsize=(18, 16))
+        for color, c in zip(["g", "b"], clusters[clustername]):
+            avg["color"] = color
+            gas["color"] = color
+            dm["color"] = color
+            tot["color"] = color
+
+            c.plot_chandra_average(ax0, parm="rho", style=avg)
+            c.plot_bestfit_betamodel(ax0, style=gas, rho=True)
+            c.plot_inferred_nfw_profile(ax0, style=dm, rho=True)
+
+            c.plot_bestfit_betamodel_mass(ax1, style=gas)
+            c.plot_inferred_nfw_mass(ax1, style=dm)
+            c.plot_inferred_total_gravitating_mass(ax1, style=tot)
+            c.plot_hydrostatic_mass_err(ax1, style=avg)
+
+            c.plot_chandra_average(ax2, parm="kT", style=avg)
+            c.plot_inferred_temperature(ax2, style=tot)
+
+            c.plot_chandra_average(ax3, parm="P", style=avg)
+            c.plot_inferred_pressure(ax3, style=tot)
+
+        ax0.set_yscale("log")
+        ax0.set_ylim(1e-30, 1e-22)
+        ax1.set_yscale("log")
+        ax1.set_ylim(1e5, 1e16)
+        ax2.set_ylim(-1, 10)
+        ax3.set_yscale("log")
+        ax3.set_ylim(1e-15, 5e-9)
+
+        for ax, loc in zip([ax0, ax1, ax2, ax3], [3, 2, 3, 3]):
+            ax.axvline(c.halo["r200"], c="k")
+            # The y coordinates are axes while the x coordinates are data
+            trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
+            ax.text(c.halo["r200"]+150, 0.98, r"$r_{200}$", ha="left", va="top",
+                    fontsize=22, transform=trans)
+            ax.axvline(c.halo["r500"], c="k")
+            ax.text(c.halo["r500"]-150, 0.98, r"$r_{500}$", ha="right", va="top",
+                    fontsize=22, transform=trans)
+            ax.set_xlabel("Radius [kpc]")
+            ax.set_xscale("log")
+            ax.set_xlim(0, 5000)
+            ax.legend(fontsize=18, loc=loc)
+        ax0.set_ylabel("Density [g/cm$^3$]")
+        ax1.set_ylabel("Mass [MSun]")
+        ax2.set_ylabel("Temperature [keV]")
+        ax3.set_ylabel("Pressure [erg/cm$^3$]")
+
+        fig.tight_layout()
+        fig.savefig("out/1vs2Msec_{0}{1}.pdf".format(clustername,
+            "_cut" if c.rcut_kpc is not None else ""))
+        pyplot.close(fig)
+
+
 def new_argument_parser():
     args = argparse.ArgumentParser(
         description="Simulation Pipeline Parser")
@@ -371,6 +445,8 @@ def new_argument_parser():
         help="Generate 1D radial profiles plots for all snapshots", default=False)
     args.add_argument("--checkIC", dest="check_ics", action="store_true",
         help="Generate 1D radial profiles plots for ICs", default=False)
+    args.add_argument("--compare", dest="compare", action="store_true",
+        help="Compare 1Msec Chandra data with 2Msec Chandra data", default=False)
     args.add_argument("--best700", dest="find_700", action="store_true",
         help="Find bestfit 700 kpc snapshot", default=False)
     args.add_argument("--data", dest="data", default="1Msec",
@@ -395,6 +471,12 @@ if __name__ == "__main__":
     for k, v in vars(a).items():
         print("{0:<12} = {1}".format(k, v))
     print("")
+
+    if a.compare:
+        # python main.py --compare
+        # python main.py --compare --cut
+        compare_one_and_two_megaseconds()
+        import sys; sys.exit(0)
 
     cygA, cygNW = infer_toycluster_ics(a)
     import sys; sys.exit(0)
