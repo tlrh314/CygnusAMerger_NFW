@@ -136,7 +136,7 @@ def set_observed_cluster(a):
         if a.clustername == "cygNW":
             if a.do_cut:
                 cNFW = 2.9736
-                bf = 0.634
+                bf = 0.0634
                 RCUT_R200_RATIO = 1614.2/1639.7
             else:
                 cNFW = 4.4423
