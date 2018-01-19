@@ -108,8 +108,6 @@ def infer_toycluster_ics(a):
                            RCUT_R200_RATIO=mle[2] if a.do_cut else None,
                            verbose=a.verbose, data=a.data)
 
-    return
-
     mle, cis = fit.total_gravitating_mass_freecbf(
         ObservedCluster(a.basedir, "cygNW", verbose=False, data=a.data),
         do_cut=a.do_cut)
