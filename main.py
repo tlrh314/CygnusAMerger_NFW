@@ -445,6 +445,8 @@ def new_argument_parser():
         help="Generate 1D radial profiles plots for all snapshots", default=False)
     args.add_argument("--checkIC", dest="check_ics", action="store_true",
         help="Generate 1D radial profiles plots for ICs", default=False)
+    args.add_argument("--infer", dest="infer", action="store_true",
+        help="Infer DM model from ObservedCluster", default=False)
     args.add_argument("--compare", dest="compare", action="store_true",
         help="Compare 1Msec Chandra data with 2Msec Chandra data", default=False)
     args.add_argument("--best700", dest="find_700", action="store_true",
@@ -478,8 +480,11 @@ if __name__ == "__main__":
         compare_one_and_two_megaseconds()
         import sys; sys.exit(0)
 
-    cygA, cygNW = infer_toycluster_ics(a)
-    import sys; sys.exit(0)
+    if a.infer:
+        # python main.py --infer --data "2Msec"
+        # python main.py --infer --data "2Msec" --cut
+        cygA, cygNW = infer_toycluster_ics(a)
+        import sys; sys.exit(0)
 
     # python main.py --chandra --data 1Msec -c "both"
     # python main.py --chandra --data 1Msec -c "both" --cut

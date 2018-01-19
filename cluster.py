@@ -527,9 +527,8 @@ class ObservedCluster(object):
                 rasterized=True, **style)
 
     def plot_hydrostatic_mass_err(self, ax, style=dict()):
-        style = { k: style[k] for k in style.keys() if k not in ["label", "c", "color"] }
+        style = { k: style[k] for k in style.keys() if k not in ["label", "c"] }
         style["label"] = "data"
-        style["color"] = "b"
         # style = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
         #         "elinewidth": 0.5, "label": "HE" }
 

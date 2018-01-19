@@ -267,7 +267,7 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
 
     hydrostatic = ( scipy.ndimage.filters.gaussian_filter1d(cygA.HE_M_below_r, 1) /
                     scipy.ndimage.filters.gaussian_filter1d(cygNW.HE_M_below_r, 2) )
-    pyplot.plot(cygA.HE_radii * convert.cm2kpc, hydrostatic, c="k", ls="--", label="Wise+ 2017")
+    pyplot.plot(cygA.HE_radii * convert.cm2kpc, hydrostatic, c="k", ls="--", label="Wise+ 2018")
 
     radii = cygA.ana_radii * convert.kpc2cm
     dark = cygA.M_dm(radii) / cygNW.M_dm(radii)
@@ -295,7 +295,10 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
     pyplot.ylim(1, 4)
     pyplot.xlabel("Radius [kpc]", fontsize=32)
     pyplot.ylabel("Mass Ratio [CygA/CygNW]", fontsize=32)
-    pyplot.legend(loc="upper center", fontsize=24)
+    if a.data == "1Msec":
+        pyplot.legend(loc="upper center", fontsize=24)
+    elif a.data == "2Msec":
+        pyplot.legend(loc="lower left", fontsize=24)
 
     ax.tick_params(axis="both", which="both", top="on", right="on", labelsize=28)
     pyplot.tight_layout()
@@ -312,6 +315,7 @@ def show_puffup():
 
     import main
     a = main.new_argument_parser().parse_args()
+    a.data = "2Msec"
     a.do_cut = True; a.clustername = "both"
     cygA, cygNW = main.set_observed_clusters(a)
 
@@ -360,7 +364,7 @@ def show_puffup():
 
         ax.legend(fontsize=22, loc=3)
         pyplot.tight_layout()
-        pyplot.savefig("out/{0}_puffup.pdf".format(c.name))
+        pyplot.savefig("out/{0}_puffup_2Msec.pdf".format(c.name))
         pyplot.close(fig)
 
 
@@ -1121,7 +1125,7 @@ def plot_mach_hist(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 7 ]
+    to_plot = [ 4 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -1166,6 +1170,7 @@ if __name__ == "__main__":
 
     if 3 in to_plot:
         a, unknown = main.new_argument_parser().parse_known_args()
+        a.data = "2Msec"
         a.do_cut = False
         cygA_uncut, cygNW_uncut = main.set_observed_clusters(a)
         a.do_cut = True
