@@ -89,7 +89,7 @@ class ObservedCluster(object):
                 self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=2)
                 print "INFO: 1Msec --> masking cold ",
                 self.cold = self.mask_bins(self.cold, first=0, last=4)
-            if self.data == "CygA, 2Msec":
+            if self.data == "2Msec":
                 print "INFO: CygA, 2Msec --> masking merger_for_plotting ",
                 self.merger_for_plotting = self.mask_bins(self.merger, first=0, last=1)
                 print "INFO: CygA, 2Msec --> masking merger ",

@@ -385,6 +385,7 @@ def plot_simulated_wedges():
 
     import main
     a = main.new_argument_parser().parse_args()
+    a.data = "2Msec"
     a.do_cut = False; a.clustername = "both"
     cygA, cygNW = main.set_observed_clusters(a)
 
@@ -1125,7 +1126,7 @@ def plot_mach_hist(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 4 ]
+    to_plot = [ 7 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
