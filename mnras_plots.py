@@ -1126,7 +1126,7 @@ def plot_mach_hist(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 7 ]
+    to_plot = [ 1337 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -1216,6 +1216,7 @@ if __name__ == "__main__":
         a.clustername = "both"
         a.debug=True
         a.verbose=True
+        a.data="2Msec"
         cygA_cut, cygNW_cut = main.set_observed_clusters(a)
         sim = Simulation(base=a.basedir, name=a.clustername, timestamp=a.timestamp, set_data=False)
         sim.read_ics(verbose=True)
