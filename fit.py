@@ -124,7 +124,7 @@ def total_gravitating_mass(c, cNFW=None, bf=0.17, RCUT_R200_RATIO=None,
 
     # Find r200 such that rho200 / rho_crit == 200 (True by definition)
     lower = 10 * convert.kpc2cm
-    upper = 2000 * convert.kpc2cm
+    upper = 4000 * convert.kpc2cm
 
     # bisection method
     epsilon = 0.001

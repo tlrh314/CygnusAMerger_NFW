@@ -533,15 +533,13 @@ class ObservedCluster(object):
         # style = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
         #         "elinewidth": 0.5, "label": "HE" }
 
-        mask = self.avg_for_plotting.mask
-        if self.name == "cygA":
-             self.avg_for_plotting[10::2].mask = [True for i
-                in range(len(self.avg_for_plotting.columns))]
+        r = numpy.ma.getdata(self.avg_for_plotting["r"])
+        fr = numpy.ma.getdata(self.avg_for_plotting["fr"])
+        M_HE = numpy.ma.getdata(self.avg_for_plotting["M_HE"])
+        M_HE_min = numpy.ma.getdata(self.avg_for_plotting["M_HE_min"])
+        M_HE_plus = numpy.ma.getdata(self.avg_for_plotting["M_HE_plus"])
 
-        ax.errorbar(self.avg_for_plotting["r"], self.avg_for_plotting["M_HE"],
-            xerr=self.avg_for_plotting["fr"]/2, yerr=[self.avg_for_plotting["M_HE_min"],
-                self.avg_for_plotting["M_HE_plus"]], rasterized=True, **style)
-        self.avg_for_plotting.mask = mask
+        ax.errorbar(r, M_HE, xerr=fr/2, yerr=[M_HE_min, M_HE_plus], rasterized=True, **style)
 
     def M_verlinde(self, r):
         return profiles.verlinde_apparent_DM_mass(r, self.rho0, self.beta,
