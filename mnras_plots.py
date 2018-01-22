@@ -1073,65 +1073,163 @@ def plot_residuals():
     # pyplot.savefig("out/Lx_45_with_residuals.pdf", dpi=300)
 
 
-def plot_mach_hist(base):
-    bestfit_snap = "/media/SURFlisa/runs/20170115T0907/snaps/snapshot_147_009"
-    header, gas, dm = toycluster_icfile("/media/SURFlisa/runs/20170115T0907/snaps/snapshot_147_009", verbose=True)
+def plot_mach_hist_and_shock_location(base):
+    # First we find observed CygA centroid, and 'boxsize'
+    lss_Lx = "/usr/local/mscproj/runs/ChandraObservation/lss/cygnus_lss_fill_flux_2Msec.fits"
+    lss_kT = "/usr/local/mscproj/runs/ChandraObservation/lss/working_spectra_kT_map_2Msec.fits"
+    mosaic_Lx = fits.open(lss_Lx)
+    mosaic_kT = fits.open(lss_kT)
+    contour_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_Lx[0].data, 25)
+    kT_smooth = scipy.ndimage.filters.gaussian_filter(mosaic_kT[0].data, 9)
 
-    ishock, = numpy.where(gas["mach"] > 0.9)
+    # Find the centroid of CygA to align simulation and observation later on
+    maxcounts_obs = mosaic_Lx[0].data.max()
+    maxcounts_obs_index = mosaic_Lx[0].data.argmax()  # of flattened array
+    ylen_obs_pix, xlen_obs_pix = mosaic_Lx[0].data.shape
+    xcenter_obs = maxcounts_obs_index % xlen_obs_pix
+    ycenter_obs = maxcounts_obs_index / xlen_obs_pix
 
-    pyplot.figure()
-    hist, edges = numpy.histogram(gas["mach"][ishock], bins=42, normed=False)
-    edges = (edges[:-1] + edges[1:])/2
-    pyplot.plot(edges, hist, drawstyle="steps-mid")
-    for tick in pyplot.gca().xaxis.get_major_ticks():
-        tick.label.set_fontsize(12)
-    for tick in pyplot.gca().yaxis.get_major_ticks():
-        tick.label.set_fontsize(12)
-    pyplot.xlim(1, 2.5)
-    pyplot.yscale("log")
-    pyplot.ylabel("No. of SPH particles", fontsize=16)
-    pyplot.xlabel("Mach Number", fontsize=16)
-    pyplot.savefig("out/mach_distribution_bestfit.pdf")
+    # Find the dimensions of the Chandra image in pix, arcsec and kpc
+    xlen_obs_pix = mosaic_Lx[0].header["NAXIS1"]  # same as using mosaic_smooth.shape
+    ylen_obs_pix = mosaic_Lx[0].header["NAXIS2"]
+    pix2arcsec_obs = mosaic_Lx[0].header["CDELT2"]*3600  # Chandra size of pixel 0.492". Value in header is in degrees.
+    xlen_obs_arcsec = xlen_obs_pix * pix2arcsec_obs
+    ylen_obs_arcsec = ylen_obs_pix * pix2arcsec_obs
+    from cosmology import CosmologyCalculator
+    cc = CosmologyCalculator(0.0562)
+    arcsec2kpc = cc.kpc_DA
+    pix2kpc_obs = pix2arcsec_obs * arcsec2kpc
+    xlen_obs_kpc = xlen_obs_arcsec * arcsec2kpc
+    ylen_obs_kpc = ylen_obs_arcsec * arcsec2kpc
+    zlen_obs_kpc = ylen_obs_kpc
+
+    print "Chandra Observation [lss_fill_flux]"
+    print "  Shape ({0},   {1})   pixels".format(xlen_obs_pix, ylen_obs_pix)
+    print "  Shape ({0:.1f}, {1:.1f}) arcsec".format(xlen_obs_arcsec, ylen_obs_arcsec)
+    print "  Shape ({0:.1f}, {1:.1f}) kpc".format(xlen_obs_kpc, ylen_obs_kpc)
+    print "  CygA at ({0}, {1}) pixels. Value = {2:2.2g}".format(xcenter_obs, ycenter_obs, maxcounts_obs)
+
+    # Eat the bestfit simulation snapshot
+    import parse
+    bestfit = "/Volumes/Cygnus/timoh/runs/20170115T0907/snaps/snapshot_147_009"
+    header, gas, dm = parse.toycluster_icfile(bestfit)
 
     boxsize = header["boxSize"]
     boxhalf = boxsize/2
-    nbins = int(numpy.sqrt(header["ndm"]))
 
-    import scipy
-    import peakutils
-    from scipy.ndimage.filters import gaussian_filter1d
-    # savgol = scipy.signal.savgol_filter(hist, 21, 5)
-    peaks = { "x": [], "y": [], "z": [] }
-    for dim in ["x", "y", "z"]:
-        hist, edges = numpy.histogram(dm[dim], bins=nbins, normed=True)
-        edges = (edges[:-1] + edges[1:])/2
-        hist_smooth = scipy.ndimage.filters.gaussian_filter1d(hist, 5)
-        spline = scipy.interpolate.splrep(edges, hist_smooth)
-        xval = numpy.arange(0, boxsize, 0.1)
-        hist_splev = scipy.interpolate.splev(xval, spline, der=0)
-        for ipeak in peakutils.indexes(hist_splev):
-            peaks[dim].append(xval[ipeak])
+    # Use Cluster instance to hold data. Toycluster parms needed for find_dm_centroid
+    from cluster import Cluster
+    c = Cluster(header)
+    c.set_header_properties()
+    # c.parms = parse.read_toycluster_parameterfile(glob.glob(simdir+"../ICs/*.par")[0])
+    c.parms = parse.read_toycluster_parameterfile(
+        "/Volumes/Cygnus/timoh/runs/20170115T0907/ICs/ic_both_free_cut_25.par")
 
-    from mpl_toolkits.mplot3d import Axes3D
-    fig = pyplot.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    # We now rotate the cluster to the best-fit rotation angles
+    # !! Domain [-boxhalf, boxhalf] for rotation matrices !!
+    gas["x"] -= boxhalf
+    gas["y"] -= boxhalf
+    gas["z"] -= boxhalf
+    dm["x"]  -= boxhalf
+    dm["y"]  -= boxhalf
+    dm["z"]  -= boxhalf
 
-    x =  gas["x"][ishock]
-    y =  gas["y"][ishock]
-    z =  gas["z"][ishock]
+    # This seems best-fit rotation angles
+    from rotate import apply_projection
+    EulAng = numpy.array([90, 51, 45])
+    gas, dm = apply_projection(EulAng, gas, dm)
 
-    c = ax.scatter(x, y, z, c=gas["mach"][ishock])
-    ax.scatter(peaks["x"][0], peaks["y"][0], peaks["z"][0], s=100, c="r")
-    ax.scatter(peaks["x"][1], peaks["y"][0], peaks["z"][0], s=100, c="r")
-    ax.set_xlim(peaks["x"][0]-350, peaks["x"][1]+350)
-    ax.set_ylim(peaks["y"][0]-350, peaks["y"][0]+350)
-    ax.set_zlim(peaks["z"][0]-350, peaks["z"][0]+350)
-    pyplot.colorbar(c)
+    # Now find centroids in rotated image to place cygA and fidicual
+    # cygA at same location in plot. !! Domain find_dm_centroid [0, boxSize] !!
+    gas["x"] += boxhalf
+    gas["y"] += boxhalf
+    gas["z"] += boxhalf
+    dm["x"]  += boxhalf
+    dm["y"]  += boxhalf
+    dm["z"]  += boxhalf
 
+    c.dm, c.gas = dm, gas
+    ImpactParam = c.parms["ImpactParam"]
+    c.parms["ImpactParam"] = 1337  # not 0.0
+    c.find_dm_centroid(single=False)
+    c.parms["ImpactParam"] = ImpactParam  # put back
+
+    xcenter_sim = c.centroid0[0]
+    ycenter_sim = c.centroid0[1]
+    zcenter_sim = c.centroid0[2]
+
+    print "Gadget3 Snapshot"
+    print "  CygA at ({0}, {1}, {2}).".format(xcenter_sim, ycenter_sim, zcenter_sim)
+
+    gas["x"] = gas["x"] - xcenter_sim + xcenter_obs*pix2kpc_obs
+    gas["y"] = gas["y"] - ycenter_sim + ycenter_obs*pix2kpc_obs
+    gas["z"] = gas["z"] - zcenter_sim + ycenter_obs*pix2kpc_obs
+    dm["x"] = dm["x"] - xcenter_sim + xcenter_obs*pix2kpc_obs
+    dm["y"] = dm["y"] - ycenter_sim + ycenter_obs*pix2kpc_obs
+    dm["z"] = dm["z"] - zcenter_sim + ycenter_obs*pix2kpc_obs
+
+    # Match the simulation and observation
+    zoomx = float(ylen_obs_pix) / xlen_obs_kpc
+    zoomy = float(xlen_obs_pix) / ylen_obs_kpc
+    shape_matched = scipy.ndimage.zoom(contour_smooth,  [1/zoomx, 1/zoomy], order=3)
+
+    # Now onto actually grabbing the shock
+    ishock, = numpy.where(
+          ((gas["x"] > 0.) & (gas["x"] < xlen_obs_kpc))
+        & ((gas["y"] > 0.) & (gas["y"] < ylen_obs_kpc))
+        & ((gas["z"] > 0.) & (gas["z"] < ylen_obs_kpc))
+        & (gas["mach"] > 1.1)
+    )
+
+    # And plotting a histogram of the shocked particles
+    fig, (ax1, ax2) = pyplot.subplots(1, 2, figsize=(16, 8))
+
+    hist, edges = numpy.histogram(gas["mach"][ishock], bins=16, normed=False)
+    edges = (edges[:-1] + edges[1:])/2
+    ax1.plot(edges, hist, drawstyle="steps-mid")
+    ax1.set_xlim(1.1, 2.5)
+    ax1.set_yscale("log")
+    ax1.set_ylabel("No. of SPH particles")
+    ax1.set_xlabel("Mach Number")
+
+    # And ofcourse we are also interested in finding where exactly the shock sits
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    # Simulation
+    norm = matplotlib.colors.LogNorm()
+    h, xe, ye = numpy.histogram2d(dm["x"], dm["y"], bins=2048)
+    im = ax2.pcolormesh(xe, ye, numpy.ma.masked_less_equal(h.T, 100),
+        cmap=colorcet.cm["linear_blue_95_50_c20"],
+        vmin=150, vmax=750, rasterized=True)
+
+    # And now we add the shock
+    ax2.plot(gas["x"][ishock], gas["y"][ishock], "rX", ms=5)
+
+    # Observation: contours
+    delta = 1
+    x = numpy.arange(0, xlen_obs_kpc, delta)
+    y = numpy.arange(0, int(ylen_obs_kpc), delta)
+    X, Y = numpy.meshgrid(y, x)
+    CS = ax2.contour(X, Y, numpy.log10(shape_matched.clip(10**-8.8)), 7,
+        colors="black", linestyles="solid", origin="lower")
+
+    # ax2.set_xlabel("x")
+    # ax2.set_ylabel("y")
+    ax2.set_xlim(0, xlen_obs_kpc)
+    ax2.set_ylim(0, ylen_obs_kpc)
+    ax2.set_xticks([], [])
+    ax2.set_yticks([], [])
+    ax2.set_aspect(1)
+    # divider = make_axes_locatable(ax2)
+    # cax = divider.append_axes("right", size="5%", pad=0.05)
+    # pyplot.colorbar(im, cax=cax, label="Dark Matter [arbitrary units]")
+    pyplot.tight_layout()
+    pyplot.savefig("out/shock.png", dpi=1200)
+    pyplot.savefig("out/shock.pdf")
 
 
 if __name__ == "__main__":
-    to_plot = [ 4 ]
+    to_plot = [ 8 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -1208,7 +1306,7 @@ if __name__ == "__main__":
         plot_simulated_wedges()
 
     if 8 in to_plot:
-        plot_mach_hist()
+        plot_mach_hist_and_shock_location("/Volumes/Cygnus/timoh")
 
     # Appendix
     if 1337 in to_plot:
