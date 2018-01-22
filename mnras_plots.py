@@ -312,12 +312,16 @@ def show_puffup():
             "elinewidth": 1, "label": "Merger, Chandra" }
     gas = { "linestyle": "solid", "color": "green", "linewidth": "2", "label": "Simulation, 230 Myr" }
     tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "Best-fit" }
+    tot_1Msec = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "Best-fit [1Msec]" }
 
     import main
     a = main.new_argument_parser().parse_args()
     a.data = "2Msec"
     a.do_cut = True; a.clustername = "both"
     cygA, cygNW = main.set_observed_clusters(a)
+
+    a.data = "1Msec"
+    cygA_1Msec, cygNW_1Msec = main.set_observed_clusters(a)
 
     from simulation import Simulation
     sim50 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0905", name="both",
@@ -328,12 +332,13 @@ def show_puffup():
     path_to_snaphot = sim.gadget.snapshots[snapnr]
     sim.set_gadget_snap_double(snapnr, path_to_snaphot)
 
-    for c in [cygA, cygNW]:
+    for c, c_1Msec in zip([cygA, cygNW], [cygA_1Msec, cygNW_1Msec]):
         fig = pyplot.figure()
         ax = pyplot.gca()
 
         c.plot_chandra_average(ax, parm="kT", style=avg)
         c.plot_inferred_temperature(ax, style=tot)
+        c_1Msec.plot_inferred_temperature(ax, style=tot_1Msec)
 
         halo = getattr(sim, "{0}{1}".format(c.name, snapnr), None)
         ax.plot(halo.gas["r"], halo.gas["kT"], rasterized=True, **gas)
@@ -1126,7 +1131,7 @@ def plot_mach_hist(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 1337 ]
+    to_plot = [ 4 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
