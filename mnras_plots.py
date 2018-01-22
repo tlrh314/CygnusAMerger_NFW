@@ -267,7 +267,7 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
 
     hydrostatic = ( scipy.ndimage.filters.gaussian_filter1d(cygA.HE_M_below_r, 1) /
                     scipy.ndimage.filters.gaussian_filter1d(cygNW.HE_M_below_r, 2) )
-    pyplot.plot(cygA.HE_radii * convert.cm2kpc, hydrostatic, c="k", ls="--", label="Wise+ 2018")
+    pyplot.plot(cygA.HE_radii * convert.cm2kpc, hydrostatic, c="k", ls="--", label="Hydrostatic")
 
     radii = cygA.ana_radii * convert.kpc2cm
     dark = cygA.M_dm(radii) / cygNW.M_dm(radii)
@@ -283,9 +283,9 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
     pyplot.axvline(cygNW.halo["r200"], ls="-", c="blue", lw=1, label="cygNW")
     pyplot.axvline(cygNW.halo["r500"], ls="-", c="blue", lw=1)
     trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
-    ax.text(0.97*cygA.halo["r200"], 0.98, r"$r_{200}$", ha="right", va="top",
+    ax.text(1.01*cygA.halo["r200"], 1, r"$r_{200}$", ha="right", va="bottom",
             fontsize=28, transform=trans)
-    ax.text(0.97*cygNW.halo["r500"], 0.98, r"$r_{500}$", ha="right", va="top",
+    ax.text(cygA.halo["r500"], 1, r"$r_{500}$", ha="right", va="bottom",
             fontsize=28, transform=trans)
 
     pyplot.xscale("log")

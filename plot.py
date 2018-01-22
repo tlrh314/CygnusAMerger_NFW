@@ -114,6 +114,59 @@ def chandra_coolingtime(c):
     pyplot.yscale("log")
     pyplot.savefig("out/{0}_cooling_time.pdf".format(c.name), dpi=150)
     pyplot.tight_layout()
+
+
+def delta_kT(cygA):
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 1, "alpha": 0.3,
+            "elinewidth": 1, "label": "avg"}
+    merger = { "marker": "o", "ls": "", "c": "g", "ms": 1, "alpha": 0.3,
+            "elinewidth": 1, "label": "merger" }
+
+    cygA.avg.mask = [False for i in range(len(cygA.avg.columns))]
+    cygA.merger.mask = [False for i in range(len(cygA.merger.columns))]
+    r_avg = cygA.avg["r"]
+    r_merger = cygA.merger["r"]
+
+    kT_avg = cygA.avg["kT"]
+    kT_merger = cygA.merger["kT"]
+
+    for k in range(1, 6):
+        for s in range(1, 16):
+            fig, (ax1, ax2) = pyplot.subplots(2, 1, figsize=(8, 10))
+
+            # k=3 --> cubic spline. s is some magical smoothing factor
+            average_spline = scipy.interpolate.UnivariateSpline(r_avg, numpy.array(kT_avg), k=3, s=s)
+            merger_spline = scipy.interpolate.UnivariateSpline(r_merger, numpy.array(kT_merger), k=3, s=s)
+
+            cygA.plot_chandra_sector(merger=True, parm="kT", ax=ax1, style=merger)
+            cygA.plot_chandra_average(parm="kT", ax=ax1, style=avg)
+
+            ax1.plot(cygA.avg["r"], average_spline(cygA.avg["r"]))
+            ax1.plot(cygA.avg["r"], merger_spline(cygA.avg["r"]))
+
+            ax1.set_xlim(9, 1000)
+            ax1.set_ylim(4, 12)
+            ax1.set_xscale("log")
+            ax1.set_xticks([10, 100, 1000])
+            ax1.set_xticklabels([r"$10^1$", r"$10^2$", r"$10^3$"])
+            ax1.set_ylabel("kT [keV]")
+
+
+            delta_kT = (merger_spline(cygA.avg["r"]) - average_spline(cygA.avg["r"]))
+            ax2.plot(cygA.avg["r"], delta_kT)
+
+            ax2.set_xlim(9, 1000)
+            ax2.set_ylim(0, 2.5)
+            ax2.set_xscale("log")
+            ax2.set_xticks([10, 100, 1000])
+            ax2.set_xticklabels([r"$10^1$", r"$10^2$", r"$10^3$"])
+            ax2.set_xlabel("R [kpc]")
+            ax2.set_ylabel(r"$\Delta$kT [keV]")
+
+            pyplot.savefig("out/cygA_delta_kT_k={0}_s={1:02d}.pdf".format(k, s))
+            pyplot.close()
+
+
 # ----------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------
