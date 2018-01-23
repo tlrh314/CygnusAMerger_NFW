@@ -48,17 +48,17 @@ def show_observations(cygA, cygNW):
     plot.smith_hydrostatic_mass(cygA, debug=True)
     plot.smith_hydrostatic_mass(cygNW, debug=True)
 
-    plot.inferred_temperature(cygA)
-    plot.inferred_temperature(cygNW)
+    # plot.inferred_temperature(cygA)
+    # plot.inferred_temperature(cygNW)
 
-    plot.inferred_pressure(cygA)
-    plot.inferred_pressure(cygNW)
+    # plot.inferred_pressure(cygA)
+    # plot.inferred_pressure(cygNW)
 
-    plot.donnert2014_figure1(cygA, verlinde=False)
-    plot.donnert2014_figure1(cygNW, verlinde=False)
+    # plot.donnert2014_figure1(cygA, verlinde=False)
+    # plot.donnert2014_figure1(cygNW, verlinde=False)
 
-    plot.donnert2014_figure1(cygA, verlinde=True)
-    plot.donnert2014_figure1(cygNW, verlinde=True)
+    # plot.donnert2014_figure1(cygA, verlinde=True)
+    # plot.donnert2014_figure1(cygNW, verlinde=True)
 
 
 def write_ics(cygA, cygNW):
@@ -124,23 +124,23 @@ def infer_toycluster_ics(a):
 def set_observed_cluster(a):
     if a.data == "2Msec":
         if a.clustername == "cygA":
-            if a.do_cut:
-                cNFW = 8.7967
-                bf = 0.0426
-                RCUT_R200_RATIO = 1122.2/1928.0
-            else:
-                cNFW = 10.5224
-                bf = 0.0893
+            if a.do_cut:  # TODO
+                cNFW = 1
+                bf = 1
+                RCUT_R200_RATIO = 1
+            else:  # TODO
+                cNFW = 1
+                bf = 1
                 RCUT_R200_RATIO = None
 
         if a.clustername == "cygNW":
-            if a.do_cut:
-                cNFW = 2.9736
-                bf = 0.0634
-                RCUT_R200_RATIO = 1614.2/1639.7
-            else:
-                cNFW = 4.4423
-                bf = 0.1037
+            if a.do_cut:  # TODO
+                cNFW = 1
+                bf = 1
+                RCUT_R200_RATIO = 1
+            else:  # TODO
+                cNFW = 1
+                bf = 1
                 RCUT_R200_RATIO = None
 
     else:
