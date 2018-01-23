@@ -61,12 +61,12 @@ class ObservedCluster(object):
                 print "INFO: CygA, 1Msec --> masking avg_for_plotting ",
                 self.avg_for_plotting = self.mask_bins(self.avg, first=2, last=2)  # MdV: data fit broke
                 print "INFO: CygA, 1Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=5, last=4)  # AGN rather than cluster
+                self.avg = self.mask_bins(self.avg, first=0, last=0)  # AGN rather than cluster
             if self.data == "2Msec":
                 print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
-                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
+                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=0)
                 print "INFO: CygA, 2Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=5, last=2)
+                self.avg = self.mask_bins(self.avg, first=0, last=0)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
             self.set_radius(self.merger)
@@ -91,23 +91,29 @@ class ObservedCluster(object):
                 self.cold = self.mask_bins(self.cold, first=0, last=4)
             if self.data == "2Msec":
                 print "INFO: CygA, 2Msec --> masking merger_for_plotting ",
-                self.merger_for_plotting = self.mask_bins(self.merger, first=0, last=1)
+                self.merger_for_plotting = self.mask_bins(self.merger, first=0, last=0)
                 print "INFO: CygA, 2Msec --> masking merger ",
-                self.merger = self.mask_bins(self.merger, first=0, last=1)
+                self.merger = self.mask_bins(self.merger, first=0, last=0)
                 print "INFO: CygA, 2Msec --> masking hot_for_plotting ",
-                self.hot_for_plotting = self.mask_bins(self.hot, first=0, last=1)
+                self.hot_for_plotting = self.mask_bins(self.hot, first=0, last=0)
                 print "INFO: CygA, 2Msec --> masking hot ",
-                self.hot = self.mask_bins(self.hot, first=0, last=1)
+                self.hot = self.mask_bins(self.hot, first=0, last=0)
                 print "INFO: CygA, 2Msec --> masking cold_for_plotting ",
-                self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=1)
+                self.cold_for_plotting = self.mask_bins(self.cold, first=0, last=0)
                 print "INFO: CygA, 2Msec --> masking cold ",
-                self.cold = self.mask_bins(self.cold, first=0, last=1)
+                self.cold = self.mask_bins(self.cold, first=0, last=0)
 
         if self.name == "cygNW":
-            self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
-            print "INFO: CygNW, 2Msec --> masking avg_for_plotting ",
-            self.avg = self.mask_bins(self.avg, first=0, last=1)
-            print "INFO: CygNW, 2Msec --> masking avg ",
+            if self.data == "1Msec":
+                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=0)
+                print "INFO: CygNW, 1Msec --> masking avg_for_plotting ",
+                self.avg = self.mask_bins(self.avg, first=0, last=0)
+                print "INFO: CygNW, 1Msec --> masking avg ",
+            if self.data == "2Msec":
+                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=0)
+                print "INFO: CygNW, 2Msec --> masking avg_for_plotting ",
+                self.avg = self.mask_bins(self.avg, first=0, last=0)
+                print "INFO: CygNW, 2Msec --> masking avg ",
 
         self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(5e4), 64))
 

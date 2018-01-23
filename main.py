@@ -491,7 +491,7 @@ if __name__ == "__main__":
 
             # plot.bestfit_betamodel(cygA)
             # plot.bestfit_betamodel(cygNW)
-            # show_observations(cygA, cygNW)
+            show_observations(cygA, cygNW)
 
         import sys; sys.exit(0)
 
