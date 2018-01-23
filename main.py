@@ -108,12 +108,12 @@ def infer_toycluster_ics(a):
                            RCUT_R200_RATIO=mle[2] if a.do_cut else None,
                            verbose=a.verbose, data=a.data)
 
-    mle, cis = fit.total_gravitating_mass_freecbf(
-        ObservedCluster(a.basedir, "cygNW", verbose=False, data=a.data),
-        do_cut=a.do_cut)
-    cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=mle[0], bf=mle[1],
-                            RCUT_R200_RATIO=mle[2] if a.do_cut else None,
-                            verbose=a.verbose, data=a.data)
+    # mle, cis = fit.total_gravitating_mass_freecbf(
+    #     ObservedCluster(a.basedir, "cygNW", verbose=False, data=a.data),
+    #     do_cut=a.do_cut)
+    # cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=mle[0], bf=mle[1],
+    #                         RCUT_R200_RATIO=mle[2] if a.do_cut else None,
+    #                         verbose=a.verbose, data=a.data)
 
     # write_ics(cygA, cygNW)
 
@@ -344,13 +344,17 @@ def find_and_plot_700_kpc(sim, verbose=False):
     print distances
 
 
-def compare_one_and_two_megaseconds():
+def compare_one_and_two_megaseconds(data_only=True):
     a.clusters = "both"
     a.data = "1Msec"
-    cygA_1Msec, cygNW_1Msec = set_observed_clusters(a)
+
+    obs = ObservedCluster(a.basedir, a.clustername, cNFW=cNFW, bf=bf,
+        RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose, data=a.data)
+
+    cygA_1Msec, cygNW_1Msec = set_observed_clusters(a, data_only=True)
 
     a.data = "2Msec"
-    cygA_2Msec, cygNW_2Msec = set_observed_clusters(a)
+    cygA_2Msec, cygNW_2Msec = set_observed_clusters(a, data_only=True)
 
     clusters = {
         "cygA": [cygA_1Msec, cygA_2Msec],
@@ -372,18 +376,22 @@ def compare_one_and_two_megaseconds():
 
             c.plot_chandra_average(ax0, parm="rho", style=avg)
             c.plot_bestfit_betamodel(ax0, style=gas, rho=True)
-            c.plot_inferred_nfw_profile(ax0, style=dm, rho=True)
+            if not data_only:
+                c.plot_inferred_nfw_profile(ax0, style=dm, rho=True)
 
             c.plot_bestfit_betamodel_mass(ax1, style=gas)
-            c.plot_inferred_nfw_mass(ax1, style=dm)
-            c.plot_inferred_total_gravitating_mass(ax1, style=tot)
+            if not data_only:
+                c.plot_inferred_nfw_mass(ax1, style=dm)
+                c.plot_inferred_total_gravitating_mass(ax1, style=tot)
             c.plot_hydrostatic_mass_err(ax1, style=avg)
 
             c.plot_chandra_average(ax2, parm="kT", style=avg)
-            c.plot_inferred_temperature(ax2, style=tot)
+            if not data_only:
+                c.plot_inferred_temperature(ax2, style=tot)
 
             c.plot_chandra_average(ax3, parm="P", style=avg)
-            c.plot_inferred_pressure(ax3, style=tot)
+            if not data_only:
+                c.plot_inferred_pressure(ax3, style=tot)
 
         ax0.set_yscale("log")
         ax0.set_ylim(1e-30, 1e-22)
@@ -394,6 +402,11 @@ def compare_one_and_two_megaseconds():
         ax3.set_ylim(1e-15, 5e-9)
 
         for ax, loc in zip([ax0, ax1, ax2, ax3], [3, 2, 3, 3]):
+            ax.set_xlabel("Radius [kpc]")
+            ax.set_xscale("log")
+            ax.set_xlim(0, 5000)
+            ax.legend(fontsize=18, loc=loc)
+            if data_only: continue
             ax.axvline(c.halo["r200"], c="k")
             # The y coordinates are axes while the x coordinates are data
             trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
@@ -402,10 +415,6 @@ def compare_one_and_two_megaseconds():
             ax.axvline(c.halo["r500"], c="k")
             ax.text(c.halo["r500"]-150, 0.98, r"$r_{500}$", ha="right", va="top",
                     fontsize=22, transform=trans)
-            ax.set_xlabel("Radius [kpc]")
-            ax.set_xscale("log")
-            ax.set_xlim(0, 5000)
-            ax.legend(fontsize=18, loc=loc)
         ax0.set_ylabel("Density [g/cm$^3$]")
         ax1.set_ylabel("Mass [MSun]")
         ax2.set_ylabel("Temperature [keV]")

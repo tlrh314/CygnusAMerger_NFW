@@ -53,7 +53,7 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
         bounds = [(None, None), (0.0, 1.0), (None, None)]
     if c.name == "cygNW":
         bounds = [(None, None), (0.0, 1.0), (None, None)]
-        parms=[0.1, 0.67, 200.0]
+        parms=[0.1, 0.67, 100.0 if c.data == "2Msec" else 100.0]
 
     # Minimise chi^2 to obtain best-fit parameters
     result = scipy.optimize.minimize(stat, parms,
@@ -310,12 +310,13 @@ def total_gravitating_mass_freecbf(c, do_cut=True, verbose=False):
             p0 = [5, 0.17] if not do_cut else [5, 0.17, 1.1]
             bounds = ((0, 0), (400, 0.25)) if not do_cut else ((0, 0, 0), (400, 0.25, 2))
     else:
+        # Set to 1.03Msec bestfit
         if c.name == "cygA":
-            p0 = [8.8, 0.08] if not do_cut else [5, 0.01, 0.27]
-            bounds = ((0, 0), (20, 0.25)) if not do_cut else ((0, 0, 0), (20, 0.25, 2))
+            p0 = [12.16, 0.0752] if not do_cut else [10.81, 0.0449, 1238.0/1651]
+            bounds = ((0, 0), (13, 0.25)) if not do_cut else ((0, 0, 0), (13, 0.25, 2))
         if c.name == "cygNW":
-            p0 = [4.4, 0.10] if not do_cut else [3, 0.07, 1.0]
-            bounds = ((0, 0), (20, 0.25)) if not do_cut else ((0, 0, 0), (20, 0.25, 2))
+            p0 = [4.842, 0.0535] if not do_cut else [3.693, 0.0358, 1678.0/1686]
+            bounds = ((0, 0), (13, 0.25)) if not do_cut else ((0, 0, 0), (13, 0.25, 2))
 
     c.fit_counter = 0
     ml_vals, ml_covar = scipy.optimize.curve_fit(lambda r, parm0, parm1, parm2=None:

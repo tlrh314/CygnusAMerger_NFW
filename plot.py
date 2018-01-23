@@ -312,7 +312,7 @@ def inferred_temperature(c):
     pyplot.tight_layout()
     cut = "_rcut={0:1.3f}".format(c.halo["rcut"]) if c.halo["rcut"] is not None else ""
     pyplot.savefig("out/{0}{1}_hydrostatic-temperature{2}_cNFW={3:.3f}_bf={4:.4f}{5}.png"
-       .format("fit/" if hasattr(c, "fit_counter") is not None else "", c.name,
+       .format("fit/{0}_{1}cut/".format(c.name, "" if c.rcut_kpc is not None else "un") if hasattr(c, "fit_counter") is not None else "", c.name,
                "_fit-{0:02d}".format(c.fit_counter) if hasattr(c, "fit_counter") else "",
                c.halo["cNFW"], c.halo["bf200"], cut), dpi=150)
     pyplot.close()
@@ -514,7 +514,7 @@ def donnert2014_figure1(c, add_sim=False, verlinde=False):
     else:
         fig.tight_layout()
         fig.savefig("out/{0}{1}_donnert2014figure1{2}_cNFW={3:.3f}_bf={4:.4f}{5}{6}.pdf"
-            .format("fit/" if hasattr(c, "fit_counter") else "", c.name,
+            .format("fit/{0}_{1}cut/".format(c.name, "" if c.rcut_kpc is not None else "un") if hasattr(c, "fit_counter") else "", c.name,
                     "_fit-{0:02d}".format(c.fit_counter) if hasattr(c, "fit_counter") else "",
                     c.halo["cNFW"], c.halo["bf200"], "_cut" if c.rcut_kpc is not None else "",
                     "_withVerlinde" if verlinde else ""), dpi=300)
