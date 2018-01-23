@@ -104,10 +104,12 @@ def sector_parm(c, parm="kT"):
 
 def chandra_coolingtime(c):
     """ @param c:  ObservedCluster """
-    Tcool = profiles.sarazin_coolingtime(c.avg["n"]/u.cm**3, c.avg["T"])
+    # array to make sure masked values are excluded
+    Tcool = profiles.sarazin_coolingtime(numpy.array(c.avg["n"])/u.cm**3,
+        numpy.array(c.avg["T"]))
 
     pyplot.figure(figsize=(12, 9))
-    pyplot.plot(c.avg["r"], Tcool)
+    pyplot.plot(numpy.array(c.avg["r"]), Tcool)
     pyplot.xlabel("Radius [kpc]")
     pyplot.ylabel("Cooling Time [yr]")
     pyplot.xscale("log")
