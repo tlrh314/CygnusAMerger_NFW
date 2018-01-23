@@ -440,7 +440,7 @@ def new_argument_parser():
         help="Compare 1Msec Chandra data with 2Msec Chandra data", default=False)
     args.add_argument("--best700", dest="find_700", action="store_true",
         help="Find bestfit 700 kpc snapshot", default=False)
-    args.add_argument("--data", dest="data", default="1Msec",
+    args.add_argument("--data", dest="data", default="2Msec",
         help="Exposuretime of Chandra observation", choices=["1Msec", "2Msec"])
     args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
         help="Toggle verbose. Verbose is True by default", default=True)
@@ -488,9 +488,10 @@ if __name__ == "__main__":
             plot.bestfit_betamodel(cygNW)
         if a.clustername == "both":
             cygA, cygNW = set_observed_clusters(a)
+
             # plot.bestfit_betamodel(cygA)
             # plot.bestfit_betamodel(cygNW)
-            show_observations(cygA, cygNW)
+            # show_observations(cygA, cygNW)
 
         import sys; sys.exit(0)
 

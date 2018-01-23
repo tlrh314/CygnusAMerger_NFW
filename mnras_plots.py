@@ -1212,6 +1212,7 @@ def plot_mach_hist_and_shock_location(base):
     X, Y = numpy.meshgrid(y, x)
     CS = ax2.contour(X, Y, numpy.log10(shape_matched.clip(10**-8.8)), 7,
         colors="black", linestyles="solid", origin="lower")
+    pyplot.clabel(CS, fontsize=16, inline=1, colors="black")
 
     # ax2.set_xlabel("x")
     # ax2.set_ylabel("y")
