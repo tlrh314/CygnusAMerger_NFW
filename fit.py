@@ -41,7 +41,7 @@ def stat(parms, x, y, dy):
     return chisq
 
 
-def betamodel_to_chandra(c, verbose=False):
+def betamodel_to_chandra(c, verbose=False, debug=True):
     """ Fit betamodel to Chandra observation. Beta is a free parameter.
         NB rcut is not a free parameter as it is induced for numerical reasons!
         @param c:  ObservedCluster
@@ -75,6 +75,33 @@ def betamodel_to_chandra(c, verbose=False):
     # Obtain MLEs using Scipy's curve_fit which gives covariance matrix
     ml_vals, ml_covar = scipy.optimize.curve_fit(profiles.gas_density_betamodel,
             c.avg["r"], c.avg["n"], p0=ml_vals, sigma=c.avg["fn"])
+
+    if debug:
+        print "DEBUG", ml_vals, ml_covar
+        avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
+                "elinewidth": 1, "label": "data ({0})".format(c.data) }
+
+        # pyplot.switch_backend("Qt5Agg")
+        fig, ax = pyplot.subplots(1, 1, figsize=(12, 9))
+        c.plot_chandra_average(parm="rho", ax=ax, style=avg)
+
+        # NB at this point still uncut betamodel!
+        pyplot.plot(c.ana_radii, profiles.gas_density_betamodel(c.ana_radii,
+            convert.ne_to_rho(result["x"][0]), result["x"][1], result["x"][2]),
+            label=r"minimise $\chi_2$")
+        pyplot.plot(c.ana_radii, profiles.gas_density_betamodel(c.ana_radii,
+            convert.ne_to_rho(ml_vals[0]), ml_vals[1], ml_vals[2]),
+            label="curvefit")
+
+        pyplot.xlabel("Radius (kpc)")
+        pyplot.ylabel("Density (gm/cm$^3$)")
+        pyplot.xscale("log")
+        pyplot.yscale("log")
+        pyplot.xlim(1, 900)
+        pyplot.ylim(1e-28, 2e-25)
+        pyplot.legend(loc="lower left")
+        pyplot.savefig("out/fit/DEBUG_{0}.pdf".format(c.name))
+        # pyplot.show()
 
     if not result["success"]:
         print "  scipy.optimize.curve_fit broke down!\n    Reason: '{0}'"\
