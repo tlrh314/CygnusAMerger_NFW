@@ -276,7 +276,7 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
 
     pyplot.plot(cygA.ana_radii, gas, c="k", ls=":", label="betamodel")
     pyplot.plot(cygA.ana_radii, dark, c="k", ls="-.", label="NFW")
-    pyplot.plot(cygA.ana_radii, tot, c="k", ls="-", label="NFW + betamdodel")
+    pyplot.plot(cygA.ana_radii, tot, c="k", ls="-", label="NFW + betamodel")
 
     pyplot.axvline(cygA.halo["r200"], ls="-", c="magenta", lw=1, label="cygA")
     pyplot.axvline(cygA.halo["r500"], ls="-", c="magenta", lw=1)
@@ -292,13 +292,11 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
     # pyplot.xlim(200, 1e4)
     # pyplot.ylim(0.5, 2.5)
     pyplot.xlim(60, 1.1*cygA.halo["r200"])
-    pyplot.ylim(1, 4)
+    pyplot.ylim(0.9, 12)
+    pyplot.yscale("log")
     pyplot.xlabel("Radius [kpc]", fontsize=32)
     pyplot.ylabel("Mass Ratio [CygA/CygNW]", fontsize=32)
-    if a.data == "1Msec":
-        pyplot.legend(loc="upper center", fontsize=24)
-    elif a.data == "2Msec":
-        pyplot.legend(loc="lower left", fontsize=24)
+    pyplot.legend(loc="upper center", fontsize=24)
 
     ax.tick_params(axis="both", which="both", top="on", right="on", labelsize=28)
     pyplot.tight_layout()
@@ -1212,7 +1210,7 @@ def plot_mach_hist_and_shock_location(base):
     X, Y = numpy.meshgrid(y, x)
     CS = ax2.contour(X, Y, numpy.log10(shape_matched.clip(10**-8.8)), 7,
         colors="black", linestyles="solid", origin="lower")
-    pyplot.clabel(CS, fontsize=16, inline=1, colors="black")
+    ax2.clabel(CS, fontsize=12, inline=1, colors="black")
 
     # ax2.set_xlabel("x")
     # ax2.set_ylabel("y")
@@ -1230,7 +1228,7 @@ def plot_mach_hist_and_shock_location(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 8 ]
+    to_plot = [ 3 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
