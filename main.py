@@ -349,10 +349,10 @@ def compare_one_and_two_megaseconds(data_only=False):
     a.clusters = "both"
     a.data = "1Msec"
 
-    cygA_1Msec, cygNW_1Msec = set_observed_clusters(a, data_only=True)
+    cygA_1Msec, cygNW_1Msec = set_observed_clusters(a, data_only=data_only)
 
     a.data = "2Msec"
-    cygA_2Msec, cygNW_2Msec = set_observed_clusters(a, data_only=True)
+    cygA_2Msec, cygNW_2Msec = set_observed_clusters(a, data_only=data_only)
 
     clusters = {
         "cygA": [cygA_1Msec, cygA_2Msec],
