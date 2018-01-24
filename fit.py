@@ -310,12 +310,11 @@ def total_gravitating_mass_freecbf(c, do_cut=True, verbose=False):
             p0 = [5, 0.17] if not do_cut else [5, 0.17, 1.1]
             bounds = ((0, 0), (400, 0.25)) if not do_cut else ((0, 0, 0), (400, 0.25, 2))
     else:
-        # Set to 1.03Msec bestfit
         if c.name == "cygA":
-            p0 = [12.16, 0.0752] if not do_cut else [10.81, 0.0449, 1238.0/1651]
+            p0 = [10.12, 0.134] if not do_cut else [7.728, 0.0417, 0.424]
             bounds = ((0, 0), (13, 0.25)) if not do_cut else ((0, 0, 0), (13, 0.25, 2))
         if c.name == "cygNW":
-            p0 = [4.842, 0.0535] if not do_cut else [3.693, 0.0358, 1678.0/1686]
+            p0 = [12.93, 0.139] if not do_cut else [11.96, 0.068, 0.684]
             bounds = ((0, 0), (13, 0.25)) if not do_cut else ((0, 0, 0), (13, 0.25, 2))
 
     c.fit_counter = 0
