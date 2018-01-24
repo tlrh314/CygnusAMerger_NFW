@@ -121,26 +121,26 @@ def infer_toycluster_ics(a):
 
 
 @profile
-def set_observed_cluster(a):
+def set_observed_cluster(a, data_only=False):
     if a.data == "2Msec":
         if a.clustername == "cygA":
-            if a.do_cut:  # TODO
-                cNFW = 1
-                bf = 1
-                RCUT_R200_RATIO = 1
-            else:  # TODO
-                cNFW = 1
-                bf = 1
+            if a.do_cut:
+                cNFW = 7.72835120076
+                bf = 0.0417487878748
+                RCUT_R200_RATIO = 0.424515806057
+            else:
+                cNFW = 10.1233949472
+                bf = 0.134946353996
                 RCUT_R200_RATIO = None
 
         if a.clustername == "cygNW":
-            if a.do_cut:  # TODO
-                cNFW = 1
-                bf = 1
-                RCUT_R200_RATIO = 1
-            else:  # TODO
-                cNFW = 1
-                bf = 1
+            if a.do_cut:
+                cNFW = 11.9673656131
+                bf = 0.0680557559699
+                RCUT_R200_RATIO = 0.684088470573
+            else:
+                cNFW = 12.935907514
+                bf = 0.139884527012
                 RCUT_R200_RATIO = None
 
     else:
@@ -165,17 +165,18 @@ def set_observed_cluster(a):
                 RCUT_R200_RATIO = None
 
     obs = ObservedCluster(a.basedir, a.clustername, cNFW=cNFW, bf=bf,
-        RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose, data=a.data)
+        RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose, data=a.data,
+        data_only=data_only)
 
     return obs
 
 
 @profile
-def set_observed_clusters(a):
+def set_observed_clusters(a, data_only=False):
     a.clustername = "cygA"
-    cygA = set_observed_cluster(a)
+    cygA = set_observed_cluster(a, data_only=data_only)
     a.clustername = "cygNW"
-    cygNW = set_observed_cluster(a)
+    cygNW = set_observed_cluster(a, data_only=data_only)
     a.clustername = "both"
     return cygA, cygNW
 
@@ -344,12 +345,9 @@ def find_and_plot_700_kpc(sim, verbose=False):
     print distances
 
 
-def compare_one_and_two_megaseconds(data_only=True):
+def compare_one_and_two_megaseconds(data_only=False):
     a.clusters = "both"
     a.data = "1Msec"
-
-    obs = ObservedCluster(a.basedir, a.clustername, cNFW=cNFW, bf=bf,
-        RCUT_R200_RATIO=RCUT_R200_RATIO, verbose=a.verbose, data=a.data)
 
     cygA_1Msec, cygNW_1Msec = set_observed_clusters(a, data_only=True)
 

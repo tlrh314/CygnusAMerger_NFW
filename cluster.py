@@ -28,7 +28,7 @@ from macro import *
 class ObservedCluster(object):
     """ Parse and store Chandra XVP (PI Wise) observation """
     def __init__(self, basedir, name, cNFW=None, bf=0.17, RCUT_R200_RATIO=None,
-                 verbose=True, debug=False, data="2Msec"):
+                 verbose=True, debug=False, data="2Msec", data_only=False):
         """ Read in the quiescent radial profiles of CygA/CygNW afer 1.03 Msec
             Chandra XVP observations (PI Wise). Data courtesy of M.N. de Vries.
             Files are copied over from Struis account martyndv.
@@ -124,15 +124,19 @@ class ObservedCluster(object):
         self.hydrostatic_mass_with_error()
 
         # M(<r) under assumption DM follows NFW
-        self.infer_NFW_mass(cNFW=cNFW, bf=bf, RCUT_R200_RATIO=RCUT_R200_RATIO,
-                            verbose=verbose, debug=debug)
-        if verbose: self.print_halo_properties()
+        if not data_only:
+            self.infer_NFW_mass(cNFW=cNFW, bf=bf, RCUT_R200_RATIO=RCUT_R200_RATIO,
+                verbose=verbose, debug=debug)
+        else:
+            self.rcut_cm = None
+            self.rcut_kpc = None
+        if verbose and not data_only: self.print_halo_properties()
 
         # Set callable gas/dm density/mass profiles, and total mass profile
         # self.set_inferred_profiles()
 
         # T(r) from hydrostatic equilibrium by plugging in rho_gas, M(<r)
-        self.set_inferred_temperature(verbose=verbose)
+        if not data_only: self.set_inferred_temperature(verbose=verbose)
 
     def __str__(self):
         return str(self.avg)
