@@ -49,18 +49,16 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
 
     # Set initial guess and bounds for both CygA and for CygNW
     if c.name == "cygA":
-        parms=[0.1, 0.67, 10]
-        bounds = [(None, None), (0.0, 1.0), (None, None)]
+        parms=[0.1, 0.5, 20]
+        bounds = [(0.0001, 0.3), (0.0, 1.0), (0, 50)]
     if c.name == "cygNW":
-        bounds = [(None, None), (0.0, 1.0), (None, None)]
+        bounds = [(0.0001, 0.3), (0.0, 1.0), (0, 250)]
         parms=[0.1, 0.67, 100.0 if c.data == "2Msec" else 100.0]
 
     # Minimise chi^2 to obtain best-fit parameters
     result = scipy.optimize.minimize(stat, parms,
-            args=(c.avg["r"], c.avg["n"], c.avg["fn"]),
-            method='L-BFGS-B', bounds=bounds)
-
-    print result
+            args=(numpy.array(c.avg["r"]), numpy.array(c.avg["n"]),
+                numpy.array(c.avg["fn"])), method='L-BFGS-B', bounds=bounds)
 
     ml_vals = result["x"]
     ml_func = result["fun"]
@@ -74,10 +72,13 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
 
     # Obtain MLEs using Scipy's curve_fit which gives covariance matrix
     ml_vals, ml_covar = scipy.optimize.curve_fit(profiles.gas_density_betamodel,
-            c.avg["r"], c.avg["n"], p0=ml_vals, sigma=c.avg["fn"])
+            numpy.array(c.avg["r"]), numpy.array(c.avg["n"]), p0=ml_vals,
+            sigma=numpy.array(c.avg["fn"]), method="trf", bounds=zip(*bounds))
+
+    print result["x"]
+    print ml_vals
 
     if debug:
-        print "DEBUG", ml_vals, ml_covar
         avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
                 "elinewidth": 1, "label": "data ({0})".format(c.data) }
 
@@ -100,7 +101,7 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
         pyplot.xlim(1, 900)
         pyplot.ylim(1e-28, 2e-25)
         pyplot.legend(loc="lower left")
-        pyplot.savefig("out/fit/DEBUG_{0}.pdf".format(c.name))
+        pyplot.savefig("out/fit/DEBUG_{0}_{1}.pdf".format(c.name, c.data))
         # pyplot.show()
 
     if not result["success"]:
@@ -128,6 +129,8 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
         print "    beta        = {0:.5f} +/- {1:.5f}".format(ml_vals[1], err[1])
         print "    r_c         = {0:.4f} +/- {1:.4f}".format(ml_vals[2], err[2])
         print
+
+    import sys; sys.exit(0)
 
     return ml_vals, err
 
