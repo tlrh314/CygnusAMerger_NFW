@@ -66,7 +66,7 @@ class ObservedCluster(object):
                 print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
                 self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
                 print "INFO: CygA, 2Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=1, last=9)
+                self.avg = self.mask_bins(self.avg, first=0, last=1)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
             self.set_radius(self.merger)
@@ -109,11 +109,12 @@ class ObservedCluster(object):
                 print "INFO: CygNW, 1Msec --> masking avg_for_plotting ",
                 self.avg = self.mask_bins(self.avg, first=0, last=1)
                 print "INFO: CygNW, 1Msec --> masking avg ",
-            if self.data == "2Msec":
-                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
-                print "INFO: CygNW, 2Msec --> masking avg_for_plotting ",
                 self.avg = self.mask_bins(self.avg, first=0, last=1)
+            if self.data == "2Msec":
+                print "INFO: CygNW, 2Msec --> masking avg_for_plotting ",
+                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=2)
                 print "INFO: CygNW, 2Msec --> masking avg ",
+                self.avg = self.mask_bins(self.avg, first=0, last=2)
 
         self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(5e4), 64))
 
@@ -537,10 +538,10 @@ class ObservedCluster(object):
                 rasterized=True, **style)
 
     def plot_hydrostatic_mass_err(self, ax, style=dict()):
-        style = { k: style[k] for k in style.keys() if k not in ["label", "c"] }
-        style["label"] = "data"
-        # style = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
-        #         "elinewidth": 0.5, "label": "data" }
+        # style = { k: style[k] for k in style.keys() if k not in ["label", "c"] }
+        # style["label"] = "data"
+        style = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
+                  "elinewidth": 0.5, "label": "data" }
 
         r = numpy.ma.getdata(self.avg_for_plotting["r"])
         fr = numpy.ma.getdata(self.avg_for_plotting["fr"])

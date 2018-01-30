@@ -53,7 +53,7 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
         bounds = [(0.0001, 0.3), (0.0, 1.0), (0, 50)]
     if c.name == "cygNW":
         bounds = [(0.0001, 0.3), (0.0, 1.0), (0, 250)]
-        parms=[0.1, 0.67, 100.0 if c.data == "2Msec" else 100.0]
+        parms=[0.001, 0.5, 100]
 
     # Minimise chi^2 to obtain best-fit parameters
     result = scipy.optimize.minimize(stat, parms,
@@ -75,8 +75,8 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
             numpy.array(c.avg["r"]), numpy.array(c.avg["n"]), p0=ml_vals,
             sigma=numpy.array(c.avg["fn"]), method="trf", bounds=zip(*bounds))
 
-    print result["x"]
-    print ml_vals
+    print result["x"], "(minimise chisq)"
+    print ml_vals, "(curve_fit)"
 
     if debug:
         avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1,
@@ -129,8 +129,6 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
         print "    beta        = {0:.5f} +/- {1:.5f}".format(ml_vals[1], err[1])
         print "    r_c         = {0:.4f} +/- {1:.4f}".format(ml_vals[2], err[2])
         print
-
-    import sys; sys.exit(0)
 
     return ml_vals, err
 

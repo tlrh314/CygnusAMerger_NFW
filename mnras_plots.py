@@ -55,7 +55,7 @@ def adjustable_cmap(lss):
     pyplot.show()
 
 
-def plot_mosaic(mosaic, cygA, cygNW, is_lss=False, is_kT=False):
+def plot_mosaic(mosaic, cygA, cygNW, is_lss=False, is_kT=False, data=None):
     """ Zoomin of the merger region with distance measure
         @param mosaic: path to the Chandra x-ray mosaic fits file
         @param cygA  : tuple with RA, dec of CygA centroid
@@ -137,18 +137,34 @@ def plot_mosaic(mosaic, cygA, cygNW, is_lss=False, is_kT=False):
         x96 = numpy.zeros(len(radii))
         y6 = numpy.zeros(len(radii))
         y96 = numpy.zeros(len(radii))
+        # For 2Msec dataset, cygNW 'merger' wedge-cutout is 120 deg, not 90 deg.
+        x171 = numpy.zeros(len(radii))
+        x291 = numpy.zeros(len(radii))
+        y171 = numpy.zeros(len(radii))
+        y291 = numpy.zeros(len(radii))
         for i, r in enumerate(radii):
-            x6[i] = r*numpy.cos(9*numpy.pi/180)
+            x6[i] = r*numpy.cos(6*numpy.pi/180)
             y6[i] = r*numpy.sin(6*numpy.pi/180)
-
             x96[i] = r*numpy.cos(96*numpy.pi/180)
             y96[i] = r*numpy.sin(96*numpy.pi/180)
+
+            x171[i] = r*numpy.cos(171*numpy.pi/180)
+            y171[i] = r*numpy.sin(171*numpy.pi/180)
+            x291[i] = r*numpy.cos(291*numpy.pi/180)
+            y291[i] = r*numpy.sin(291*numpy.pi/180)
 
         ax.plot(x6+cygA_x, y6+cygA_y, c="w", lw=2)
         ax.plot(x96+cygA_x, y96+cygA_y, c="w", lw=2)
 
-        ax.plot(-x6+cygNW_x, -y6+cygNW_y, c="w", lw=2, ls=":")
-        ax.plot(-x96+cygNW_x, -y96+cygNW_y, c="w", lw=2, ls=":")
+        if data == "1Msec":
+            ax.plot(-x6+cygNW_x, -y6+cygNW_y, c="w", lw=2, ls=":")
+            ax.plot(-x96+cygNW_x, -y96+cygNW_y, c="w", lw=2, ls=":")
+        elif data == "2Msec":
+            ax.plot(x171+cygNW_x, y171+cygNW_y, c="w", lw=2, ls=":")
+            ax.plot(x291+cygNW_x, y291+cygNW_y, c="w", lw=2, ls=":")
+        else:
+            print("ERROR")
+            sys.exit(1)
 
         for label in ax.get_ymajorticklabels() + ax.get_yminorticklabels():
             label.set_rotation_mode("anchor")
@@ -196,8 +212,8 @@ def plot_mosaic(mosaic, cygA, cygNW, is_lss=False, is_kT=False):
 
     pyplot.tight_layout()
     if not is_kT:
-        gc.save("out/mosaic_xray{0}.png".format("_lss" if is_lss else ""), dpi=300)
-        gc.save("out/mosaic_xray{0}.pdf".format("_lss" if is_lss else ""), dpi=300)
+        gc.save("out/mosaic_xray{0}_{1}.png".format("_lss" if is_lss else "", data), dpi=300)
+        gc.save("out/mosaic_xray{0}_{1}.pdf".format("_lss" if is_lss else "", data), dpi=300)
     else:
         gc.save("out/lss_kT_9.png", dpi=300)
         gc.save("out/lss_kT_9.pdf", dpi=300)
@@ -291,7 +307,7 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
     pyplot.xscale("log")
     # pyplot.xlim(200, 1e4)
     # pyplot.ylim(0.5, 2.5)
-    pyplot.xlim(60, 1.1*cygA.halo["r200"])
+    pyplot.xlim(43, 1.1*cygA.halo["r200"])
     pyplot.ylim(0.9, 12)
     pyplot.yscale("log")
     pyplot.xlabel("Radius [kpc]", fontsize=32)
@@ -310,16 +326,12 @@ def show_puffup():
             "elinewidth": 1, "label": "Merger, Chandra" }
     gas = { "linestyle": "solid", "color": "green", "linewidth": "2", "label": "Simulation, 230 Myr" }
     tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "Best-fit" }
-    tot_1Msec = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "Best-fit [1Msec]" }
 
     import main
     a = main.new_argument_parser().parse_args()
     a.data = "2Msec"
     a.do_cut = True; a.clustername = "both"
     cygA, cygNW = main.set_observed_clusters(a)
-
-    a.data = "1Msec"
-    cygA_1Msec, cygNW_1Msec = main.set_observed_clusters(a)
 
     from simulation import Simulation
     sim50 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0905", name="both",
@@ -330,13 +342,12 @@ def show_puffup():
     path_to_snaphot = sim.gadget.snapshots[snapnr]
     sim.set_gadget_snap_double(snapnr, path_to_snaphot)
 
-    for c, c_1Msec in zip([cygA, cygNW], [cygA_1Msec, cygNW_1Msec]):
+    for c in [cygA, cygNW]:
         fig = pyplot.figure()
         ax = pyplot.gca()
 
         c.plot_chandra_average(ax, parm="kT", style=avg)
         c.plot_inferred_temperature(ax, style=tot)
-        c_1Msec.plot_inferred_temperature(ax, style=tot_1Msec)
 
         halo = getattr(sim, "{0}{1}".format(c.name, snapnr), None)
         ax.plot(halo.gas["r"], halo.gas["kT"], rasterized=True, **gas)
@@ -371,7 +382,10 @@ def show_puffup():
         pyplot.close(fig)
 
 
-def plot_simulated_wedges():
+def plot_simulated_wedges(data=None):
+    if data is None:
+        print("ERROR"); sys.exit(1)
+
     from simulation import Simulation
     # sim50 = Simulation(base="/Volumes/Cygnus/timoh", timestamp="20170115T0905", name="both",
     #                  set_data=False)
@@ -388,7 +402,7 @@ def plot_simulated_wedges():
 
     import main
     a = main.new_argument_parser().parse_args()
-    a.data = "2Msec"
+    a.data = data
     a.do_cut = False; a.clustername = "both"
     cygA, cygNW = main.set_observed_clusters(a)
 
@@ -426,8 +440,12 @@ def plot_simulated_wedges():
                 ax = pyplot.gca()
                 for i, r in enumerate(radii):
                     print_progressbar(i, N)
-                    angle1 = 96 if name == "cygA" else 276
-                    angle2 = 6 if name == "cygA" else 186
+                    if a.data == "1Msec":  # cygNW wedge 90 deg
+                        angle1 = 96 if name == "cygA" else 276
+                        angle2 = 6 if name == "cygA" else 186
+                    elif a.data == "2Msec":  # cygNW wedge 120 deg
+                        angle1 = 96 if name == "cygA" else 291
+                        angle2 = 6 if name == "cygA" else 171
                     quiescent_mask = create_panda(sim.xlen, sim.ylen, xc, yc,
                                                   r, angle1, angle2)
                     quiescent_temperature[i] = convert.K_to_keV(
@@ -435,8 +453,12 @@ def plot_simulated_wedges():
                     quiescent_temperature_std[i] = convert.K_to_keV(
                         numpy.std(data[quiescent_mask]))
 
-                    angle1 = 6 if name == "cygA" else 186
-                    angle2 = 96 if name == "cygA" else 276
+                    if a.data == "1Msec":  # cygNW wedge 90 deg
+                        angle1 = 6 if name == "cygA" else 186
+                        angle2 = 96 if name == "cygA" else 276
+                    elif a.data == "2Msec":  # cygNW wedge 120 deg
+                        angle1 = 6 if name == "cygA" else 171
+                        angle2 = 96 if name == "cygA" else 291
                     merger_mask = create_panda(sim.xlen, sim.ylen, xc, yc,
                                                r, angle1, angle2)
                     merger_temperature[i] = convert.K_to_keV(
@@ -460,11 +482,11 @@ def plot_simulated_wedges():
                     c="g", lw=2, elinewidth=2, label="Merger, simulated")
 
                 # Save the data for MW
-                numpy.savetxt("out/CygAMergerDraft_Data_Figure7_Quiescent_{0}_TLRH.csv"\
-                    .format(name), zip(radii*sim.pixelscale, quiescent_temperature,
+                numpy.savetxt("out/CygAMergerDraft_Data_Figure7_Quiescent_{0}_TLRH_{1}.csv"\
+                    .format(name, a.data), zip(radii*sim.pixelscale, quiescent_temperature,
                         quiescent_temperature_std), delimiter=",")
-                numpy.savetxt("out/CygAMergerDraft_Data_Figure7_Merger_{0}_TLRH.csv"\
-                    .format(name), zip(radii*sim.pixelscale, merger_temperature,
+                numpy.savetxt("out/CygAMergerDraft_Data_Figure7_Merger_{0}_TLRH_{1}.csv"\
+                    .format(name, a.data), zip(radii*sim.pixelscale, merger_temperature,
                         merger_temperature_std), delimiter=",")
 
                 if name == "cygA":
@@ -475,12 +497,13 @@ def plot_simulated_wedges():
 
                 ax.set_yscale("linear")
                 ax.set_xscale("log")
-                ax.set_ylim(3.5, 12 if name=="cygA" else 10)
+                ax.set_ylim(0.5, 10)
                 ax.set_xlim(10 if name=="cygA" else 20, 900)
                 ax.set_xlabel("Radius [kpc]")
                 ax.set_ylabel("Temperature [keV]")
-                filename = "{0}_{1}_{2}_{3}_{4}.pdf".format(
-                    sim.timestamp, name, "0"+str((Xe_i+1)*25), snapnr, int(distance+0.5))
+                filename = "{0}_{1}_{2}_{3}_{4}_{5}.pdf".format(
+                    sim.timestamp, name, "0"+str((Xe_i+1)*25), snapnr,
+                    int(distance+0.5), a.data)
                 pyplot.legend(loc="upper left", fontsize=22)
                 pyplot.tight_layout()
                 pyplot.savefig("out/"+filename, dpi=300)
@@ -1228,7 +1251,7 @@ def plot_mach_hist_and_shock_location(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 3 ]
+    to_plot = [ 7 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )
@@ -1252,8 +1275,9 @@ if __name__ == "__main__":
 
     if 1 in to_plot:
         pyplot.rcParams.update( { "text.usetex": False, "font.size": 18 } )
-        plot_mosaic(lss, cygA, cygNW, is_lss=True)
-        plot_mosaic(lss_kT, cygA, cygNW, is_lss=False, is_kT=True)
+        plot_mosaic(lss, cygA, cygNW, is_lss=True, data="2Msec")
+        plot_mosaic(lss_kT, cygA, cygNW, is_lss=False, is_kT=True, data="2Msec")
+        plot_mosaic(lss, cygA, cygNW, is_lss=True, data="1Msec")
         pyplot.rcParams.update( { "text.usetex": True, "font.size": 28 } )
 
     if 2 in to_plot:
@@ -1302,7 +1326,8 @@ if __name__ == "__main__":
         plot_compton_y()
 
     if 7 in to_plot:
-        plot_simulated_wedges()
+        plot_simulated_wedges(data="1Msec")
+        plot_simulated_wedges(data="2Msec")
 
     if 8 in to_plot:
         plot_mach_hist_and_shock_location("/Volumes/Cygnus/timoh")
