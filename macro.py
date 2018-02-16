@@ -9,7 +9,6 @@ def p3(a):
     return ((a)*(a)*(a))
 
 def print_progressbar(i, N, whitespace=""):
-    # progressbar
     pbwidth = 42
 
     progress = float(i)/(N-1)
@@ -20,4 +19,4 @@ def print_progressbar(i, N, whitespace=""):
     sys.stdout.flush()
 
     if i == (N-1):
-        print " .. done"
+        print(" .. done")
