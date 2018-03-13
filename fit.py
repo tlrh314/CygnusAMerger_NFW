@@ -52,8 +52,8 @@ def betamodel_to_chandra(c, verbose=False, debug=True):
         parms=[0.1, 0.5, 20]
         bounds = [(0.0001, 0.3), (0.0, 1.0), (0, 50)]
     if c.name == "cygNW":
-        bounds = [(0.0001, 0.3), (0.0, 1.0), (0, 250)]
-        parms=[0.001, 0.5, 100]
+        bounds = [(0.0001, 0.3), (0.0, 1.0), (150, 300)]
+        parms=[0.003, 0.5, 200]
 
     # Minimise chi^2 to obtain best-fit parameters
     result = scipy.optimize.minimize(stat, parms,
