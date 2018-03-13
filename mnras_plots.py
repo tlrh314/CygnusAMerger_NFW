@@ -299,9 +299,9 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
     pyplot.axvline(cygNW.halo["r200"], ls="-", c="blue", lw=1, label="cygNW")
     pyplot.axvline(cygNW.halo["r500"], ls="-", c="blue", lw=1)
     trans = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
-    ax.text(1.01*cygA.halo["r200"], 1, r"$r_{200}$", ha="right", va="bottom",
+    ax.text(cygA.halo["r200"], 1, r"$r_{200}$", ha="center", va="bottom",
             fontsize=28, transform=trans)
-    ax.text(cygA.halo["r500"], 1, r"$r_{500}$", ha="right", va="bottom",
+    ax.text(cygA.halo["r500"], 1, r"$r_{500}$", ha="center", va="bottom",
             fontsize=28, transform=trans)
 
     pyplot.xscale("log")
@@ -310,6 +310,9 @@ def plot_mass_ratio(cygA, cygNW, cut=None):
     pyplot.xlim(43, 1.1*cygA.halo["r200"])
     pyplot.ylim(0.9, 12)
     pyplot.yscale("log")
+    pyplot.gca().set_yticks([1, 2, 4, 8])
+    pyplot.gca().set_yticklabels(["1", "2", "4", "8"])
+    pyplot.gca().tick_params(labeltop=False, labelright=True)
     pyplot.xlabel("Radius [kpc]", fontsize=32)
     pyplot.ylabel("Mass Ratio [CygA/CygNW]", fontsize=32)
     pyplot.legend(loc="upper center", fontsize=24)
@@ -497,7 +500,7 @@ def plot_simulated_wedges(data=None):
 
                 ax.set_yscale("linear")
                 ax.set_xscale("log")
-                ax.set_ylim(0.5, 10)
+                ax.set_ylim(0.5, 12 if name=="cygA" else 10)
                 ax.set_xlim(10 if name=="cygA" else 20, 900)
                 ax.set_xlabel("Radius [kpc]")
                 ax.set_ylabel("Temperature [keV]")
@@ -1251,7 +1254,7 @@ def plot_mach_hist_and_shock_location(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 7 ]
+    to_plot = [ 2 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )

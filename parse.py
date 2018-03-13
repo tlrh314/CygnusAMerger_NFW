@@ -13,7 +13,7 @@ from macro import p2
 # Parse Chandra observation: i) quiescent/non-merger; ii) sector analysis
 # ----------------------------------------------------------------------------
 def chandra_quiescent(basedir, name, data="2Msec"):
-    """ `quiescent', or average profile (data copied at 20161108, and 20180123) """
+    """ `quiescent', or average profile (data copied at 20161108, and 20180313) """
 
     # CAUTION, the data copied at 20171110 was processed with CIAO4.8. This version
     # suffers from inaccurate instrument model for the latest pointings, which resulting
@@ -21,8 +21,12 @@ def chandra_quiescent(basedir, name, data="2Msec"):
     # to show profiles too high by ~10%. The 20180123 dataset is processed with CIAO 4.9
     # and should not suffer from this issue... MdV 20170123, personal communication.
 
+    # CAUTION, the data copied at 20180123 suffers from an artifact of how the data
+    # is combined with net. effect that the normalization and density was underestimated
+    # for large bins. For details, see MdV (personal communication d.d. 20180309).
+
     if data == "2Msec":
-        datadir = basedir+"/CygnusAMerger_NFW/data/20180123/"
+        datadir = basedir+"/CygnusAMerger_NFW/data/20180313/"
         if name == "cygA":
             sb_file = datadir+"cygA_radial_mgrid/cygA_mergergrid_sbprofile_tlrh.dat"
             ne_file = datadir+"cygA_radial_mgrid/cygA_mergergrid_therm_profile_tlrh.dat"
@@ -64,22 +68,31 @@ def chandra_quiescent(basedir, name, data="2Msec"):
 
 
 def chandra_sectors(basedir, data="2Msec"):
-    """ hot/cold/merger profiles (data copied at 20161108, and 20180123) """
+    """ hot/cold/merger profiles (data copied at 20161108, and 20180313) """
 
     if data == "2Msec":
-        datadir = basedir+"/CygnusAMerger_NFW/data/20180123/"
+        datadir = basedir+"/CygnusAMerger_NFW/data/20180313/"
 
-        sb_file = datadir+"cygA_sectors_mgrid/cygnus_sector_mgrid_sbprofile_tlrh.dat"
+        sb_file = datadir+"cygA_sectors_mgrid/cygnus_merger_mgrid_sbprofile_tlrh.dat"
         sbresults = ascii.read(sb_file)
 
-        ne_file = datadir+"cygA_sectors_mgrid/cygnus_sector_mgrid_therm_profile_tlrh.dat"
+        ne_file = datadir+"cygA_sectors_mgrid/cygnus_merger_mgrid_therm_profile_tlrh.dat"
         header = ["Bin", "V", "kT", "fkT_lo", "fkT_hi", "n", "fn_lo", "fn_hi", "P", "fP_lo", "fP_hi", "Yparm"]
         neresults = ascii.read(ne_file, names=header, data_start=2)
 
         sector = astropy.table.hstack([sbresults, neresults])
         merger = sector[0:136]  # careful with indices when looking at raw data
-        hot = sector[136:272]   # astropy Table removes header, so off-by-one
-        cold = sector[272:]
+        # As of 20180313 dataset, the hold and cold region no longer sit in the
+        # same file as merger profile (cygnus_sector_therm_profile), but only the
+        # merger profile is available in cygnus_merger_therm_profile.
+        # CAUTION, I assumed the radii are the same.
+        # The file /scratch/martyndv/cygnus/combined/spectral/all_results/
+        # cygA_sectors_mgrid/cygnus_merger_mgrid_sbprofile_tlrh is not available
+        # so I adopted the radii from the 20180123 dataset...
+        # hot = sector[136:272]   # astropy Table removes header, so off-by-one
+        # cold = sector[272:]
+        hot = sector[137:]
+        cold = sector[137:]
 
         for t in [merger, hot, cold]:
             t["fn"] = 0.5 * ( t["fn_hi"]+t["fn_lo"] )

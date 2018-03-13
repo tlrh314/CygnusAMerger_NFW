@@ -31,6 +31,7 @@ def show_observations(cygA, cygNW):
         plot.quiescent_parm(cygA, parm)
         plot.quiescent_parm(cygNW, parm)
     for parm in ["n", "rho", "kT", "P"]:  # CygA only
+        if cygA.data == "2Msec": continue
         plot.sector_parm(cygA, parm)
 
     plot.chandra_coolingtime(cygA)
@@ -108,12 +109,12 @@ def infer_toycluster_ics(a):
                            RCUT_R200_RATIO=mle[2] if a.do_cut else None,
                            verbose=a.verbose, data=a.data)
 
-    # mle, cis = fit.total_gravitating_mass_freecbf(
-    #     ObservedCluster(a.basedir, "cygNW", verbose=False, data=a.data),
-    #     do_cut=a.do_cut)
-    # cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=mle[0], bf=mle[1],
-    #                         RCUT_R200_RATIO=mle[2] if a.do_cut else None,
-    #                         verbose=a.verbose, data=a.data)
+    mle, cis = fit.total_gravitating_mass_freecbf(
+        ObservedCluster(a.basedir, "cygNW", verbose=False, data=a.data),
+        do_cut=a.do_cut)
+    cygNW = ObservedCluster(a.basedir, "cygNW", cNFW=mle[0], bf=mle[1],
+                            RCUT_R200_RATIO=mle[2] if a.do_cut else None,
+                            verbose=a.verbose, data=a.data)
 
     # write_ics(cygA, cygNW)
 
@@ -496,8 +497,8 @@ if __name__ == "__main__":
         if a.clustername == "both":
             cygA, cygNW = set_observed_clusters(a)
 
-            # plot.bestfit_betamodel(cygA)
-            # plot.bestfit_betamodel(cygNW)
+            plot.bestfit_betamodel(cygA)
+            plot.bestfit_betamodel(cygNW)
             show_observations(cygA, cygNW)
 
         import sys; sys.exit(0)

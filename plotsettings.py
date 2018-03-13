@@ -50,6 +50,7 @@ class PlotSettings(object):
                 # "xtick.labelsize": 10,
                 # "ytick.labelsize": 10,
                 "text.usetex": True,
+                "text.latex.preamble": r"\usepackage{amsmath}",
                 # "text.latex.preamble": r"\boldmath",
                 # "axes.unicode_minus": True,
             }
@@ -94,7 +95,7 @@ class PlotSettings(object):
 
 if __name__ == "__main__":
     style = PlotSettings()
-    print style.params
+    print(style.params)
     import numpy
     x = numpy.arange(-10, 10, 0.1)
     pyplot.figure()

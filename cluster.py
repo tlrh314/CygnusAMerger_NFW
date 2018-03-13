@@ -66,7 +66,7 @@ class ObservedCluster(object):
                 print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
                 self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
                 print "INFO: CygA, 2Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=0, last=1)
+                self.avg = self.mask_bins(self.avg, first=1, last=5)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
             self.set_radius(self.merger)
@@ -112,9 +112,9 @@ class ObservedCluster(object):
                 self.avg = self.mask_bins(self.avg, first=0, last=1)
             if self.data == "2Msec":
                 print "INFO: CygNW, 2Msec --> masking avg_for_plotting ",
-                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=2)
+                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
                 print "INFO: CygNW, 2Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=0, last=2)
+                self.avg = self.mask_bins(self.avg, first=0, last=5)
 
         self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(5e4), 64))
 
@@ -484,15 +484,16 @@ class ObservedCluster(object):
                 ha="left", va="top", fontsize=22, transform=trans)
 
     def plot_bestfit_residuals(self, ax, rho=False):
-        fit = profiles.gas_density_betamodel(self.avg["r"],
+        # array to get rid of masked values
+        fit = profiles.gas_density_betamodel(numpy.array(self.avg["r"]),
             self.rho0 if rho else self.ne0, self.beta, self.rc)
 
-        residuals = (self.avg["n"] - fit)/self.avg["n"]
+        residuals = numpy.array((self.avg["n"] - fit)/self.avg["n"])
 
-        ax.errorbar(self.avg["r"], 100*residuals,
-                    yerr=100*self.avg["fn"]/self.avg["n"],
+        ax.errorbar(numpy.array(self.avg["r"]), 100*residuals,
+                    yerr=100*numpy.array(self.avg["fn"]/self.avg["n"]),
                     ls="", c="k", lw=3, elinewidth=1)
-        ax.errorbar(self.avg["r"], 100*residuals, c="k",
+        ax.errorbar(numpy.array(self.avg["r"]), 100*residuals, c="k",
                     lw=3, elinewidth=1, drawstyle="steps-mid")
         ax.axvline(x=self.rc, lw=3, ls="dashed", c="k")
 
