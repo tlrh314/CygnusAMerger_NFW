@@ -116,7 +116,7 @@ def infer_toycluster_ics(a):
                             RCUT_R200_RATIO=mle[2] if a.do_cut else None,
                             verbose=a.verbose, data=a.data)
 
-    # write_ics(cygA, cygNW)
+    write_ics(cygA, cygNW)
 
     return cygA, cygNW
 

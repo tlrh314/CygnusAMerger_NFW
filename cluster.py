@@ -64,9 +64,9 @@ class ObservedCluster(object):
                 self.avg = self.mask_bins(self.avg, first=0, last=1)  # AGN rather than cluster
             if self.data == "2Msec":
                 print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
-                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
+                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=5)
                 print "INFO: CygA, 2Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=20, last=5)
+                self.avg = self.mask_bins(self.avg, first=30, last=10)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
             self.set_radius(self.merger)
@@ -112,7 +112,7 @@ class ObservedCluster(object):
                 self.avg = self.mask_bins(self.avg, first=0, last=1)
             if self.data == "2Msec":
                 print "INFO: CygNW, 2Msec --> masking avg_for_plotting ",
-                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
+                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=5)
                 print "INFO: CygNW, 2Msec --> masking avg ",
                 self.avg = self.mask_bins(self.avg, first=0, last=5)
 
@@ -204,37 +204,31 @@ class ObservedCluster(object):
         self.avg["T"].mask = data_unmasked
         r = numpy.ma.compressed(self.avg["r"]*convert.kpc2cm)
         T = numpy.ma.compressed(self.avg["T"])
+
+        s = len(self.avg["T"])*numpy.var(self.avg["T"]) / 10
+        self.T_spline = scipy.interpolate.UnivariateSpline(r, T, s=s)
+        print "DEBUG: number of knots for T_spline", len(self.T_spline.get_knots())
+        self.HE_T = self.T_spline(self.HE_radii)
+        self.HE_dT_dr = self.T_spline.derivative()(self.HE_radii)
         self.avg["r"].mask = data_mask
         self.avg["T"].mask = data_mask
-
-        # Fit a smoothed cubic spline to the data. Spline then gives dkT/dr
-        if self.name == "cygA":
-            T = scipy.ndimage.filters.gaussian_filter1d(T, 25)  # sigma=25
-        elif self.name == "cygNW":
-            T = scipy.ndimage.filters.gaussian_filter1d(T, 7)  # sigma=7
-        self.T_spline = scipy.interpolate.splrep(r, T)  # built-in smoothing breaks
-
-        # Evaluate spline, der=0 for fit to the data and der=1 for first derivative.
-        self.HE_T = scipy.interpolate.splev(self.HE_radii, self.T_spline, der=0)
-        self.HE_dT_dr = scipy.interpolate.splev(self.HE_radii, self.T_spline, der=1)
 
         self.HE_M_below_r = profiles.smith_hydrostatic_mass(
             self.HE_radii, self.HE_ne, self.HE_dne_dr, self.HE_T, self.HE_dT_dr)
 
     def hydrostatic_mass_with_error(self):
+        s = len(self.avg["T"])*numpy.var(self.avg["T"]) / 10
+        T_spline = scipy.interpolate.UnivariateSpline(
+            self.avg["r"]*convert.kpc2cm, self.avg["T"], s=s)
+        print "DEBUG: number of knots for T_spline", len(T_spline.get_knots())
+        T_spline_plus = scipy.interpolate.UnivariateSpline(
+            self.avg["r"]*convert.kpc2cm,
+            self.avg["T"]+self.avg_for_plotting["fT"], s=s)
+        T_spline_min = scipy.interpolate.UnivariateSpline(
+            self.avg["r"]*convert.kpc2cm,
+            self.avg["T"]-self.avg_for_plotting["fT"], s=s)
+
         r = numpy.ma.compressed(self.avg_for_plotting["r"]*convert.kpc2cm)
-        T = numpy.ma.compressed(self.avg_for_plotting["T"])
-        T_plus = numpy.ma.compressed(self.avg_for_plotting["T"]+self.avg_for_plotting["fT"])
-        T_min = numpy.ma.compressed(self.avg_for_plotting["T"]-self.avg_for_plotting["fT"])
-
-        # Fit a smoothed cubic spline to the data. Spline then gives dkT/dr
-        T_smooth = gaussian_filter1d(T, 25 if self.name == "cygA" else 7)
-        T_smooth_plus = gaussian_filter1d(T_plus, 25 if self.name == "cygA" else 7)
-        T_smooth_min = gaussian_filter1d(T_min, 25 if self.name == "cygA" else 7)
-        T_spline = scipy.interpolate.splrep(r, T_smooth)
-        T_spline_plus = scipy.interpolate.splrep(r, T_smooth_plus)
-        T_spline_min = scipy.interpolate.splrep(r, T_smooth_min)
-
         n = profiles.gas_density_betamodel(r, self.ne0, self.beta, self.rc*convert.kpc2cm)
         dn_dr = profiles.d_gas_density_betamodel_dr(r, self.ne0, self.beta, self.rc*convert.kpc2cm)
 
@@ -266,14 +260,13 @@ class ObservedCluster(object):
             n_min[i] = n_err_min
             dn_min[i] = dn_err_min
 
-        # Evaluate spline, der=0 for fit to the data and der=1 for first derivative.
-        T = scipy.interpolate.splev(r, T_spline, der=0)
-        T_plus = scipy.interpolate.splev(r, T_spline_plus, der=0)
-        T_min = scipy.interpolate.splev(r, T_spline_min, der=0)
-        dT_dr = scipy.interpolate.splev(r, T_spline, der=1)
-        dT_plus = scipy.interpolate.splev(r, T_spline_plus, der=1)
-        dT_min = scipy.interpolate.splev(r, T_spline_min, der=1)
-
+        # Evaluate spline
+        T = T_spline(r)
+        T_plus = T_spline_plus(r)
+        T_min = T_spline_min(r)
+        dT_dr = T_spline.derivative()(r)
+        dT_plus = T_spline_plus.derivative()(r)
+        dT_min = T_spline_min.derivative()(r)
 
         M_below_r = profiles.smith_hydrostatic_mass(r, n, dn_dr, T, dT_dr)
         M_below_r_plus = numpy.zeros(len(n))

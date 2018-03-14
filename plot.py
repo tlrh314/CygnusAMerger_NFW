@@ -398,14 +398,14 @@ def smith_hydrostatic_mass(c, debug=False):
 
         if c.name == "cygA":
             ax0.set_ylim(1e-4, 2e-1)
-            ax1.set_ylim(-1e-24, 2e-26)
-            ax2.set_ylim(3e7, 1e8)
+            ax1.set_ylim(-2e-24, 3e-26)
+            ax2.set_ylim(1e7, 1e8)
             ax3.set_ylim(-0.8e-16, 3e-16)
         if c.name == "cygNW":
-            ax0.set_ylim(5e-5, 4e-3)
-            ax1.set_ylim(-3e-27, 1e-27)
-            ax2.set_ylim(3e7, 1e8)
-            ax3.set_ylim(-2e-17, 8e-19)
+            ax0.set_ylim(5e-5, 5e-3)
+            ax1.set_ylim(-4e-27, 1e-27)
+            ax2.set_ylim(1e7, 1e8)
+            ax3.set_ylim(-3e-17, 8e-19)
 
         for ax in [ax0, ax2]:  # show left
             ax.tick_params(labelleft=True, labelright=False)
@@ -417,7 +417,7 @@ def smith_hydrostatic_mass(c, debug=False):
             ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.0e"))
             ax.get_yaxis().set_label_coords(-0.12, 0.5)
 
-        pyplot.xlim(-2, 1100)
+        pyplot.xlim(-2, 4100)
         pyplot.tight_layout()
         pyplot.savefig("out/{0}_hydrostaticmass_debug.pdf".format(c.name), dpi=300)
         pyplot.close()
