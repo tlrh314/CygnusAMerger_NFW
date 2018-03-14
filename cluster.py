@@ -66,7 +66,7 @@ class ObservedCluster(object):
                 print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
                 self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=1)
                 print "INFO: CygA, 2Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=1, last=5)
+                self.avg = self.mask_bins(self.avg, first=20, last=5)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
             self.set_radius(self.merger)
@@ -188,7 +188,7 @@ class ObservedCluster(object):
             This does not make assumptions about the shape of the dark matter
             and this does not assume any temperature profile """
         # Hydrostatic mass equation eats cgs: feed the monster radii in cgs
-        mask = numpy.where(self.ana_radii < 1000)  # Take analytical radii up to 1 Mpc
+        mask = numpy.where(self.ana_radii < 5000)  # Take analytical radii up to 1 Mpc
         self.HE_radii = self.ana_radii[mask]*convert.kpc2cm
 
         # Betamodel /w number density and its derivative
@@ -198,8 +198,14 @@ class ObservedCluster(object):
             self.HE_radii, self.ne0, self.beta, self.rc*convert.kpc2cm)
 
         # Only use unmasked values b/c splrep/splev breaks for masked values
+        data_mask = self.avg["r"].mask
+        data_unmasked = numpy.array([False for i in data_mask])
+        self.avg["r"].mask = data_unmasked
+        self.avg["T"].mask = data_unmasked
         r = numpy.ma.compressed(self.avg["r"]*convert.kpc2cm)
         T = numpy.ma.compressed(self.avg["T"])
+        self.avg["r"].mask = data_mask
+        self.avg["T"].mask = data_mask
 
         # Fit a smoothed cubic spline to the data. Spline then gives dkT/dr
         if self.name == "cygA":
