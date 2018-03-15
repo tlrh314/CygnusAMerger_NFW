@@ -281,18 +281,12 @@ def temperature_wrapper(c, cNFW, bf, RCUT_R200_RATIO=None):
 
     # Use c.avg["r"] because chi^2 fitting with observed profile
     radii = c.avg["r"]; N = len(radii); temperature = numpy.zeros(N)
-    print(N)
-    print(radii.mask)
-    print(radii)
 
     infinity = 1e25
     for i, r in enumerate(radii * convert.kpc2cm):
         if not r: continue  # to skip masked values
         temperature[i] = profiles.hydrostatic_temperature(
             r, infinity, c.rho_gas, c.M_tot)
-
-    print(temperature)
-    sjenk = raw_input("Press sjenk to continue")
 
     # We also set the inferred temperature (with c.ana_radii) for plotting
     c.set_inferred_temperature(verbose=True)
@@ -346,7 +340,7 @@ if __name__ == "__main__":
     cygA, cygNW = infer_toycluster_ics(a)
     # cygA, cygNW = set_observed_clusters(a)
 
-    pyplot.switch_backend("Qt5Agg")
+    pyplot.switch_backend("agg")
     inferred_temperature(cygA)
     inferred_temperature(cygNW)
 

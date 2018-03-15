@@ -64,7 +64,7 @@ class ObservedCluster(object):
                 self.avg = self.mask_bins(self.avg, first=0, last=1)  # AGN rather than cluster
             if self.data == "2Msec":
                 print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
-                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=5)
+                self.avg_for_plotting = self.mask_bins(self.avg, first=30, last=10)
                 print "INFO: CygA, 2Msec --> masking avg ",
                 self.avg = self.mask_bins(self.avg, first=30, last=10)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
@@ -131,7 +131,8 @@ class ObservedCluster(object):
 
         # M_HE(<r) from ne_obs and T_obs alone
         self.infer_hydrostatic_mass()
-        self.hydrostatic_mass_with_error_mcmc()
+        # self.hydrostatic_mass_with_error_mcmc()
+        self.hydrostatic_mass_with_error()
 
         # Set callable gas/dm density/mass profiles, and total mass profile
         # self.set_inferred_profiles()
@@ -379,12 +380,15 @@ class ObservedCluster(object):
             fig3.savefig("out/{0}_debug_montecarlo_mass.png".format(self.name))
             pyplot.show()
 
-        print(self.avg["r"])
-        print(self.avg["T"])
-        print(self.avg_for_plotting["M_HE"])
-        # sjenk = raw_input("Press Sjenk to continue")
-
     def hydrostatic_mass_with_error(self):
+        data_mask = copy.copy(self.avg["r"].mask)
+        data_unmasked = numpy.array([False for i in data_mask])
+        self.avg["r"].mask = data_unmasked
+        self.avg["n"].mask = data_unmasked
+        self.avg["fn"].mask = data_unmasked
+        self.avg["T"].mask = data_unmasked
+        self.avg["fT"].mask = data_unmasked
+
         s = len(self.avg["T"])*numpy.var(self.avg["T"]) / 10
         T_spline = scipy.interpolate.UnivariateSpline(
             self.avg["r"]*convert.kpc2cm, self.avg["T"], s=s)
@@ -461,6 +465,13 @@ class ObservedCluster(object):
             M_below_r_plus*convert.g2msun)
         numpy.place(self.avg_for_plotting["M_HE_min"], ~self.avg_for_plotting["r"].mask,
                 M_below_r_min*convert.g2msun)
+
+        # Put back the original mask
+        self.avg["r"].mask = data_mask
+        self.avg["n"].mask = data_mask
+        self.avg["fn"].mask = data_mask
+        self.avg["T"].mask = data_mask
+        self.avg["fT"].mask = data_mask
 
     def infer_NFW_mass(self, cNFW=None, bf=0.17, RCUT_R200_RATIO=None,
                        verbose=False, debug=True):
