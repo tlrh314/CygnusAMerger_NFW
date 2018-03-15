@@ -64,9 +64,9 @@ class ObservedCluster(object):
                 self.avg = self.mask_bins(self.avg, first=0, last=1)  # AGN rather than cluster
             if self.data == "2Msec":
                 print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
-                self.avg_for_plotting = self.mask_bins(self.avg, first=30, last=10)
+                self.avg_for_plotting = self.mask_bins(self.avg, first=1, last=5)
                 print "INFO: CygA, 2Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=30, last=10)
+                self.avg = self.mask_bins(self.avg, first=1, last=5)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
             self.set_radius(self.merger)
