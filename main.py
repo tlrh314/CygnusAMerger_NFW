@@ -126,9 +126,9 @@ def set_observed_cluster(a, data_only=False):
     if a.data == "2Msec":
         if a.clustername == "cygA":
             if a.do_cut:
-                cNFW = 10.3726
-                bf = 0.1013
-                RCUT_R200_RATIO = 891.3/1618.3
+                cNFW = 7.1801
+                bf = 0.0701
+                RCUT_R200_RATIO = 854.7/1830.6
             else:
                 cNFW = 1337
                 bf = 1337
