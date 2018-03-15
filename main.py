@@ -129,9 +129,9 @@ def set_observed_cluster(a, data_only=False):
                 cNFW = 7.1801
                 bf = 0.0701
                 RCUT_R200_RATIO = 854.7/1830.6
-            else:
-                cNFW = 1337
-                bf = 1337
+            else:  # not sure how much I trust these results...
+                cNFW = 13.0000
+                bf = 0.2271
                 RCUT_R200_RATIO = None
 
         if a.clustername == "cygNW":
@@ -139,9 +139,9 @@ def set_observed_cluster(a, data_only=False):
                 cNFW = 2.8680
                 bf = 0.0735
                 RCUT_R200_RATIO = 986.1/1606.6
-            else:
-                cNFW = 1337
-                bf = 1337
+            else:  # not sure how much I trust these results...
+                cNFW = 5.0780
+                bf = 0.1879
                 RCUT_R200_RATIO = None
 
     else:
