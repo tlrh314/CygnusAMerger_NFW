@@ -182,6 +182,62 @@ def smith_centrally_decreasing_temperature(r, a, b, c):
     return a - b * numpy.exp(-1.0*r/c)
 
 
+def vikhlinin_double_betamodel(r, n0, r_core, beta, alpha, r_s, eps,
+        n02, r_core2, beta2, gamma=3):
+    """ Vikhlinin+ (2006; eq. 3)
+
+        All of our clusters can be fit adequately by this model with a fixed gamma=3.
+        All other parameters were free. The only constraint we used to exclude
+        unphysically sharp density breaks was eps < 5.
+
+        @param r      : radius [cm or kpc], float/array
+        @param n0     : central density of main_term [1/cm^3, g/cm^3, or MSun/kpc^3], float
+        @param r_core : core radius of main_term [cm or kpc], float
+        @param beta   : slope beta of main_term, float
+        @param alpha  : additional slope alpha of main_term, float
+        @param r_s    : scale radius at which profile transitions, [cm or kpc], float
+        @param eps    : change of slope by factor epsilon
+                     !! exclude unphysically sharp density breaks of epsilon < 5 !!
+        @param gamma  : slope parameter that controls width of transition region [fixed]
+        @param n02    : central density of core_term [1/cm^3, g/cm^3, or MSun/kpc^3], float
+        @param r_core2: core radius of core_term [cm or kpc], float
+        @param beta2  : slope beta of core_term, float
+        @param return : double betamodel (number) density, array """
+
+    core_term = n02**2/((1 + (r/r_core2)**2)**(3*beta2))
+
+    main_term = n0**2 * (r/r_core)**(-1.*alpha) /((1 + (r/r_core)**2)**(3*beta - 0.5*alpha))
+    transition = 1./((1 + (r/r_s)**gamma)**(eps/gamma))
+
+    nsq = core_term  + main_term *transition
+    n_model = numpy.sqrt(nsq)
+
+    return n_model
+
+
+def vikhlinin_double_betamodel_derivative(r, n0, r_core, beta, alpha, r_s, eps,
+        n02, r_core2, beta2, gamma=3):
+    pass
+
+
+def vikhlinin_temperature_model(r, t0, r_trans, a, b, c, t_min, r_cool, a_cool):
+    """ Vikhlinin+ (2006; eq. 6) """
+
+    x = (r/r_cool)**(a_cool)
+    core_term = (x + (t_min/t0)) / (x + 1.0)
+
+    y = (r/r_trans)
+    transition =  y**(-a) / (1.0 + y**b)**(c/b)
+
+    t_model = t0 * core_term * transition
+
+    return t_model
+
+
+def vikhlinin_temperature_model_derivative(r, t0, r_trans, a, b, c, t_min, r_cool, a_cool):
+    pass
+
+
 def smith_hydrostatic_mass(r, n, dn_dr, T, dT_dr):
     """ Smith+ (2002; eq. 3) Hydrostatic Mass from T(r), n_e(r)
         M(<r) = - k T(r) r^2/(mu m_p G) * (1/n_e * dn_e/dr + 1/T * dT/dr)
@@ -198,6 +254,8 @@ def smith_hydrostatic_mass(r, n, dn_dr, T, dT_dr):
     fac = - kB / (convert.umu * m_p * const.G.cgs.value)
 
     return fac * T*p2(r) * ( 1/n * dn_dr + 1/T * dT_dr )
+
+
 
 
 """ Standard analytical temperature profile from Donnert 2014.

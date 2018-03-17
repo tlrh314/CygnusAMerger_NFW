@@ -452,6 +452,8 @@ def new_argument_parser():
         help="Exposuretime of Chandra observation", choices=["1Msec", "2Msec"])
     args.add_argument("-v", "--verbose", dest="verbose", action="store_true",
         help="Toggle verbose. Verbose is True by default", default=True)
+    args.add_argument("-w", "--wise2018", dest="wise2018", action="store_true",
+        help="Toggle Wise2018 to fit Vikhlinin2006 equations to data", default=False)
     args.add_argument("-d", "--debug", dest="debug", action="store_true",
         help="Toggle debug. Debug is False by default", default=False)
     args.add_argument("-e", "--embed", dest="embed", action="store_true",
@@ -500,6 +502,20 @@ if __name__ == "__main__":
             plot.bestfit_betamodel(cygA)
             plot.bestfit_betamodel(cygNW)
             show_observations(cygA, cygNW)
+
+        import sys; sys.exit(0)
+
+    if a.wise2018:
+        if a.clustername == "cygA":
+            cygA = set_observed_cluster(a)
+        if a.clustername == "cygNW":
+            cygNW = set_observed_cluster(a)
+        if a.clustername == "both":
+            cygA, cygNW = set_observed_clusters(a)
+            fit.wise2018_temperature_and_density(cygA)
+            fit.wise2018_temperature_and_density(cygNW)
+            plot.wise2018_temperature_and_density(cygA)
+            plot.wise2018_temperature_and_density(cygNW)
 
         import sys; sys.exit(0)
 

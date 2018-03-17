@@ -64,9 +64,9 @@ class ObservedCluster(object):
                 self.avg = self.mask_bins(self.avg, first=0, last=1)  # AGN rather than cluster
             if self.data == "2Msec":
                 print "INFO: CygA, 2Msec --> masking avg_for_plotting ",
-                self.avg_for_plotting = self.mask_bins(self.avg, first=1, last=5)
+                self.avg_for_plotting = self.mask_bins(self.avg, first=0, last=6)
                 print "INFO: CygA, 2Msec --> masking avg ",
-                self.avg = self.mask_bins(self.avg, first=1, last=5)
+                self.avg = self.mask_bins(self.avg, first=0, last=6)
             self.merger, self.hot, self.cold = parse.chandra_sectors(
                 self.basedir, data=self.data)
             self.set_radius(self.merger)
@@ -189,7 +189,7 @@ class ObservedCluster(object):
             This does not make assumptions about the shape of the dark matter
             and this does not assume any temperature profile """
         # Hydrostatic mass equation eats cgs: feed the monster radii in cgs
-        mask = numpy.where(self.ana_radii < 5000)  # Take analytical radii up to 1 Mpc
+        mask = numpy.where(self.ana_radii < 1000)  # Take analytical radii up to 1 Mpc
         self.HE_radii = self.ana_radii[mask]*convert.kpc2cm
 
         # Betamodel /w number density and its derivative
@@ -207,6 +207,7 @@ class ObservedCluster(object):
         T = numpy.ma.compressed(self.avg["T"])
 
         s = len(self.avg["T"])*numpy.var(self.avg["T"]) / 10
+        s *= 9.5 if self.data == "1Msec" and self.name == "cygA" else s
         self.T_spline = scipy.interpolate.UnivariateSpline(r, T, s=s)
         print "DEBUG: number of knots for T_spline", len(self.T_spline.get_knots())
         self.HE_T = self.T_spline(self.HE_radii)
@@ -217,7 +218,7 @@ class ObservedCluster(object):
         self.HE_M_below_r = profiles.smith_hydrostatic_mass(
             self.HE_radii, self.HE_ne, self.HE_dne_dr, self.HE_T, self.HE_dT_dr)
 
-    def hydrostatic_mass_with_error_mcmc(self, debug=False, draw_max=100000):
+    def hydrostatic_mass_with_error_mcmc(self, debug=False, draw_max=10000):
         # Unmask the data to take into account all points.
         # When masking, the inner and outer points are omited (for physical
         # reasons), and unmasking them helps ensure the splite is smooth over the
@@ -390,6 +391,7 @@ class ObservedCluster(object):
         self.avg["fT"].mask = data_unmasked
 
         s = len(self.avg["T"])*numpy.var(self.avg["T"]) / 10
+        s *= 9.5 if self.data == "1Msec" and self.name == "cygA" else s
         T_spline = scipy.interpolate.UnivariateSpline(
             self.avg["r"]*convert.kpc2cm, self.avg["T"], s=s)
         print "DEBUG: number of knots for T_spline", len(T_spline.get_knots())

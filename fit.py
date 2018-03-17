@@ -328,6 +328,100 @@ def total_gravitating_mass_freecbf(c, do_cut=True, verbose=False):
     return ml_vals, numpy.sqrt(numpy.diag(ml_covar))
 
 
+def wise2018_density(c, verbose=True):
+    # wise2018 uses (cygA ->) observation[0:-6]; (cygNW ->) observation[0:-1]
+    if c.data == "1Msec":
+        print "wise2018_temperature_and_density not implemented for 1Msec"
+        if c.name == "cygA":
+            sys.exit(1)
+        if c.name == "cygNW":
+            sys.exit(1)
+    else:
+        if c.name == "cygA":
+            bounds = ([0, 0, 0, 0, 0, 0, 0, 0, 0], [10, 1000, 2, 3, 5000, 5, 10, 100, 10])
+            p0 = [
+                1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
+                800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
+            ]
+        if c.name == "cygNW":
+            bounds = ([0, 0, 0, 0, 0, 0, 0, 0, 0], [10, 1000, 2, 3, 5000, 5, 10, 100, 10])
+            p0 = [
+                1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
+                800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
+            ]
+
+    print c.avg["r"]
+    popt, pcov = scipy.optimize.curve_fit(
+        profiles.vikhlinin_double_betamodel, c.avg["r"], c.avg["n"],
+        bounds=bounds, p0=p0, sigma=c.avg["fn"],
+    )
+    c.popt, c.pcov = popt, pcov
+
+    if verbose:
+        print 'Parameters:'
+        print 'n0 = ', popt[0], numpy.sqrt(pcov[0,0])
+        print 'r_core = ', popt[1], numpy.sqrt(pcov[1,1])
+        print 'beta = ', popt[2], numpy.sqrt(pcov[2,2])
+        print 'alpha = ', popt[3], numpy.sqrt(pcov[3,3])
+        print 'r_s = ', popt[4], numpy.sqrt(pcov[4,4])
+        print 'eps = ', popt[5], numpy.sqrt(pcov[5,5])
+        print 'no2 = ', popt[6], numpy.sqrt(pcov[6,6])
+        print 'r_core2 = ', popt[7], numpy.sqrt(pcov[7,7])
+        print 'beta2 = ', popt[8], numpy.sqrt(pcov[8,8])
+
+
+        print popt
+        i = ([0,1,2,3,4,5,6,7,8])
+        print numpy.sqrt(pcov[i,i])
+
+
+def wise2018_temperature(c, verbose=True):
+    # wise2018 uses (cygA ->) observation[0:-6]; (cygNW ->) observation[0:-1]
+    if c.data == "1Msec":
+        print "wise2018_temperature_and_density not implemented for 1Msec"
+        if c.name == "cygA":
+            sys.exit(1)
+        if c.name == "cygNW":
+            sys.exit(1)
+    else:
+        if c.name == "cygA":
+            # TODO
+            # bounds = ([0, 0, 0, 0, 0, 0, 0, 0, 0], [10, 1000, 2, 3, 5000, 5, 10, 100, 10])
+            # p0 = [
+            #     1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
+            #     800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
+            # ]
+        if c.name == "cygNW":
+            # TODO
+            # bounds = ([0, 0, 0, 0, 0, 0, 0, 0, 0], [10, 1000, 2, 3, 5000, 5, 10, 100, 10])
+            # p0 = [
+            #     1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
+            #     800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
+            # ]
+
+    print c.avg["r"]
+    popt, pcov = scipy.optimize.curve_fit(
+        profiles.vikhlinin_double_betamodel, c.avg["r"], c.avg["n"],
+        bounds=bounds, p0=p0, sigma=c.avg["fn"],
+    )
+    c.popt, c.pcov = popt, pcov
+
+    if verbose:
+        print 'Parameters:'
+        print 't0 = ', popt[0], sqrt(pcov[0,0])
+        print 'r_trans = ', popt[1], sqrt(pcov[1,1])
+        print 'a = ', popt[2], sqrt(pcov[2,2])
+        print 'b = ', popt[3], sqrt(pcov[3,3])
+        print 'c = ', popt[4], sqrt(pcov[4,4])
+        print 't_min = ', popt[5], sqrt(pcov[5,5])
+        print 'r_cool = ', popt[6], sqrt(pcov[6,6])
+        print 'a_cool = ', popt[7], sqrt(pcov[7,7])
+
+        print popt
+        i = ([0,1,2,3,4,5,6,7])
+        print sqrt(pcov[i,i])
+
+
 if __name__ == "__main__":
     from main import new_argument_parser
     from main import infer_toycluster_ics
