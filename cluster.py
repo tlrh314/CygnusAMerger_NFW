@@ -397,7 +397,7 @@ class ObservedCluster(object):
 
         # And this business is to have HE_M_below_r evaluated at the same radii
         # for CygA and CygNW which allows us to take mass ratio
-        self.HE_radii = r_ana
+        self.HE_radii = r_ana * convert.kpc2cm
         self.HE_M_below_r = M_below_r_ana
 
     def hydrostatic_mass_with_error(self):
