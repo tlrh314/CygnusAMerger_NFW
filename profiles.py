@@ -217,7 +217,38 @@ def vikhlinin_double_betamodel(r, n0, r_core, beta, alpha, r_s, eps,
 
 def vikhlinin_double_betamodel_derivative(r, n0, r_core, beta, alpha, r_s, eps,
         n02, r_core2, beta2, gamma=3):
-    pass
+    # TODO: analytical expression for this derivative
+
+    # TODO: In here somewhere sits a bug :-D ....
+    # core_term = - (6*beta2*r*(r**2/r_core2**2 + 1)**(-3*beta2-1))/(r_core2**2)
+
+    # main + transition
+    # A = -(alpha*(r/r_core)**(-alpha -1) * (r**gamma * r_s**-gamma + 1)**(-eps/gamma) * (r**2/r_core**2 + 1)**(alpha/2 - 3*beta)) / (r_core)
+    # B = (2*r*(alpha/2 - 3*beta)*(r/r_core)**-alpha * (r**gamma * r_s**-gamma + 1)**(-eps/gamma) * (r**2/r_core**2 + 1)**(alpha/2 - 3*beta - 1) ) / (r_core**2)
+    # C = - (eps*r**(gamma-1) * r_s**-gamma * (r/r_core)**-alpha * (r**gamma * r_s**-gamma + 1)**(-eps/gamma - 1) * (r**2/r_core**2 + 1)**(alpha/2 - 3*beta) )
+    # denom = 2*numpy.sqrt((r/r_core)**-alpha * (r**gamma * r_s**-gamma + 1)**(-eps/gamma) * (r**2/r_core**2 + 1)**(alpha/2 - 2*beta))
+
+    # main_term = (A+B+C)/denom
+
+    # d_n_model_dr =  core_term + main_term
+    # print d_n_model_dr
+
+    # from matplotlib import pyplot
+    # pyplot.figure()
+    # pyplot.plot(r, d_n_model_dr, label="Sjenkie")
+    # TODO: ... so we cheat with numerical derivative :-D ....
+    magic = [scipy.misc.derivative(lambda rr: vikhlinin_double_betamodel(
+        rr, n0, r_core, beta, alpha, r_s, eps, n02, r_core2, beta2, gamma=gamma), ri)
+        for ri in r]
+    return magic
+    # pyplot.plot(r, magic , label="scipy")
+    # pyplot.legend()
+    # # pyplot.xscale("log")
+    # # pyplot.yscale("log")
+    # pyplot.show()
+
+    # print numpy.sqrt(fac*scipy.misc.derivative(lambda r: gas_mass_betamodel(
+    #    r, rho0, beta, rc), rmax))
 
 
 def vikhlinin_temperature_model(r, t0, r_trans, a, b, c, t_min, r_cool, a_cool):
@@ -235,7 +266,12 @@ def vikhlinin_temperature_model(r, t0, r_trans, a, b, c, t_min, r_cool, a_cool):
 
 
 def vikhlinin_temperature_model_derivative(r, t0, r_trans, a, b, c, t_min, r_cool, a_cool):
-    pass
+    # TODO: analytical expression for this derivative
+
+    magic = [scipy.misc.derivative(lambda rr: vikhlinin_temperature_model(
+        rr, t0, r_trans, a, b, c, t_min, r_cool, a_cool), ri)
+        for ri in r]
+    return magic
 
 
 def smith_hydrostatic_mass(r, n, dn_dr, T, dT_dr):
@@ -254,9 +290,6 @@ def smith_hydrostatic_mass(r, n, dn_dr, T, dT_dr):
     fac = - kB / (convert.umu * m_p * const.G.cgs.value)
 
     return fac * T*p2(r) * ( 1/n * dn_dr + 1/T * dT_dr )
-
-
-
 
 """ Standard analytical temperature profile from Donnert 2014.
 To avoid negative temperatures we define rmax*sqrt3 as outer radius """
@@ -365,3 +398,88 @@ def sarazin_coolingtime(n_p, T_g):
     """
 
     return 8.5e10*u.yr * (1e-3/u.cm**3)/n_p * numpy.sqrt(T_g/(1e8*u.K))
+
+
+def projected_volumes(r1, r2):
+    """ Stolen from MW, March 16, 2018 (personal communication) """
+    #
+    # Volume contribution from 3D shell i to 2d annulus j
+    #
+    #    Sum over i = total volume contribution to a given projected annulus j
+    #    Sum over j = total volume from a given spherical shell i
+    #
+    num = len( r2 )
+    vol_proj = np.empty(shape=[num, num])
+    vol_proj[:,:] = 0.0
+
+    #
+    # Calculate the squares and cubes once
+    #
+    r12 = r1 * r1
+    r13 = r1 * r1 * r1
+    r22 = r2 * r2
+    r23 = r2 * r2 * r2
+
+    #
+    # Volume contribution of 3D shell i to 2D annulus i
+    #
+    voldiag = (4.0* np.pi / 3.0) * r23                                 \
+              - 2.0 * ( np.pi * r12 * np.sqrt(r22-r12) )               \
+              - 2.0 * ( np.pi / 3.0 * (r2 - np.sqrt(r22-r12))**2       \
+              * ( 2.0*r2 + np.sqrt(r22-r12) ) )
+
+    #
+    # Do the outmost shell (which contributes only to the outermost annulus)
+    #
+    vol_proj[num-1,num-1] = voldiag[num-1]
+
+    #
+    # Start at the outer edge and step inward through the projected annuli
+    #
+    for j in range( num-1, -1, -1 ):
+
+        #
+        # Volume contribution of shell i to annulus j where i=j
+        #
+        vol_proj[j,j] = voldiag[j]
+
+        #
+        # Inner boundary of projected annulus j
+        #
+        rmin = r1[j]
+        rmin2 = r12[j]
+        rmin3 = r13[j]
+
+        #
+        # Loop over remaining outer spherical shells that contribute to projected annulus j
+        #
+        for i in range ( j+1, num, 1 ):
+
+            #
+            # Partial volume of the sphere containing shell i contributing to annuli j and larger
+            #
+            rmax = r2[i]
+            rmax2 = r22[i]
+            rmax3 = r23[i]
+
+            volmax = (4.0 * np.pi / 3.0) * rmax3                                    \
+                     - 2.0 * ( np.pi * rmin2 * np.sqrt(rmax2-rmin2) )               \
+                     - 2.0 * ( np.pi / 3.0 * (rmax - np.sqrt(rmax2-rmin2))**2       \
+                     * ( 2.0*rmax + np.sqrt(rmax2-rmin2) ) )
+
+            #
+            # Fraction of partial volume that falls outside projected annuli j
+            #
+            volout = np.sum ( vol_proj[:i+1,j+1:num] )
+
+            #
+            # Fraction of partial volume inside projected annulus j interior to shell i
+            #
+            volin = np.sum ( vol_proj[:i,j] )
+
+            #
+            # Remaining fraction is the volume from shell i contributing to annulus j
+            #
+            vol_proj[i,j] = volmax - volout - volin
+
+    return vol_proj

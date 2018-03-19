@@ -1254,7 +1254,7 @@ def plot_mach_hist_and_shock_location(base):
 
 
 if __name__ == "__main__":
-    to_plot = [ 2 ]
+    to_plot = [ 3 ]
 
     # Coordinates of the CygA and CygNW centroids
     cygA = ( 299.8669, 40.734496 )

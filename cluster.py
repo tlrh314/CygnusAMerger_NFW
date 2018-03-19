@@ -133,7 +133,7 @@ class ObservedCluster(object):
         # M_HE(<r) from ne_obs and T_obs alone
         self.infer_hydrostatic_mass()
         # self.hydrostatic_mass_with_error()
-        self.hydrostatic_mass_with_monte_carlo_error(draw_max=100)
+        self.hydrostatic_mass_with_monte_carlo_error(use_saved=True, draw_max=100)
 
         # Set callable gas/dm density/mass profiles, and total mass profile
         # self.set_inferred_profiles()
@@ -226,141 +226,179 @@ class ObservedCluster(object):
         self.HE_M_below_r = profiles.smith_hydrostatic_mass(
             self.HE_radii, self.HE_ne, self.HE_dne_dr, self.HE_T, self.HE_dT_dr)
 
-    def hydrostatic_mass_with_monte_carlo_error(self, debug=False, draw_max=10000):
-        return
-        use_all_bins = False
-        if use_all_bins:
-            data_mask = copy.copy(self.avg["r"].mask)
-            data_unmasked = numpy.array([False for i in data_mask])
-            self.avg["r"].mask = data_unmasked
-            self.avg["n"].mask = data_unmasked
-            self.avg["fn"].mask = data_unmasked
-            self.avg["kT"].mask = data_unmasked
-            self.avg["fkT"].mask = data_unmasked
-        r = numpy.ma.compressed(self.avg["r"])
-        n = numpy.ma.compressed(self.avg["n"])
-        fn = numpy.ma.compressed(self.avg["fn"])
-        kT = numpy.ma.compressed(self.avg["kT"])
-        fkT = numpy.ma.compressed(self.avg["fkT"])
+    def hydrostatic_mass_with_monte_carlo_error(self, use_saved=False, debug=False, draw_max=10000):
+        if not use_saved:
+            use_all_bins = False
+            if use_all_bins:
+                data_mask = copy.copy(self.avg["r"].mask)
+                data_unmasked = numpy.array([False for i in data_mask])
+                self.avg["r"].mask = data_unmasked
+                self.avg["n"].mask = data_unmasked
+                self.avg["fn"].mask = data_unmasked
+                self.avg["kT"].mask = data_unmasked
+                self.avg["fkT"].mask = data_unmasked
 
-        import time
-        start = time.time()
-        """ Here we sample draw_max random walks through the observed radial
-        profiles. At each radius, we draw Gaussian density and temperature
-        with mean=observed value, stdev=observed 1 sigma error """
-        print "Monte Carlo with {0} initialisations.".format(draw_max)
-        fake_data = scipy.stats.norm.rvs(
-            loc=(n, kT), scale=(fn, fkT),
-            size=(draw_max, 2, len(n))
-        )
-        print "Monte Carlo, did {0} initialisations. Runtime was: {1:.2f} s."\
-            .format(draw_max, time.time() - start)
+            r = numpy.ma.compressed(self.avg["r"])
+            n = numpy.ma.compressed(self.avg["n"])
+            fn = numpy.ma.compressed(self.avg["fn"])
+            kT = numpy.ma.compressed(self.avg["kT"])
+            fkT = numpy.ma.compressed(self.avg["fkT"])
 
-        if debug:
-            from matplotlib import pyplot
-            fig1, ax1 = pyplot.subplots(1, 1, figsize=(12,9))
-            avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 0.5,
-                    "elinewidth": 1, "label": "data" }
-            self.plot_chandra_average(parm="n", ax=ax1, style=avg)
-            ax1.plot(r, numpy.mean(fake_data[:,0], axis=0), "ko", ms=4)
-            ax1.set_xscale("log")
-            ax1.set_yscale("log")
-
-            fig2, ax2 = pyplot.subplots(1, 1, figsize=(12,9))
-            self.plot_chandra_average(parm="kT", ax=ax2, style=avg)
-            ax2.plot(r, numpy.mean(fake_data[:,1], axis=0), "ko", ms=4)
-            ax2.set_xscale("log")
-            ax2.set_yscale("log")
-
-        start = time.time()
-        fake_fit = numpy.zeros(fake_data.shape)
-        fake_fit_gradient = numpy.zeros(fake_data.shape)
-        for i in range(draw_max):
-            popt, pcov = fit.wise2018_density(self.name, r,
-                fake_data[:,0][i], fn=None, verbose=False)
-            fake_fit[:,0][i] = profiles.vikhlinin_double_betamodel(r, *popt)
-            fake_fit_gradient[:,0][i] = profiles.vikhlinin_double_betamodel_derivative(r, *popt)
-
-            popt, pcov = fit.wise2018_temperature(self.name, r,
-                fake_data[:,1][i], fkT=None, verbose=False)
-            fake_fit[:,1][i] = profiles.vikhlinin_temperature_model(r, *popt)
-            fake_fit_gradient[:,1][i] = profiles.vikhlinin_temperature_model_derivative(r, *popt)
+            import time
+            start = time.time()
+            """ Here we sample draw_max random walks through the observed radial
+            profiles. At each radius, we draw Gaussian density and temperature
+            with mean=observed value, stdev=observed 1 sigma error """
+            print "Monte Carlo with {0} initialisations.".format(draw_max)
+            fake_data = scipy.stats.norm.rvs(
+                loc=(n, kT), scale=(fn, fkT),
+                size=(draw_max, 2, len(n))
+            )
+            print "Monte Carlo, did {0} initialisations. Runtime was: {1:.2f} s."\
+                .format(draw_max, time.time() - start)
 
             if debug:
-                ax1.plot(r, fake_fit[:,0][i])
-                ax1.plot(r, fake_data[:,0][i], "ro", ms=2)
+                from matplotlib import pyplot
+                fig1, ax1 = pyplot.subplots(1, 1, figsize=(12,9))
+                avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 0.5,
+                        "elinewidth": 1, "label": "data" }
+                self.plot_chandra_average(parm="n", ax=ax1, style=avg)
+                ax1.plot(r, numpy.mean(fake_data[:,0], axis=0), "ko", ms=4)
+                ax1.set_xscale("log")
+                ax1.set_yscale("log")
 
-                ax2.plot(r, fake_fit[:,1][i])
-                ax2.plot(r, fake_data[:,1][i], "ro", ms=2)
+                fig2, ax2 = pyplot.subplots(1, 1, figsize=(12,9))
+                self.plot_chandra_average(parm="kT", ax=ax2, style=avg)
+                ax2.plot(r, numpy.mean(fake_data[:,1], axis=0), "ko", ms=4)
+                ax2.set_xscale("log")
+                ax2.set_yscale("log")
 
-            if not debug and (i == (draw_max-1) or i%100 == 0):
-                print_progressbar(i, draw_max)
+            start = time.time()
+            # evaluated at observed radii
+            fake_fit = numpy.zeros(fake_data.shape)
+            fake_fit_gradient = numpy.zeros(fake_data.shape)
+            print fake_fit_gradient.shape
+            # evaluated at ana_radii such that we can take ratio
+            mask = numpy.where(self.ana_radii < 3000)  # Take analytical radii up to 3 Mpc
+            r_ana = self.ana_radii[mask]
+            fake_fit_ana = numpy.zeros((draw_max, 2, len(r_ana)))
+            fake_fit_gradient_ana = numpy.zeros((draw_max, 2, len(r_ana)))
 
-            if i >= 1000 and debug:
-                break
-        print "Monte Carlo derivatives, did {0} 'data' initialisations. Runtime was: {1:.2f} s."\
-            .format(draw_max, time.time() - start)
+            for i in range(draw_max):
+                popt, pcov = fit.wise2018_density(self.name, r,
+                    fake_data[:,0][i], fn=None, verbose=False)
+                # observed radii
+                fake_fit[:,0][i] = profiles.vikhlinin_double_betamodel(r, *popt)
+                fake_fit_gradient[:,0][i] = profiles.vikhlinin_double_betamodel_derivative(r, *popt)
+                # analytical radii
+                fake_fit_ana[:,0][i] = profiles.vikhlinin_double_betamodel(r_ana, *popt)
+                fake_fit_gradient_ana[:,0][i] = profiles.vikhlinin_double_betamodel_derivative(r_ana, *popt)
 
-        start = time.time()
-        monte_carlo_mass = profiles.smith_hydrostatic_mass(r*convert.kpc2cm,
-            fake_fit[:,0], fake_fit_gradient[:,0],
-            convert.keV_to_K(fake_fit[:,1]), convert.keV_to_K(fake_fit_gradient[:,1])
-        )
+                popt, pcov = fit.wise2018_temperature(self.name, r,
+                    fake_data[:,1][i], fkT=None, verbose=False)
+                # observed radii
+                fake_fit[:,1][i] = profiles.vikhlinin_temperature_model(r, *popt)
+                fake_fit_gradient[:,1][i] = profiles.vikhlinin_temperature_model_derivative(r, *popt)
+                # analytical radii
+                fake_fit_ana[:,1][i] = profiles.vikhlinin_temperature_model(r_ana, *popt)
+                fake_fit_gradient_ana[:,1][i] = profiles.vikhlinin_temperature_model_derivative(r_ana, *popt)
 
-        M_below_r = numpy.average(monte_carlo_mass, axis=0)
-        M_below_r_std = numpy.std(monte_carlo_mass, axis=0)
-        M_below_r_plus = M_below_r_std
-        M_below_r_min = M_below_r_std
-        print "Mass calculation. Runtime was: {0:.2f} s.".format(time.time() - start)
+                if debug:
+                    ax1.plot(r, fake_fit[:,0][i])
+                    ax1.plot(r, fake_data[:,0][i], "ro", ms=2)
 
-        if use_all_bins:
-            # Put back the original mask
-            self.avg["r"].mask = data_mask
-            self.avg["n"].mask = data_mask
-            self.avg["fn"].mask = data_mask
-            self.avg["T"].mask = data_mask
-            self.avg["fT"].mask = data_mask
+                    ax2.plot(r, fake_fit[:,1][i])
+                    ax2.plot(r, fake_data[:,1][i], "ro", ms=2)
 
-        # Set the hydrostatic mass profile as class varibles
+                if not debug and (i == (draw_max-1) or i%100 == 0):
+                    print_progressbar(i, draw_max)
+
+                if i >= 1000 and debug:
+                    break
+            print "Monte Carlo derivatives, did {0} 'data' initialisations. Runtime was: {1:.2f} s."\
+                .format(draw_max, time.time() - start)
+
+            start = time.time()
+            monte_carlo_mass = profiles.smith_hydrostatic_mass(r*convert.kpc2cm,
+                fake_fit[:,0], fake_fit_gradient[:,0]/convert.kpc2cm,
+                convert.keV_to_K(fake_fit[:,1]),
+                convert.keV_to_K(fake_fit_gradient[:,1])/convert.kpc2cm
+            ) * convert.g2msun
+            monte_carlo_mass_ana = profiles.smith_hydrostatic_mass(r_ana*convert.kpc2cm,
+                fake_fit_ana[:,0], fake_fit_gradient_ana[:,0]/convert.kpc2cm,
+                convert.keV_to_K(fake_fit_ana[:,1]),
+                convert.keV_to_K(fake_fit_gradient_ana[:,1])/convert.kpc2cm
+            ) * convert.g2msun
+
+            M_below_r = numpy.average(monte_carlo_mass, axis=0)
+            M_below_r_std = numpy.std(monte_carlo_mass, axis=0)
+
+            numpy.savetxt("data/{0}_monte-carlo_mass_observed_radii.txt".format(self.name),
+                zip(r, M_below_r, M_below_r_std))
+            numpy.savetxt("data/{0}_monte-carlo_mass_analytical_radii.txt".format(self.name),
+                zip(r_ana, numpy.average(monte_carlo_mass_ana, axis=0),
+                numpy.std(monte_carlo_mass_ana, axis=0) ))
+            print "Mass calculation. Runtime was: {0:.2f} s.".format(time.time() - start)
+
+            if use_all_bins:
+                # Put back the original mask
+                self.avg["r"].mask = data_mask
+                self.avg["n"].mask = data_mask
+                self.avg["fn"].mask = data_mask
+                self.avg["T"].mask = data_mask
+                self.avg["fT"].mask = data_mask
+
+            if debug:
+                gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
+                dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
+                tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
+                fig3, ax3 = pyplot.subplots(1, 1, figsize=(12, 9))
+                self.plot_bestfit_betamodel_mass(ax3, style=gas)
+                self.plot_inferred_nfw_mass(ax3, style=dm)
+                self.plot_inferred_total_gravitating_mass(ax3, style=tot)
+                self.plot_hydrostatic_mass_err(ax3, style=avg)
+                ax3.set_xscale("log")
+                ax3.set_yscale("log")
+                ax3.set_ylim(1e5, 1e16)
+                ax3.set_xlim(1, 1e3)
+                ax3.plot(r[:,None], monte_carlo_mass.T, "ro")
+                ax3.plot(r, numpy.mean(monte_carlo_mass, axis=0), "ko", ms=4)
+
+                ax1.set_xlabel("Radius [kpc]")
+                ax1.set_ylabel("Density [g/cm$^{3}$]")
+                fig1.savefig("out/{0}_debug_montecarlo_density.png".format(self.name))
+
+                ax2.set_xlabel("Radius [kpc]")
+                ax2.set_ylabel("Temperature [K]")
+                fig2.savefig("out/{0}_debug_montecarlo_temperature.png".format(self.name))
+
+                ax3.plot(r, M_below_r, "go", ms=6)
+                ax3.set_xlabel("Radius [kpc]")
+                ax3.set_ylabel("Hydrostatic Mass [MSun]")
+                fig3.savefig("out/{0}_debug_montecarlo_mass.png".format(self.name))
+                pyplot.show()
+        else:
+            sjenk = numpy.loadtxt("data/{0}_monte-carlo_mass_observed_radii.txt".format(self.name))
+            r, M_below_r, M_below_r_std = sjenk[:,0], sjenk[:,1], sjenk[:,2]
+            sjenk = numpy.loadtxt("data/{0}_monte-carlo_mass_analytical_radii.txt".format(self.name))
+            r_ana, M_below_r_ana, M_below_r_std_ana = sjenk[:,0], sjenk[:,1], sjenk[:,2]
+
+        # Set the hydrostatic mass profile as class varibles... masked appropriately... :-)
+        # All this business is to plot the 'observed' mass profile
         self.avg_for_plotting["M_HE"] = numpy.zeros_like(self.avg_for_plotting["r"])
         self.avg_for_plotting["M_HE_plus"] = numpy.zeros_like(self.avg_for_plotting["r"])
         self.avg_for_plotting["M_HE_min"] = numpy.zeros_like(self.avg_for_plotting["r"])
-        numpy.place(self.avg_for_plotting["M_HE"], ~self.avg_for_plotting["r"].mask,
-            M_below_r*convert.g2msun)
-        numpy.place(self.avg_for_plotting["M_HE_plus"], ~self.avg_for_plotting["r"].mask,
-            M_below_r_plus*convert.g2msun)
-        numpy.place(self.avg_for_plotting["M_HE_min"], ~self.avg_for_plotting["r"].mask,
-                M_below_r_min*convert.g2msun)
+        numpy.place(self.avg_for_plotting["M_HE"],
+            ~self.avg_for_plotting["r"].mask, copy.copy(M_below_r))
+        numpy.place(self.avg_for_plotting["M_HE_plus"],
+            ~self.avg_for_plotting["r"].mask, copy.copy(M_below_r_std))
+        numpy.place(self.avg_for_plotting["M_HE_min"],
+            ~self.avg_for_plotting["r"].mask, copy.copy(M_below_r_std))
 
-        if debug:
-            gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
-            dm  = { "color": "k", "lw": 1, "linestyle": "dashed", "label": "dm" }
-            tot = { "color": "k", "lw": 1, "linestyle": "solid", "label": "tot" }
-            fig3, ax3 = pyplot.subplots(1, 1, figsize=(12, 9))
-            self.plot_bestfit_betamodel_mass(ax3, style=gas)
-            self.plot_inferred_nfw_mass(ax3, style=dm)
-            self.plot_inferred_total_gravitating_mass(ax3, style=tot)
-            self.plot_hydrostatic_mass_err(ax3, style=avg)
-            ax3.set_xscale("log")
-            ax3.set_yscale("log")
-            ax3.set_ylim(1e5, 1e16)
-            ax3.set_xlim(1, 1e3)
-            for i in range(min(draw_max, 1000)):
-                ax3.plot(r*convert.cm2kpc, mcmc_mass[i]*convert.g2msun, "ro")
-
-            ax1.set_xlabel("Radius [kpc]")
-            ax1.set_ylabel("Density [g/cm$^{3}$]")
-            fig1.savefig("out/{0}_debug_montecarlo_density.png".format(self.name))
-
-            ax2.set_xlabel("Radius [kpc]")
-            ax2.set_ylabel("Temperature [K]")
-            fig2.savefig("out/{0}_debug_montecarlo_temperature.png".format(self.name))
-
-            ax3.plot(r*convert.cm2kpc, M_below_r*convert.g2msun, "go", ms=6)
-            ax3.set_xlabel("Radius [kpc]")
-            ax3.set_ylabel("Hydrostatic Mass [MSun]")
-            fig3.savefig("out/{0}_debug_montecarlo_mass.png".format(self.name))
-            pyplot.show()
+        # And this business is to have HE_M_below_r evaluated at the same radii
+        # for CygA and CygNW which allows us to take mass ratio
+        self.HE_radii = r_ana
+        self.HE_M_below_r = M_below_r_ana
 
     def hydrostatic_mass_with_error(self):
         data_mask = copy.copy(self.avg["r"].mask)

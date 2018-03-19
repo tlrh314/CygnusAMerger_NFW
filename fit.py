@@ -332,20 +332,27 @@ def wise2018_density(name, r, n, fn=None, verbose=True):
     # wise2018 uses (cygA ->) observation[0:-6]; (cygNW ->) observation[0:-1]
     # parameter order: n0, r_core, beta, alpha, r_s, eps, n02, r_core2, beta2
     if name == "cygA":
-        bounds = ([0.01, 0, 0, 0, 0, 0, 0, 0, 0], [0.5, 1000, 2, 3, 5000, 5, 10, 100, 10])
+        bounds = (
+            [0.01, 50, 0.4, 0.8, 100, 0, 0, 50, 0],
+            [0.02, 1000, 0.6, 0.9, 5000, 0.5, 1, 200, 10]
+        )
         p0 = [
-            1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
-            800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
+            1.53701052e-02, 1.01100388e+02, 5.65440497e-01, 8.51902760e-01,
+            1.69438431e+03, 2.59891152e-25, 1.05588900e-01, 1.00000000e+02,
+            4.76093095e+00
         ]
     if name == "cygNW":
-        bounds = ([1e-4, 0, 0, 0, 0, 0, 0, 0, 0], [0.5, 1000, 2, 3, 5000, 5, 10, 100, 10])
+        bounds = (
+            [1e-4, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0.5, 1000, 2, 3, 5000, 5, 10, 100, 10]
+        )
         p0 = [
             4.46622459e-03, 5.04718012e+01, 1.24715942e-01, 3.19010619e-12,
             2.96843906e+02, 3.09192033e+00, 5.18557652e-01, 8.49890608e+00,
             7.61689001e+00
         ]
 
-    debug = True
+    debug = False
     if debug:
         print r
         print n
@@ -359,8 +366,15 @@ def wise2018_density(name, r, n, fn=None, verbose=True):
         ax.set_xscale("log")
         ax.set_yscale("log")
 
-    popt, pcov = scipy.optimize.curve_fit( profiles.vikhlinin_double_betamodel,
-        r, n, sigma=fn, bounds=bounds, p0=p0 )
+    try:
+        popt, pcov = scipy.optimize.curve_fit( profiles.vikhlinin_double_betamodel,
+            r, n, sigma=fn, bounds=bounds, p0=p0 )
+    except RuntimeError:
+        print "RuntimeError while fitting density to one of the monte carlo data initialisations"
+        popt = p0  # bad idea?
+        pcov = None
+        # Given sufficient MC samples, setting one or two fits that fail to
+        # the bestfit model should not affect propagated errors significantly?
 
     if debug:
         ax.plot(r, profiles.vikhlinin_double_betamodel(r, *popt), label="popt")
@@ -409,7 +423,7 @@ def wise2018_temperature(name, r, kT, fkT=None, verbose=True):
             5.00000000e+00, 3.62816411e+00, 6.03527184e+02, 5.00000000e+00
         ]
 
-    debug = True
+    debug = False
     if debug:
         print r
         print kT
@@ -423,8 +437,15 @@ def wise2018_temperature(name, r, kT, fkT=None, verbose=True):
         ax.set_xscale("log")
         ax.set_yscale("log")
 
-    popt, pcov = scipy.optimize.curve_fit( profiles.vikhlinin_temperature_model,
-        r, kT, sigma=fkT, bounds=bounds, p0=p0 )
+    try:
+        popt, pcov = scipy.optimize.curve_fit( profiles.vikhlinin_temperature_model,
+            r, kT, sigma=fkT, bounds=bounds, p0=p0 )
+    except RuntimeError:
+        print "RuntimeError while fitting temperature to one of the monte carlo data initialisations"
+        popt = p0  # bad idea?
+        pcov = None
+        # Given sufficient MC samples, setting one or two fits that fail to
+        # the bestfit model should not affect propagated errors significantly?
 
     if debug:
         ax.plot(r, profiles.vikhlinin_temperature_model(r, *popt), label="popt")
