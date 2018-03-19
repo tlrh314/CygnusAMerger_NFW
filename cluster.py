@@ -119,6 +119,7 @@ class ObservedCluster(object):
         self.ana_radii = numpy.power(10, numpy.linspace(numpy.log10(1), numpy.log10(5e4), 64))
 
         self.set_bestfit_betamodel(verbose=verbose)
+        self.set_wise2018_density_and_temperature(verbose=verbose)
 
         # M(<r) under assumption DM follows NFW
         if not data_only:
@@ -131,8 +132,8 @@ class ObservedCluster(object):
 
         # M_HE(<r) from ne_obs and T_obs alone
         self.infer_hydrostatic_mass()
-        # self.hydrostatic_mass_with_error_mcmc()
-        self.hydrostatic_mass_with_error()
+        # self.hydrostatic_mass_with_error()
+        self.hydrostatic_mass_with_monte_carlo_error(draw_max=100)
 
         # Set callable gas/dm density/mass profiles, and total mass profile
         # self.set_inferred_profiles()
@@ -183,6 +184,13 @@ class ObservedCluster(object):
         self.fbeta = fmles[1]
         self.frc = fmles[2]
 
+    def set_wise2018_density_and_temperature(self, verbose=False):
+        self.wise_n_popt, self.wise_n_pcov = fit.wise2018_density( self.name,
+            self.avg["r"], self.avg["n"], self.avg["fn"], verbose=verbose )
+
+        self.wise_kT_popt, self.wise_kT_pcov = fit.wise2018_temperature( self.name,
+            self.avg["r"], self.avg["kT"], self.avg["fkT"], verbose=verbose )
+
     def infer_hydrostatic_mass(self):
         """ From Chandra density and temperature we infer total gravitating mass
             under the assumption that hydrostatic equilibrium holds.
@@ -218,34 +226,31 @@ class ObservedCluster(object):
         self.HE_M_below_r = profiles.smith_hydrostatic_mass(
             self.HE_radii, self.HE_ne, self.HE_dne_dr, self.HE_T, self.HE_dT_dr)
 
-    def hydrostatic_mass_with_error_mcmc(self, debug=False, draw_max=10000):
-        # Unmask the data to take into account all points.
-        # When masking, the inner and outer points are omited (for physical
-        # reasons), and unmasking them helps ensure the splite is smooth over the
-        # interval of the final radial range that we are interested in. At and
-        # beyond the endpoints the spline does tend to 'go crazy', but that's fine
-        # because those are precisely the masked bins
-        data_mask = copy.copy(self.avg["r"].mask)
-        data_unmasked = numpy.array([False for i in data_mask])
-        self.avg["r"].mask = data_unmasked
-        self.avg["n"].mask = data_unmasked
-        self.avg["fn"].mask = data_unmasked
-        self.avg["T"].mask = data_unmasked
-        self.avg["fT"].mask = data_unmasked
-        r = numpy.ma.compressed(self.avg["r"]*convert.kpc2cm)
+    def hydrostatic_mass_with_monte_carlo_error(self, debug=False, draw_max=10000):
+        return
+        use_all_bins = False
+        if use_all_bins:
+            data_mask = copy.copy(self.avg["r"].mask)
+            data_unmasked = numpy.array([False for i in data_mask])
+            self.avg["r"].mask = data_unmasked
+            self.avg["n"].mask = data_unmasked
+            self.avg["fn"].mask = data_unmasked
+            self.avg["kT"].mask = data_unmasked
+            self.avg["fkT"].mask = data_unmasked
+        r = numpy.ma.compressed(self.avg["r"])
         n = numpy.ma.compressed(self.avg["n"])
         fn = numpy.ma.compressed(self.avg["fn"])
-        T = numpy.ma.compressed(self.avg["T"])
-        fT = numpy.ma.compressed(self.avg["fT"])
+        kT = numpy.ma.compressed(self.avg["kT"])
+        fkT = numpy.ma.compressed(self.avg["fkT"])
 
         import time
         start = time.time()
-        # Here we sample draw_max random walks through the observed radial
-        # profiles. At each radius, we draw Gaussian density and temperature
-        # with mean=observed value, stdev=observed 1 sigma error
+        """ Here we sample draw_max random walks through the observed radial
+        profiles. At each radius, we draw Gaussian density and temperature
+        with mean=observed value, stdev=observed 1 sigma error """
         print "Monte Carlo with {0} initialisations.".format(draw_max)
-        mcmc = scipy.stats.norm.rvs(
-            loc=(n, T), scale=(fn, fT),
+        fake_data = scipy.stats.norm.rvs(
+            loc=(n, kT), scale=(fn, fkT),
             size=(draw_max, 2, len(n))
         )
         print "Monte Carlo, did {0} initialisations. Runtime was: {1:.2f} s."\
@@ -257,61 +262,36 @@ class ObservedCluster(object):
             avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 0.5,
                     "elinewidth": 1, "label": "data" }
             self.plot_chandra_average(parm="n", ax=ax1, style=avg)
-            ax1.plot(r*convert.cm2kpc, numpy.mean(mcmc[:,0], axis=0), "ko", ms=4)
+            ax1.plot(r, numpy.mean(fake_data[:,0], axis=0), "ko", ms=4)
             ax1.set_xscale("log")
             ax1.set_yscale("log")
 
             fig2, ax2 = pyplot.subplots(1, 1, figsize=(12,9))
-            self.plot_chandra_average(parm="T", ax=ax2, style=avg)
-            ax2.plot(r*convert.cm2kpc, numpy.mean(mcmc[:,1], axis=0), "ko", ms=4)
+            self.plot_chandra_average(parm="kT", ax=ax2, style=avg)
+            ax2.plot(r, numpy.mean(fake_data[:,1], axis=0), "ko", ms=4)
             ax2.set_xscale("log")
             ax2.set_yscale("log")
 
         start = time.time()
-        mcmc_derivatives = numpy.zeros(mcmc.shape)
-        # We need to get the derivatives of n and T. The implementation now fits
-        # a sline to each mcmc initialisation which analytically gives a value
-        # of the derivative. The spline itself must be smooth to have a smooth
-        # function for the derivates which ultimately results in a smooth mass
-        # profile. The smoothness condition, however, is rather unphysical.
-        # If the spline for density has seven knots, the profile just seems to
-        # be smooth and the mass 'looks nice and smooth'. Perhaps better would be
-        # to fit a linear function between two radii (skipping one bin, for example)
-        # to more intuitively get a handle on the smoothing length and on the
-        # meaning of the derivative of the profile.
-        desired_knots_n = 7
-        desired_knots_T = 3
-        magic_n = 100 if self.name == "cygA" else 8
-        magic_T = 10 if self.name == "cygA" else 6
+        fake_fit = numpy.zeros(fake_data.shape)
+        fake_fit_gradient = numpy.zeros(fake_data.shape)
         for i in range(draw_max):
-            sn = len(mcmc[:,0][i]) * numpy.var(mcmc[:,0][i]) / magic_n
-            n_spline = scipy.interpolate.UnivariateSpline(r, mcmc[:,0][i], s=sn)
-            j = 0
-            while len(n_spline.get_knots()) != desired_knots_n:
-                j += 1
-                sn = sn*1.03 if len(n_spline.get_knots()) > desired_knots_n else sn/1.03
-                n_spline = scipy.interpolate.UnivariateSpline(r, mcmc[:,0][i], s=sn)
-                if j > 25: break
-            mcmc_derivatives[:,0][i] = n_spline.derivative()(r)
+            popt, pcov = fit.wise2018_density(self.name, r,
+                fake_data[:,0][i], fn=None, verbose=False)
+            fake_fit[:,0][i] = profiles.vikhlinin_double_betamodel(r, *popt)
+            fake_fit_gradient[:,0][i] = profiles.vikhlinin_double_betamodel_derivative(r, *popt)
 
-            sT = len(mcmc[:,1][i])*numpy.var(mcmc[:,1][i]) / magic_T
-            T_spline = scipy.interpolate.UnivariateSpline(r, mcmc[:,1][i], s=sT)
-            j = 0
-            while len(T_spline.get_knots()) != desired_knots_T:
-                j += 1
-                sT = sT*1.03 if len(T_spline.get_knots()) > desired_knots_T else sT/1.03
-                t_spline = scipy.interpolate.UnivariateSpline(r, mcmc[:,1][i], s=sT)
-                if j > 10: break
-            mcmc_derivatives[:,1][i] = n_spline.derivative()(r)
+            popt, pcov = fit.wise2018_temperature(self.name, r,
+                fake_data[:,1][i], fkT=None, verbose=False)
+            fake_fit[:,1][i] = profiles.vikhlinin_temperature_model(r, *popt)
+            fake_fit_gradient[:,1][i] = profiles.vikhlinin_temperature_model_derivative(r, *popt)
 
             if debug:
-                print "{0:>04d}\t{1:<15.2e}\t{2:>02d}\t{3:<15.2e}\t{4:>02d}"\
-                    .format(i, sn, len(n_spline.get_knots()), sT, len(T_spline.get_knots()))
-                ax1.plot(r*convert.cm2kpc, n_spline(r))
-                ax1.plot(r*convert.cm2kpc, mcmc[:,0][i], "ro", ms=2)
-                ax2.plot(r*convert.cm2kpc, T_spline(r))
+                ax1.plot(r, fake_fit[:,0][i])
+                ax1.plot(r, fake_data[:,0][i], "ro", ms=2)
 
-                ax2.plot(r*convert.cm2kpc, mcmc[:,1][i], "ro", ms=2)
+                ax2.plot(r, fake_fit[:,1][i])
+                ax2.plot(r, fake_data[:,1][i], "ro", ms=2)
 
             if not debug and (i == (draw_max-1) or i%100 == 0):
                 print_progressbar(i, draw_max)
@@ -322,23 +302,24 @@ class ObservedCluster(object):
             .format(draw_max, time.time() - start)
 
         start = time.time()
-        mcmc_mass = profiles.smith_hydrostatic_mass(r,
-            mcmc[:,0], mcmc_derivatives[:,0],
-            mcmc[:,1], mcmc_derivatives[:,1]
+        monte_carlo_mass = profiles.smith_hydrostatic_mass(r*convert.kpc2cm,
+            fake_fit[:,0], fake_fit_gradient[:,0],
+            convert.keV_to_K(fake_fit[:,1]), convert.keV_to_K(fake_fit_gradient[:,1])
         )
 
-        M_below_r = numpy.average(mcmc_mass, axis=0)
-        M_below_r_std = numpy.std(mcmc_mass, axis=0)
+        M_below_r = numpy.average(monte_carlo_mass, axis=0)
+        M_below_r_std = numpy.std(monte_carlo_mass, axis=0)
         M_below_r_plus = M_below_r_std
         M_below_r_min = M_below_r_std
         print "Mass calculation. Runtime was: {0:.2f} s.".format(time.time() - start)
 
-        # Put back the original mask
-        self.avg["r"].mask = data_mask
-        self.avg["n"].mask = data_mask
-        self.avg["fn"].mask = data_mask
-        self.avg["T"].mask = data_mask
-        self.avg["fT"].mask = data_mask
+        if use_all_bins:
+            # Put back the original mask
+            self.avg["r"].mask = data_mask
+            self.avg["n"].mask = data_mask
+            self.avg["fn"].mask = data_mask
+            self.avg["T"].mask = data_mask
+            self.avg["fT"].mask = data_mask
 
         # Set the hydrostatic mass profile as class varibles
         self.avg_for_plotting["M_HE"] = numpy.zeros_like(self.avg_for_plotting["r"])

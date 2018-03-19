@@ -225,13 +225,14 @@ def bestfit_betamodel(c):
 
 
 def wise2018_temperature_and_density(c):
+    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 1, "label": "data" }
+    gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
+
     new_r  = numpy.arange(1, 1500, 1)
 
     fig, ax = pyplot.subplots(1, 1, figsize=(12, 9))
-    ax.plot(new_r, profiles.vikhlinin_double_betamodel(new_r, *c.popt), c='red', zorder=3)
 
-    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 1, "label": "data" }
-    gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
+    ax.plot(new_r, profiles.vikhlinin_double_betamodel(new_r, *c.wise_n_popt), c='red', zorder=3)
     c.plot_chandra_average(ax, parm="n", style=avg)
     # c.plot_bestfit_betamodel(ax, style=gas, rho=True)
     ax.set_xlim(10, 1000)
@@ -239,23 +240,20 @@ def wise2018_temperature_and_density(c):
     ax.set_yscale("log")
     ax.set_xlabel("Radius [kpc]")
     ax.set_ylabel(r"$n_e$ [cm$^{-3}$")
-    fig.savefig("out/wise2018_density.png")
-    fig.close()
+    fig.savefig("out/{0}_wise2018_density.png".format(c.name))
+    pyplot.close(fig)
 
     fig, ax = pyplot.subplots(1, 1, figsize=(12, 9))
-    ax.plot(new_r, profiles.vikhlinin_double_betamodel(new_r, *c.popt), c='red', zorder=3)
+    ax.plot(new_r, profiles.vikhlinin_temperature_model(new_r, *c.wise_kT_popt), c='red', zorder=3)
 
-    avg = { "marker": "o", "ls": "", "c": "b", "ms": 4, "alpha": 1, "elinewidth": 1, "label": "data" }
-    gas = { "color": "k", "lw": 1, "linestyle": "dotted", "label": "gas" }
-    c.plot_chandra_average(ax, parm="n", style=avg)
-    # c.plot_bestfit_betamodel(ax, style=gas, rho=True)
+    c.plot_chandra_average(ax, parm="kT", style=avg)
     ax.set_xlim(10, 1000)
+    ax.set_ylim(1, 9)
     ax.set_xscale("log")
-    ax.set_yscale("log")
     ax.set_xlabel("Radius [kpc]")
     ax.set_ylabel(r"kT [keV]")
-    fig.savefig("out/wise2018_temperature.png")
-    fig.close()
+    fig.savefig("out/{0}_wise2018_temperature.png".format(c.name))
+    pyplot.close(fig)
 
 
 def inferred_nfw_profile(c):

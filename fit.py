@@ -328,34 +328,44 @@ def total_gravitating_mass_freecbf(c, do_cut=True, verbose=False):
     return ml_vals, numpy.sqrt(numpy.diag(ml_covar))
 
 
-def wise2018_density(c, verbose=True):
+def wise2018_density(name, r, n, fn=None, verbose=True):
     # wise2018 uses (cygA ->) observation[0:-6]; (cygNW ->) observation[0:-1]
-    if c.data == "1Msec":
-        print "wise2018_temperature_and_density not implemented for 1Msec"
-        if c.name == "cygA":
-            sys.exit(1)
-        if c.name == "cygNW":
-            sys.exit(1)
-    else:
-        if c.name == "cygA":
-            bounds = ([0, 0, 0, 0, 0, 0, 0, 0, 0], [10, 1000, 2, 3, 5000, 5, 10, 100, 10])
-            p0 = [
-                1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
-                800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
-            ]
-        if c.name == "cygNW":
-            bounds = ([0, 0, 0, 0, 0, 0, 0, 0, 0], [10, 1000, 2, 3, 5000, 5, 10, 100, 10])
-            p0 = [
-                1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
-                800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
-            ]
+    # parameter order: n0, r_core, beta, alpha, r_s, eps, n02, r_core2, beta2
+    if name == "cygA":
+        bounds = ([0.01, 0, 0, 0, 0, 0, 0, 0, 0], [0.5, 1000, 2, 3, 5000, 5, 10, 100, 10])
+        p0 = [
+            1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
+            800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
+        ]
+    if name == "cygNW":
+        bounds = ([1e-4, 0, 0, 0, 0, 0, 0, 0, 0], [0.5, 1000, 2, 3, 5000, 5, 10, 100, 10])
+        p0 = [
+            4.46622459e-03, 5.04718012e+01, 1.24715942e-01, 3.19010619e-12,
+            2.96843906e+02, 3.09192033e+00, 5.18557652e-01, 8.49890608e+00,
+            7.61689001e+00
+        ]
 
-    print c.avg["r"]
-    popt, pcov = scipy.optimize.curve_fit(
-        profiles.vikhlinin_double_betamodel, c.avg["r"], c.avg["n"],
-        bounds=bounds, p0=p0, sigma=c.avg["fn"],
-    )
-    c.popt, c.pcov = popt, pcov
+    debug = True
+    if debug:
+        print r
+        print n
+        print fn
+        fig, ax = pyplot.subplots(1, 1, figsize=(12, 9))
+        if fn is not None: pyplot.errorbar(r, n, yerr=fn, linestyle="None", c="g")
+        ax.plot(r, n, "go")
+        ax.plot(r, profiles.vikhlinin_double_betamodel(r, *p0), label="p0")
+        ax.plot(r, profiles.vikhlinin_double_betamodel(r, *bounds[0]), label="bounds[0]")
+        ax.plot(r, profiles.vikhlinin_double_betamodel(r, *bounds[1]), label="bounds[1]")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+
+    popt, pcov = scipy.optimize.curve_fit( profiles.vikhlinin_double_betamodel,
+        r, n, sigma=fn, bounds=bounds, p0=p0 )
+
+    if debug:
+        ax.plot(r, profiles.vikhlinin_double_betamodel(r, *popt), label="popt")
+        ax.legend()
+        sjenk = raw_input("Press Sjenk to Sjenk")
 
     if verbose:
         print 'Parameters:'
@@ -369,57 +379,74 @@ def wise2018_density(c, verbose=True):
         print 'r_core2 = ', popt[7], numpy.sqrt(pcov[7,7])
         print 'beta2 = ', popt[8], numpy.sqrt(pcov[8,8])
 
-
         print popt
         i = ([0,1,2,3,4,5,6,7,8])
         print numpy.sqrt(pcov[i,i])
 
+    return popt, pcov
 
-def wise2018_temperature(c, verbose=True):
+
+def wise2018_temperature(name, r, kT, fkT=None, verbose=True):
     # wise2018 uses (cygA ->) observation[0:-6]; (cygNW ->) observation[0:-1]
-    if c.data == "1Msec":
-        print "wise2018_temperature_and_density not implemented for 1Msec"
-        if c.name == "cygA":
-            sys.exit(1)
-        if c.name == "cygNW":
-            sys.exit(1)
-    else:
-        if c.name == "cygA":
-            # TODO
-            # bounds = ([0, 0, 0, 0, 0, 0, 0, 0, 0], [10, 1000, 2, 3, 5000, 5, 10, 100, 10])
-            # p0 = [
-            #     1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
-            #     800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
-            # ]
-        if c.name == "cygNW":
-            # TODO
-            # bounds = ([0, 0, 0, 0, 0, 0, 0, 0, 0], [10, 1000, 2, 3, 5000, 5, 10, 100, 10])
-            # p0 = [
-            #     1.26780436e-01, 2.69741411e+01, 5.14297544e-01, 1.45313526e-37,
-            #     800, 3, 6.71851342e-02, 3.30131018e+01, 1.33880955e+00
-            # ]
+    # parameter order: t0, r_trans, a, b, c, t_min, r_cool, a_cool
 
-    print c.avg["r"]
-    popt, pcov = scipy.optimize.curve_fit(
-        profiles.vikhlinin_double_betamodel, c.avg["r"], c.avg["n"],
-        bounds=bounds, p0=p0, sigma=c.avg["fn"],
-    )
-    c.popt, c.pcov = popt, pcov
+    if name == "cygA":
+        bounds = (
+            [0, 0, -5, -5, -5, 0, 0, -5],
+            [20, 1000, 5.0, 5.0, 5.0, 20, 1000, 5]
+        )
+        p0 = [
+            1.23337946e+01, 8.63502540e+02, -2.19707412e-01, 1.99566692e+00,
+            5.00000000e+00, 1.00830698e+01, 1.68334213e+02, 5.00000000e+00
+        ]
+    if name == "cygNW":
+        bounds = (
+            [0, 0, -5, -5, -5, 0, 0, -5],
+            [20, 1000, 5.0, 5.0, 5.0, 20, 1000, 5]
+        )
+        p0 = [
+            1.82340798e+01, 5.03420356e+02, 2.94530295e-01, 3.91813167e+00,
+            5.00000000e+00, 3.62816411e+00, 6.03527184e+02, 5.00000000e+00
+        ]
+
+    debug = True
+    if debug:
+        print r
+        print kT
+        print fkT
+        fig, ax = pyplot.subplots(1, 1, figsize=(12, 9))
+        if fkT is not None: ax.errorbar(r, kT, yerr=fkT, linestyle="None", c="g")
+        ax.plot(r, kT, "go")
+        ax.plot(r, profiles.vikhlinin_temperature_model(r, *p0), label="p0")
+        # ax.plot(r, profiles.vikhlinin_temperature_model(r, *bounds[0]), label="bounds[0]")
+        # ax.plot(r, profiles.vikhlinin_temperature_model(r, *bounds[1]), label="bounds[1]")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+
+    popt, pcov = scipy.optimize.curve_fit( profiles.vikhlinin_temperature_model,
+        r, kT, sigma=fkT, bounds=bounds, p0=p0 )
+
+    if debug:
+        ax.plot(r, profiles.vikhlinin_temperature_model(r, *popt), label="popt")
+        ax.legend()
+        sjenk = raw_input("Press Sjenk to Sjenk")
 
     if verbose:
         print 'Parameters:'
-        print 't0 = ', popt[0], sqrt(pcov[0,0])
-        print 'r_trans = ', popt[1], sqrt(pcov[1,1])
-        print 'a = ', popt[2], sqrt(pcov[2,2])
-        print 'b = ', popt[3], sqrt(pcov[3,3])
-        print 'c = ', popt[4], sqrt(pcov[4,4])
-        print 't_min = ', popt[5], sqrt(pcov[5,5])
-        print 'r_cool = ', popt[6], sqrt(pcov[6,6])
-        print 'a_cool = ', popt[7], sqrt(pcov[7,7])
+        print 't0 = ', popt[0], numpy.sqrt(pcov[0,0])
+        print 'r_trans = ', popt[1], numpy.sqrt(pcov[1,1])
+        print 'a = ', popt[2], numpy.sqrt(pcov[2,2])
+        print 'b = ', popt[3], numpy.sqrt(pcov[3,3])
+        print 'c = ', popt[4], numpy.sqrt(pcov[4,4])
+        print 't_min = ', popt[5], numpy.sqrt(pcov[5,5])
+        print 'r_cool = ', popt[6], numpy.sqrt(pcov[6,6])
+        print 'a_cool = ', popt[7], numpy.sqrt(pcov[7,7])
 
         print popt
         i = ([0,1,2,3,4,5,6,7])
-        print sqrt(pcov[i,i])
+        print numpy.sqrt(pcov[i,i])
+
+    return popt, pcov
 
 
 if __name__ == "__main__":
